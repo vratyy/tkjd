@@ -5,20 +5,22 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, Calendar, ChevronDown, ChevronUp } from "lucide-react";
-import { format, getWeek, getYear, startOfWeek, endOfWeek, addDays } from "date-fns";
+import { Loader2, Send, Calendar, ChevronDown, ChevronUp, FileSpreadsheet } from "lucide-react";
+import { format, getWeek, getYear } from "date-fns";
 import { sk } from "date-fns/locale";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { exportWeeklyRecordsToExcel } from "@/lib/excelExport";
 
 interface PerformanceRecord {
   id: string;
   date: string;
   time_from: string;
   time_to: string;
+  break_minutes: number;
   total_hours: number;
   status: string;
   note: string | null;
@@ -42,14 +44,24 @@ export default function WeeklyClosings() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [openWeeks, setOpenWeeks] = useState<Set<string>>(new Set());
+  const [userProfile, setUserProfile] = useState<{ full_name: string } | null>(null);
 
   const fetchData = async () => {
     if (!user) return;
 
+    // Fetch user profile
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    setUserProfile(profile);
+
     // Fetch all records for the user
     const { data: records, error: recordsError } = await supabase
       .from("performance_records")
-      .select("id, date, time_from, time_to, total_hours, status, note, projects(name)")
+      .select("id, date, time_from, time_to, break_minutes, total_hours, status, note, projects(name)")
       .eq("user_id", user.id)
       .order("date", { ascending: false });
 
@@ -189,6 +201,32 @@ export default function WeeklyClosings() {
     return hasEditableRecords && group.closingStatus !== "locked";
   };
 
+  const handleExport = (group: WeekGroup) => {
+    // Get unique project name(s) for this week
+    const projectNames = [...new Set(group.records.map((r) => r.projects?.name).filter(Boolean))];
+    const projectName = projectNames.join(", ") || "Neznámy projekt";
+
+    exportWeeklyRecordsToExcel({
+      records: group.records.map((r) => ({
+        date: r.date,
+        time_from: r.time_from,
+        time_to: r.time_to,
+        break_minutes: r.break_minutes || 0,
+        total_hours: r.total_hours,
+        note: r.note,
+      })),
+      projectName,
+      workerName: userProfile?.full_name || "Neznámy používateľ",
+      calendarWeek: group.week,
+      year: group.year,
+    });
+
+    toast({
+      title: "Export úspešný",
+      description: `Leistungsnachweis pre KW ${group.week}/${group.year} bol stiahnutý.`,
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -241,8 +279,16 @@ export default function WeeklyClosings() {
                           </CardDescription>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         <StatusBadge status={group.closingStatus as any} />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleExport(group)}
+                        >
+                          <FileSpreadsheet className="h-4 w-4 sm:mr-2" />
+                          <span className="hidden sm:inline">Export Excel</span>
+                        </Button>
                         {canSubmit(group) && (
                           <Button
                             size="sm"
@@ -253,8 +299,8 @@ export default function WeeklyClosings() {
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                               <>
-                                <Send className="h-4 w-4 mr-2" />
-                                Odoslať týždeň
+                                <Send className="h-4 w-4 sm:mr-2" />
+                                <span className="hidden sm:inline">Odoslať týždeň</span>
                               </>
                             )}
                           </Button>

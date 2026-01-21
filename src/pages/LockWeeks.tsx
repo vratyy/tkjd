@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Lock, User, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Lock, User, ChevronDown, ChevronUp, FileSpreadsheet } from "lucide-react";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Navigate } from "react-router-dom";
+import { exportWeeklyRecordsToExcel } from "@/lib/excelExport";
 
 interface Profile {
   full_name: string;
@@ -22,6 +23,7 @@ interface PerformanceRecord {
   date: string;
   time_from: string;
   time_to: string;
+  break_minutes: number;
   total_hours: number;
   status: string;
   note: string | null;
@@ -82,7 +84,7 @@ export default function LockWeeks() {
       
       const { data: records } = await supabase
         .from("performance_records")
-        .select("id, date, time_from, time_to, total_hours, status, note, projects(name)")
+        .select("id, date, time_from, time_to, break_minutes, total_hours, status, note, projects(name)")
         .eq("user_id", closing.user_id)
         .eq("status", "approved");
 
@@ -150,6 +152,31 @@ export default function LockWeeks() {
     }
 
     setProcessing(null);
+  };
+
+  const handleExport = (week: ApprovedWeek) => {
+    const projectNames = [...new Set(week.records.map((r) => r.projects?.name).filter(Boolean))];
+    const projectName = projectNames.join(", ") || "Neznámy projekt";
+
+    exportWeeklyRecordsToExcel({
+      records: week.records.map((r) => ({
+        date: r.date,
+        time_from: r.time_from,
+        time_to: r.time_to,
+        break_minutes: r.break_minutes || 0,
+        total_hours: r.total_hours,
+        note: r.note,
+      })),
+      projectName,
+      workerName: week.closing.profiles?.full_name || "Neznámy používateľ",
+      calendarWeek: week.closing.calendar_week,
+      year: week.closing.year,
+    });
+
+    toast({
+      title: "Export úspešný",
+      description: `Leistungsnachweis bol stiahnutý.`,
+    });
   };
 
   const toggleItem = (id: string) => {
@@ -237,6 +264,14 @@ export default function LockWeeks() {
                         <StatusBadge status="approved" />
                         <Button
                           size="sm"
+                          variant="outline"
+                          onClick={() => handleExport(week)}
+                        >
+                          <FileSpreadsheet className="h-4 w-4 sm:mr-1" />
+                          <span className="hidden sm:inline">Export</span>
+                        </Button>
+                        <Button
+                          size="sm"
                           variant="secondary"
                           onClick={() => handleLock(week)}
                           disabled={processing === week.closing.id}
@@ -245,8 +280,8 @@ export default function LockWeeks() {
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
                             <>
-                              <Lock className="h-4 w-4 mr-1" />
-                              Uzamknúť
+                              <Lock className="h-4 w-4 sm:mr-1" />
+                              <span className="hidden sm:inline">Uzamknúť</span>
                             </>
                           )}
                         </Button>
