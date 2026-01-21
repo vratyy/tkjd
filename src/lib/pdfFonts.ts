@@ -1,105 +1,82 @@
 import jsPDF from "jspdf";
-import interRegularUrl from "@/assets/fonts/Inter-Regular.ttf?url";
-import interBoldUrl from "@/assets/fonts/Inter-Bold.ttf?url";
 
 /**
- * PDF Font Manager (robust)
- * - Uses local TTF assets (latin-ext) to avoid CDN/WOFF parsing issues.
- * - Registers fonts with Identity-H to ensure Unicode widths are initialized.
- * - Provides safe fallback to Helvetica.
+ * PDF Font Manager - Robust Fallback Strategy
+ * 
+ * Uses Helvetica as primary font with ASCII-safe text conversion for Slovak diacritics.
+ * This approach eliminates the Unicode.widths crash entirely.
  */
 
-let loaded = false;
-let base64Regular: string | null = null;
-let base64Bold: string | null = null;
+// Slovak diacritics to ASCII mapping
+const DIACRITICS_MAP: Record<string, string> = {
+  "á": "a", "ä": "a", "č": "c", "ď": "d", "é": "e", "í": "i", "ĺ": "l", "ľ": "l",
+  "ň": "n", "ó": "o", "ô": "o", "ŕ": "r", "š": "s", "ť": "t", "ú": "u", "ý": "y", "ž": "z",
+  "Á": "A", "Ä": "A", "Č": "C", "Ď": "D", "É": "E", "Í": "I", "Ĺ": "L", "Ľ": "L",
+  "Ň": "N", "Ó": "O", "Ô": "O", "Ŕ": "R", "Š": "S", "Ť": "T", "Ú": "U", "Ý": "Y", "Ž": "Z",
+  // German
+  "ß": "ss", "ü": "u", "ö": "o", "Ü": "U", "Ö": "O",
+  // Common symbols
+  "€": "EUR", "–": "-", "—": "-",
+};
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-  return btoa(binary);
-}
-
-async function fetchTtfBase64(url: string): Promise<string> {
-  const res = await fetch(url, { cache: "force-cache" });
-  if (!res.ok) throw new Error(`Font fetch failed: ${res.status}`);
-  const buf = await res.arrayBuffer();
-  return arrayBufferToBase64(buf);
-}
-
-export async function initializePdfFonts(): Promise<boolean> {
-  if (loaded) return Boolean(base64Regular && base64Bold);
-  loaded = true;
-
-  try {
-    const [reg, bold] = await Promise.all([
-      fetchTtfBase64(interRegularUrl),
-      fetchTtfBase64(interBoldUrl),
-    ]);
-    base64Regular = reg;
-    base64Bold = bold;
-    return true;
-  } catch (e) {
-    console.warn("[PDF] Unicode font load failed, using Helvetica.", e);
-    base64Regular = null;
-    base64Bold = null;
-    return false;
+/**
+ * Convert text to ASCII-safe version for Helvetica rendering
+ */
+export function safeText(text: string | null | undefined): string {
+  if (!text) return "";
+  
+  let result = "";
+  for (const char of text) {
+    result += DIACRITICS_MAP[char] || char;
   }
+  
+  // Remove any remaining non-ASCII characters that could crash the PDF
+  return result.replace(/[^\x00-\x7F]/g, "");
 }
 
 /**
- * Register fonts BEFORE any doc.text() / autoTable() calls.
- * Returns true if Unicode font is active.
+ * Initialize PDF fonts - no-op in this robust implementation
+ */
+export async function initializePdfFonts(): Promise<boolean> {
+  // Using Helvetica - no initialization needed
+  return true;
+}
+
+/**
+ * Register fonts and set up the document
+ * Returns true (always uses Helvetica which is built-in)
  */
 export function registerPdfFonts(doc: jsPDF): boolean {
   try {
-    if (!base64Regular || !base64Bold) {
-      doc.setFont("helvetica", "normal");
-      return false;
-    }
-
-    doc.addFileToVFS("Inter-Regular.ttf", base64Regular);
-    doc.addFileToVFS("Inter-Bold.ttf", base64Bold);
-    // IMPORTANT: Identity-H ensures Unicode metadata is initialized
-    doc.addFont("Inter-Regular.ttf", "Inter", "normal", "Identity-H");
-    doc.addFont("Inter-Bold.ttf", "Inter", "bold", "Identity-H");
-    doc.setFont("Inter", "normal");
-
-    // Validate immediately (this is where the Unicode.widths crash used to happen)
-    doc.getTextWidth("ľščťžáéíú Žalobín");
-
+    doc.setFont("helvetica", "normal");
     return true;
   } catch (e) {
-    console.warn("[PDF] Unicode font registration/validation failed, using Helvetica.", e);
-    try {
-      doc.setFont("helvetica", "normal");
-    } catch {
-      // ignore
-    }
+    console.warn("[PDF] Font setup failed:", e);
     return false;
   }
 }
 
+/**
+ * Set font style (bold/normal)
+ */
 export function setFontStyle(doc: jsPDF, style: "normal" | "bold"): void {
   try {
-    if (base64Regular && base64Bold) {
-      doc.setFont("Inter", style);
-    } else {
-      doc.setFont("helvetica", style === "bold" ? "bold" : "normal");
-    }
+    doc.setFont("helvetica", style);
   } catch {
-    try {
-      doc.setFont("helvetica", "normal");
-    } catch {
-      // ignore
-    }
+    // Ignore font errors
   }
 }
 
+/**
+ * Get the font family name for autoTable
+ */
 export function getPdfFontFamily(): string {
-  return base64Regular && base64Bold ? "Inter" : "helvetica";
+  return "helvetica";
 }
 
+/**
+ * Check if custom Unicode font is available (always false in this implementation)
+ */
 export function hasCustomFont(): boolean {
-  return Boolean(base64Regular && base64Bold);
+  return false;
 }
