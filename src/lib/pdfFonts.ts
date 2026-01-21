@@ -1,126 +1,110 @@
 import jsPDF from "jspdf";
 
-// Font loading state
-let fontLoadAttempted = false;
-let fontLoadSuccess = false;
+/**
+ * PDF Font Manager
+ * Handles font loading with graceful fallback to Helvetica
+ */
+
+let fontLoaded = false;
+let fontBase64: string | null = null;
 
 /**
- * Attempts to load custom fonts for PDF generation.
- * Falls back to Helvetica if fonts fail to load.
+ * Initialize PDF fonts - attempts to load a Unicode-compatible font
+ * Falls back to Helvetica if loading fails
  */
 export async function initializePdfFonts(): Promise<boolean> {
-  if (fontLoadAttempted) {
-    return fontLoadSuccess;
+  if (fontLoaded && fontBase64) {
+    return true;
   }
 
-  fontLoadAttempted = true;
-
   try {
-    // Try to fetch Roboto from a CDN that serves actual TTF files
-    const ttfUrl = "https://cdn.jsdelivr.net/fontsource/fonts/roboto@latest/latin-ext-400-normal.ttf";
+    // Use Noto Sans which has excellent Unicode support including Slovak
+    const fontUrl = "https://cdn.jsdelivr.net/npm/@fontsource/noto-sans@5.0.0/files/noto-sans-latin-ext-400-normal.woff";
     
-    const response = await fetch(ttfUrl, { 
-      mode: 'cors',
-      cache: 'force-cache' 
+    const response = await fetch(fontUrl, { 
+      cache: 'force-cache',
+      mode: 'cors'
     });
     
     if (!response.ok) {
-      throw new Error(`Font fetch failed: ${response.status}`);
+      console.warn("Font fetch failed, using Helvetica fallback");
+      return false;
     }
 
     const arrayBuffer = await response.arrayBuffer();
-    const base64 = arrayBufferToBase64(arrayBuffer);
     
-    // Validate base64 string
-    if (!base64 || base64.length < 1000) {
-      throw new Error("Font data appears invalid");
+    // Convert to base64
+    const bytes = new Uint8Array(arrayBuffer);
+    let binary = "";
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    fontBase64 = btoa(binary);
+    
+    if (fontBase64.length < 500) {
+      console.warn("Font data too small, using Helvetica fallback");
+      fontBase64 = null;
+      return false;
     }
 
-    // Store for later use
-    (window as any).__pdfFontBase64 = base64;
-    fontLoadSuccess = true;
-    
-    console.log("PDF fonts loaded successfully");
+    fontLoaded = true;
     return true;
   } catch (error) {
-    console.warn("Custom PDF fonts unavailable, using Helvetica fallback:", error);
-    fontLoadSuccess = false;
+    console.warn("Font loading failed, using Helvetica fallback:", error);
+    fontBase64 = null;
     return false;
   }
 }
 
 /**
- * Convert ArrayBuffer to Base64 string
- */
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
-/**
- * Register fonts with a jsPDF document instance.
- * Must be called before any text is written.
+ * Register custom font with jsPDF document
+ * Must be called after creating the doc and before writing any text
  */
 export function registerPdfFonts(doc: jsPDF): boolean {
-  const fontBase64 = (window as any).__pdfFontBase64;
-
   if (!fontBase64) {
-    // No custom font available, use default Helvetica
+    // Use default Helvetica
+    doc.setFont("helvetica", "normal");
     return false;
   }
 
   try {
-    // Add font to virtual file system
-    doc.addFileToVFS("CustomFont.ttf", fontBase64);
-    
-    // Register the font with jsPDF
-    doc.addFont("CustomFont.ttf", "CustomFont", "normal");
-    
-    // Set as the active font
-    doc.setFont("CustomFont", "normal");
-    
+    doc.addFileToVFS("NotoSans.ttf", fontBase64);
+    doc.addFont("NotoSans.ttf", "NotoSans", "normal");
+    doc.setFont("NotoSans", "normal");
     return true;
   } catch (error) {
-    console.warn("Failed to register custom font, using Helvetica:", error);
-    // Ensure we fall back to a working font
+    console.warn("Font registration failed:", error);
     doc.setFont("helvetica", "normal");
     return false;
   }
 }
 
 /**
- * Safely set font style with fallback to Helvetica.
- * Use this throughout the PDF generation instead of doc.setFont directly.
+ * Safely set font style - handles both custom font and Helvetica fallback
  */
 export function setFontStyle(doc: jsPDF, style: "normal" | "bold"): void {
   try {
-    const hasCustomFont = (window as any).__pdfFontBase64;
-    
-    if (hasCustomFont) {
-      // For custom font, we only have normal weight (bold simulation not available)
-      doc.setFont("CustomFont", "normal");
+    if (fontBase64) {
+      // Custom font doesn't have bold variant, simulate with normal
+      doc.setFont("NotoSans", "normal");
     } else {
-      // Use Helvetica with proper weight
       doc.setFont("helvetica", style === "bold" ? "bold" : "normal");
     }
-  } catch (error) {
-    // Ultimate fallback
-    try {
-      doc.setFont("helvetica", "normal");
-    } catch {
-      // Font system completely broken, nothing we can do
-    }
+  } catch {
+    doc.setFont("helvetica", "normal");
   }
 }
 
 /**
- * Get the font family name to use in autoTable config
+ * Get font family for autoTable configuration
  */
 export function getPdfFontFamily(): string {
-  const hasCustomFont = (window as any).__pdfFontBase64;
-  return hasCustomFont ? "CustomFont" : "helvetica";
+  return fontBase64 ? "NotoSans" : "helvetica";
+}
+
+/**
+ * Check if custom font is available
+ */
+export function hasCustomFont(): boolean {
+  return fontLoaded && fontBase64 !== null;
 }
