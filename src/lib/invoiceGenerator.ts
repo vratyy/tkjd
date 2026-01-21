@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import QRCode from "qrcode";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 
 interface InvoiceData {
   // Supplier (Subcontractor - User)
@@ -30,12 +30,13 @@ interface InvoiceData {
   odberatelId?: string;
 }
 
-// TKJD s.r.o. company details (hardcoded - Odberateľ)
+// TKJD s.r.o. company details (Odberateľ)
 const CUSTOMER = {
   name: "TKJD s.r.o.",
   address: "Hlavná 123\n811 01 Bratislava\nSlovenská republika",
   ico: "12345678",
-  dic: "SK1234567890",
+  dic: "2012345678",
+  icDph: "SK2012345678",
 };
 
 const VAT_RATE = 0.20; // 20% VAT
@@ -45,10 +46,9 @@ function generateInvoiceNumber(odberatelId?: string): string {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   
-  // Last 3 digits of ID or random if not provided
   let suffix: string;
   if (odberatelId && odberatelId.length >= 3) {
-    suffix = odberatelId.slice(-3).toUpperCase();
+    suffix = odberatelId.replace(/-/g, "").slice(-3).toUpperCase();
   } else {
     suffix = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
   }
@@ -56,7 +56,6 @@ function generateInvoiceNumber(odberatelId?: string): string {
   return `${year}${month}${suffix}`;
 }
 
-// Generate SEPA QR code data (PAY by square format)
 function generatePaymentQRData(
   iban: string,
   amount: number,
@@ -89,248 +88,267 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   const doc = new jsPDF();
   const invoiceNumber = generateInvoiceNumber(data.odberatelId);
   
-  // Calculate amounts based on VAT status
+  // Calculate amounts
   const baseAmount = data.totalHours * data.hourlyRate;
   let vatAmount = 0;
+  let vatPercent = 0;
   let totalAmount = baseAmount;
   
   if (data.isVatPayer && !data.isReverseCharge) {
+    vatPercent = 20;
     vatAmount = baseAmount * VAT_RATE;
     totalAmount = baseAmount + vatAmount;
   }
   
   const issueDate = new Date();
-  const dueDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+  const deliveryDate = issueDate; // Same as issue date for services
+  const dueDate = addDays(issueDate, 14);
 
   const pageWidth = doc.internal.pageSize.getWidth();
-  const leftMargin = 20;
-  const rightColStart = pageWidth / 2 + 10;
+  const leftMargin = 15;
+  const rightColStart = pageWidth / 2 + 5;
+  const rightMargin = pageWidth - 15;
 
-  // ============ HEADER ============
-  doc.setFontSize(22);
+  // ============ INVOICE TITLE ============
+  doc.setFontSize(24);
   doc.setFont("helvetica", "bold");
-  doc.text("FAKTÚRA", leftMargin, 25);
-  
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(100);
-  doc.text("INVOICE", leftMargin, 31);
-  doc.setTextColor(0);
+  doc.text("FAKTÚRA", leftMargin, 22);
 
-  // Invoice number box (top right)
+  // Invoice number - prominent
   doc.setFontSize(11);
+  doc.setFont("helvetica", "normal");
+  doc.text("č.:", leftMargin + 52, 22);
   doc.setFont("helvetica", "bold");
-  doc.text(`Číslo faktúry:`, rightColStart, 20);
   doc.setFontSize(14);
-  doc.text(invoiceNumber, rightColStart, 27);
+  doc.text(invoiceNumber, leftMargin + 60, 22);
 
-  // Dates (top right, below invoice number)
+  // Separator
+  doc.setDrawColor(50, 50, 50);
+  doc.setLineWidth(0.5);
+  doc.line(leftMargin, 28, rightMargin, 28);
+
+  // ============ INVOICE META (dates) - Right aligned ============
+  const metaY = 38;
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
-  doc.text(`Dátum vystavenia:`, rightColStart, 38);
+  
+  const labelX = rightColStart + 20;
+  const valueX = rightMargin;
+
+  doc.text("Dátum vystavenia:", labelX, metaY);
   doc.setFont("helvetica", "bold");
-  doc.text(format(issueDate, "dd.MM.yyyy"), rightColStart + 38, 38);
+  doc.text(format(issueDate, "dd.MM.yyyy"), valueX, metaY, { align: "right" });
 
   doc.setFont("helvetica", "normal");
-  doc.text(`Dátum splatnosti:`, rightColStart, 44);
+  doc.text("Dátum dodania:", labelX, metaY + 6);
   doc.setFont("helvetica", "bold");
-  doc.text(format(dueDate, "dd.MM.yyyy"), rightColStart + 38, 44);
+  doc.text(format(deliveryDate, "dd.MM.yyyy"), valueX, metaY + 6, { align: "right" });
 
-  // Separator line under header
-  doc.setDrawColor(200);
-  doc.setLineWidth(0.3);
-  doc.line(leftMargin, 52, pageWidth - leftMargin, 52);
+  doc.setFont("helvetica", "normal");
+  doc.text("Dátum splatnosti:", labelX, metaY + 12);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(180, 0, 0);
+  doc.text(format(dueDate, "dd.MM.yyyy"), valueX, metaY + 12, { align: "right" });
+  doc.setTextColor(0);
 
   // ============ COMPANY INFO SECTION ============
-  const companyY = 62;
+  const companyY = 60;
 
-  // Left column: DODÁVATEĽ (Supplier - the user/subcontractor)
-  doc.setFontSize(9);
+  // Left column: DODÁVATEĽ
+  doc.setFillColor(248, 248, 248);
+  doc.rect(leftMargin, companyY - 5, 85, 55, "F");
+  
+  doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(100);
-  doc.text("DODÁVATEĽ", leftMargin, companyY);
+  doc.text("DODÁVATEĽ", leftMargin + 3, companyY);
   doc.setTextColor(0);
 
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  doc.text(data.supplierName, leftMargin, companyY + 8);
+  doc.text(data.supplierName, leftMargin + 3, companyY + 8);
 
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
-  let supplierY = companyY + 15;
+  let supplierY = companyY + 14;
 
   if (data.supplierCompany) {
-    doc.text(data.supplierCompany, leftMargin, supplierY);
-    supplierY += 5;
+    doc.text(data.supplierCompany, leftMargin + 3, supplierY);
+    supplierY += 4;
   }
 
   if (data.supplierAddress) {
     const addressLines = data.supplierAddress.split("\n");
     addressLines.forEach((line) => {
-      doc.text(line.trim(), leftMargin, supplierY);
-      supplierY += 5;
+      doc.text(line.trim(), leftMargin + 3, supplierY);
+      supplierY += 4;
     });
   }
 
-  supplierY += 3;
+  supplierY += 2;
   if (data.supplierIco) {
-    doc.text(`IČO: ${data.supplierIco}`, leftMargin, supplierY);
-    supplierY += 5;
+    doc.text(`IČO: ${data.supplierIco}`, leftMargin + 3, supplierY);
+    supplierY += 4;
   }
   if (data.supplierDic) {
-    doc.text(`DIČ: ${data.supplierDic}`, leftMargin, supplierY);
-    supplierY += 5;
+    doc.text(`DIČ: ${data.supplierDic}`, leftMargin + 3, supplierY);
+    supplierY += 4;
   }
   if (data.isVatPayer && data.vatNumber) {
-    doc.text(`IČ DPH: ${data.vatNumber}`, leftMargin, supplierY);
-    supplierY += 5;
+    doc.text(`IČ DPH: ${data.vatNumber}`, leftMargin + 3, supplierY);
+    supplierY += 4;
   }
 
-  // Right column: ODBERATEĽ (Customer - TKJD s.r.o.)
-  doc.setFontSize(9);
+  // Bank details in supplier box
+  supplierY += 2;
+  if (data.supplierIban) {
+    doc.setFont("helvetica", "bold");
+    doc.text(`IBAN: ${data.supplierIban}`, leftMargin + 3, supplierY);
+    supplierY += 4;
+  }
+  if (data.supplierSwiftBic) {
+    doc.setFont("helvetica", "normal");
+    doc.text(`SWIFT: ${data.supplierSwiftBic}`, leftMargin + 3, supplierY);
+  }
+
+  // Right column: ODBERATEĽ
+  doc.setFillColor(248, 248, 248);
+  doc.rect(rightColStart, companyY - 5, 85, 55, "F");
+
+  doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(100);
-  doc.text("ODBERATEĽ", rightColStart, companyY);
+  doc.text("ODBERATEĽ", rightColStart + 3, companyY);
   doc.setTextColor(0);
 
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  doc.text(CUSTOMER.name, rightColStart, companyY + 8);
+  doc.text(CUSTOMER.name, rightColStart + 3, companyY + 8);
 
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
-  let customerY = companyY + 15;
+  let customerY = companyY + 14;
 
   const customerAddressLines = CUSTOMER.address.split("\n");
   customerAddressLines.forEach((line) => {
-    doc.text(line.trim(), rightColStart, customerY);
-    customerY += 5;
+    doc.text(line.trim(), rightColStart + 3, customerY);
+    customerY += 4;
   });
 
-  customerY += 3;
-  doc.text(`IČO: ${CUSTOMER.ico}`, rightColStart, customerY);
-  customerY += 5;
-  doc.text(`DIČ: ${CUSTOMER.dic}`, rightColStart, customerY);
+  customerY += 2;
+  doc.text(`IČO: ${CUSTOMER.ico}`, rightColStart + 3, customerY);
+  customerY += 4;
+  doc.text(`DIČ: ${CUSTOMER.dic}`, rightColStart + 3, customerY);
+  customerY += 4;
+  doc.text(`IČ DPH: ${CUSTOMER.icDph}`, rightColStart + 3, customerY);
 
   // ============ INVOICE TABLE ============
-  const tableStartY = 115;
+  const tableStartY = 120;
 
-  // Build table body based on VAT status
-  const tableBody: string[][] = [
+  const tableBody: (string | number)[][] = [
     [
-      `${data.projectName}\nKW ${data.calendarWeek}/${data.year}`,
-      `${data.totalHours.toFixed(2)} h`,
-      `${data.hourlyRate.toFixed(2)} €`,
-      `${baseAmount.toFixed(2)} €`,
+      `${data.projectName} – KW ${data.calendarWeek}/${data.year}`,
+      data.totalHours.toFixed(2),
+      data.hourlyRate.toFixed(2),
+      data.isReverseCharge ? "0% (RC)" : (data.isVatPayer ? "20%" : "—"),
+      baseAmount.toFixed(2),
     ],
   ];
-
-  // Add VAT row if applicable
-  if (data.isVatPayer && !data.isReverseCharge) {
-    tableBody.push([
-      "DPH 20%",
-      "",
-      "",
-      `${vatAmount.toFixed(2)} €`,
-    ]);
-  }
 
   autoTable(doc, {
     startY: tableStartY,
     head: [[
-      "Popis služby",
-      "Počet hodín",
-      "Hodinová sadzba",
-      "Celkom bez DPH"
+      { content: "Popis", styles: { halign: "left" } },
+      { content: "Rozsah (hod)", styles: { halign: "center" } },
+      { content: "Sadzba (€/h)", styles: { halign: "right" } },
+      { content: "DPH (%)", styles: { halign: "center" } },
+      { content: "Celkom (€)", styles: { halign: "right" } },
     ]],
     body: tableBody,
     styles: {
-      fontSize: 10,
-      cellPadding: 6,
-      lineColor: [180, 180, 180],
-      lineWidth: 0.2,
+      fontSize: 9,
+      cellPadding: 5,
+      lineColor: [200, 200, 200],
+      lineWidth: 0.1,
     },
     headStyles: {
-      fillColor: [245, 245, 245],
-      textColor: [50, 50, 50],
+      fillColor: [60, 60, 60],
+      textColor: [255, 255, 255],
       fontStyle: "bold",
-      halign: "left",
+      fontSize: 9,
     },
     bodyStyles: {
       textColor: [30, 30, 30],
     },
     columnStyles: {
       0: { cellWidth: 75, halign: "left" },
-      1: { cellWidth: 30, halign: "center" },
-      2: { cellWidth: 35, halign: "right" },
-      3: { cellWidth: 40, halign: "right" },
+      1: { cellWidth: 28, halign: "center" },
+      2: { cellWidth: 28, halign: "right" },
+      3: { cellWidth: 25, halign: "center" },
+      4: { cellWidth: 28, halign: "right" },
     },
-    margin: { left: leftMargin, right: leftMargin },
+    margin: { left: leftMargin, right: 15 },
+    tableWidth: "auto",
   });
 
-  const afterTableY = (doc as any).lastAutoTable.finalY || 145;
+  const afterTableY = (doc as any).lastAutoTable.finalY || 150;
 
-  // Total row (separate for emphasis)
+  // ============ SUMMARY BLOCK (bottom right) ============
+  const summaryX = rightColStart + 15;
+  const summaryWidth = 70;
+  let summaryY = afterTableY + 10;
+
+  // Summary box
+  doc.setFillColor(250, 250, 250);
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.2);
+  doc.rect(summaryX, summaryY - 3, summaryWidth, data.isVatPayer && !data.isReverseCharge ? 35 : 25, "FD");
+
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+
+  // Základ dane
+  doc.text("Základ dane:", summaryX + 3, summaryY + 4);
+  doc.text(`${baseAmount.toFixed(2)} €`, summaryX + summaryWidth - 3, summaryY + 4, { align: "right" });
+
+  // DPH line
+  if (data.isVatPayer && !data.isReverseCharge) {
+    summaryY += 8;
+    doc.text(`DPH ${vatPercent}%:`, summaryX + 3, summaryY + 4);
+    doc.text(`${vatAmount.toFixed(2)} €`, summaryX + summaryWidth - 3, summaryY + 4, { align: "right" });
+  }
+
+  // Total
+  summaryY += 10;
   doc.setFillColor(50, 50, 50);
-  doc.rect(leftMargin, afterTableY, pageWidth - leftMargin * 2, 12, "F");
+  doc.rect(summaryX, summaryY, summaryWidth, 12, "F");
   doc.setTextColor(255);
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
-  doc.text("CELKOM K ÚHRADE:", leftMargin + 5, afterTableY + 8);
-  doc.setFontSize(14);
-  doc.text(`${totalAmount.toFixed(2)} €`, pageWidth - leftMargin - 5, afterTableY + 8, { align: "right" });
+  doc.text("Suma na úhradu:", summaryX + 3, summaryY + 8);
+  doc.setFontSize(12);
+  doc.text(`${totalAmount.toFixed(2)} €`, summaryX + summaryWidth - 3, summaryY + 8, { align: "right" });
   doc.setTextColor(0);
 
-  // VAT status notice
-  let noticeY = afterTableY + 18;
+  // VAT status notice (left side, below table)
+  let noticeY = afterTableY + 12;
   doc.setFontSize(8);
   doc.setFont("helvetica", "italic");
   doc.setTextColor(80);
 
   if (data.isReverseCharge) {
     doc.text(
-      "Faktúra je v režime prenesenej daňovej povinnosti podľa § 69 zákona o DPH.",
+      "Prenesená daňová povinnosť podľa § 69 ods. 12 zákona č. 222/2004 Z.z. o DPH.",
       leftMargin,
       noticeY
     );
-    noticeY += 5;
   } else if (!data.isVatPayer) {
     doc.text("Dodávateľ nie je platcom DPH.", leftMargin, noticeY);
-    noticeY += 5;
   }
   doc.setTextColor(0);
-
-  // ============ PAYMENT INFO SECTION ============
-  const paymentY = noticeY + 8;
-
-  doc.setFillColor(248, 248, 248);
-  doc.rect(leftMargin, paymentY, pageWidth - leftMargin * 2, 28, "F");
-
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(100);
-  doc.text("PLATOBNÉ ÚDAJE", leftMargin + 5, paymentY + 7);
-  doc.setTextColor(0);
-
-  if (data.supplierIban) {
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.text("IBAN:", leftMargin + 5, paymentY + 16);
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text(data.supplierIban, leftMargin + 25, paymentY + 16);
-  }
-
-  if (data.supplierSwiftBic) {
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text("SWIFT/BIC:", leftMargin + 5, paymentY + 23);
-    doc.setFont("helvetica", "bold");
-    doc.text(data.supplierSwiftBic, leftMargin + 35, paymentY + 23);
-  }
 
   // ============ FOOTER SECTION ============
-  const footerY = paymentY + 40;
+  const footerY = summaryY + 30;
 
   // QR Code (bottom left)
   if (data.supplierIban) {
@@ -342,21 +360,19 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
         data.supplierName
       );
       const qrCodeDataUrl = await QRCode.toDataURL(qrData, {
-        width: 120,
+        width: 150,
         margin: 1,
-        color: {
-          dark: "#000000",
-          light: "#FFFFFF",
-        },
+        color: { dark: "#000000", light: "#FFFFFF" },
       });
-      doc.addImage(qrCodeDataUrl, "PNG", leftMargin, footerY, 40, 40);
+      doc.addImage(qrCodeDataUrl, "PNG", leftMargin, footerY, 38, 38);
       
       doc.setFontSize(8);
       doc.setFont("helvetica", "bold");
-      doc.text("PAY by square", leftMargin, footerY + 45);
+      doc.text("PAY by square", leftMargin, footerY + 43);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(100);
-      doc.text("Naskenujte pre platbu", leftMargin, footerY + 50);
+      doc.setFontSize(7);
+      doc.text("Naskenujte pre platbu", leftMargin, footerY + 47);
       doc.setTextColor(0);
     } catch (error) {
       console.error("Error generating QR code:", error);
@@ -364,45 +380,45 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   }
 
   // Signature section (bottom right)
-  const signatureX = rightColStart;
+  const signatureX = rightColStart + 10;
   
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(100);
   doc.text("Pečiatka a podpis dodávateľa", signatureX, footerY);
   doc.setTextColor(0);
 
-  // Draw signature box
-  doc.setDrawColor(200);
+  // Signature box
+  doc.setDrawColor(180, 180, 180);
   doc.setLineWidth(0.2);
-  doc.rect(signatureX, footerY + 3, 60, 35);
+  doc.rect(signatureX, footerY + 3, 55, 32);
 
   if (data.signatureUrl) {
     try {
       const signatureBase64 = await loadImageAsBase64(data.signatureUrl);
       if (signatureBase64) {
-        doc.addImage(signatureBase64, "PNG", signatureX + 5, footerY + 5, 50, 28);
+        doc.addImage(signatureBase64, "PNG", signatureX + 3, footerY + 5, 49, 26);
       }
     } catch (error) {
       console.error("Error loading signature:", error);
     }
   }
 
-  // Signature line and name below box
-  doc.setDrawColor(150);
-  doc.line(signatureX, footerY + 42, signatureX + 60, footerY + 42);
-  doc.setFontSize(8);
+  // Line under signature
+  doc.setDrawColor(120);
+  doc.line(signatureX, footerY + 38, signatureX + 55, footerY + 38);
+  doc.setFontSize(7);
   doc.setTextColor(80);
-  doc.text(data.supplierName, signatureX, footerY + 48);
+  doc.text(data.supplierName, signatureX, footerY + 43);
   doc.setTextColor(0);
 
-  // ============ DISCLAIMER FOOTER ============
-  doc.setFontSize(7);
+  // ============ LEGAL FOOTER ============
+  doc.setFontSize(6);
   doc.setTextColor(120);
   doc.text(
-    "Faktúra slúži ako podklad pre B2B fakturáciu medzi subdodávateľom a objednávateľom.",
+    "Táto faktúra slúži ako podklad k fakturácii za vykonané dielo v zmysle zmluvy o dielo.",
     pageWidth / 2,
-    282,
+    285,
     { align: "center" }
   );
   doc.setTextColor(0);
