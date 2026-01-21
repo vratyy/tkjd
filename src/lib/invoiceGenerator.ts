@@ -2,6 +2,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import QRCode from "qrcode";
 import { format, addDays } from "date-fns";
+import { loadRobotoFonts, registerRobotoFonts, setFontStyle } from "./pdfFonts";
 
 interface InvoiceData {
   // Supplier (Subcontractor - User)
@@ -85,7 +86,14 @@ async function loadImageAsBase64(url: string): Promise<string | null> {
 }
 
 export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
+  // Load fonts first
+  await loadRobotoFonts();
+  
   const doc = new jsPDF();
+  
+  // Register and set Roboto as default font
+  registerRobotoFonts(doc);
+  
   const invoiceNumber = generateInvoiceNumber(data.odberatelId);
   
   // Calculate amounts
@@ -111,14 +119,14 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
 
   // ============ INVOICE TITLE ============
   doc.setFontSize(24);
-  doc.setFont("helvetica", "bold");
+  setFontStyle(doc, "bold");
   doc.text("FAKTÚRA", leftMargin, 22);
 
   // Invoice number - prominent
   doc.setFontSize(11);
-  doc.setFont("helvetica", "normal");
+  setFontStyle(doc, "normal");
   doc.text("č.:", leftMargin + 52, 22);
-  doc.setFont("helvetica", "bold");
+  setFontStyle(doc, "bold");
   doc.setFontSize(14);
   doc.text(invoiceNumber, leftMargin + 60, 22);
 
@@ -130,23 +138,23 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   // ============ INVOICE META (dates) - Right aligned ============
   const metaY = 38;
   doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
+  setFontStyle(doc, "normal");
   
   const labelX = rightColStart + 20;
   const valueX = rightMargin;
 
   doc.text("Dátum vystavenia:", labelX, metaY);
-  doc.setFont("helvetica", "bold");
+  setFontStyle(doc, "bold");
   doc.text(format(issueDate, "dd.MM.yyyy"), valueX, metaY, { align: "right" });
 
-  doc.setFont("helvetica", "normal");
+  setFontStyle(doc, "normal");
   doc.text("Dátum dodania:", labelX, metaY + 6);
-  doc.setFont("helvetica", "bold");
+  setFontStyle(doc, "bold");
   doc.text(format(deliveryDate, "dd.MM.yyyy"), valueX, metaY + 6, { align: "right" });
 
-  doc.setFont("helvetica", "normal");
+  setFontStyle(doc, "normal");
   doc.text("Dátum splatnosti:", labelX, metaY + 12);
-  doc.setFont("helvetica", "bold");
+  setFontStyle(doc, "bold");
   doc.setTextColor(180, 0, 0);
   doc.text(format(dueDate, "dd.MM.yyyy"), valueX, metaY + 12, { align: "right" });
   doc.setTextColor(0);
@@ -159,17 +167,17 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   doc.rect(leftMargin, companyY - 5, 85, 55, "F");
   
   doc.setFontSize(8);
-  doc.setFont("helvetica", "bold");
+  setFontStyle(doc, "bold");
   doc.setTextColor(100);
   doc.text("DODÁVATEĽ", leftMargin + 3, companyY);
   doc.setTextColor(0);
 
   doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
+  setFontStyle(doc, "bold");
   doc.text(data.supplierName, leftMargin + 3, companyY + 8);
 
   doc.setFontSize(8);
-  doc.setFont("helvetica", "normal");
+  setFontStyle(doc, "normal");
   let supplierY = companyY + 14;
 
   if (data.supplierCompany) {
@@ -202,12 +210,12 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   // Bank details in supplier box
   supplierY += 2;
   if (data.supplierIban) {
-    doc.setFont("helvetica", "bold");
+    setFontStyle(doc, "bold");
     doc.text(`IBAN: ${data.supplierIban}`, leftMargin + 3, supplierY);
     supplierY += 4;
   }
   if (data.supplierSwiftBic) {
-    doc.setFont("helvetica", "normal");
+    setFontStyle(doc, "normal");
     doc.text(`SWIFT: ${data.supplierSwiftBic}`, leftMargin + 3, supplierY);
   }
 
@@ -216,17 +224,17 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   doc.rect(rightColStart, companyY - 5, 85, 55, "F");
 
   doc.setFontSize(8);
-  doc.setFont("helvetica", "bold");
+  setFontStyle(doc, "bold");
   doc.setTextColor(100);
   doc.text("ODBERATEĽ", rightColStart + 3, companyY);
   doc.setTextColor(0);
 
   doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
+  setFontStyle(doc, "bold");
   doc.text(CUSTOMER.name, rightColStart + 3, companyY + 8);
 
   doc.setFontSize(8);
-  doc.setFont("helvetica", "normal");
+  setFontStyle(doc, "normal");
   let customerY = companyY + 14;
 
   const customerAddressLines = CUSTOMER.address.split("\n");
@@ -255,6 +263,10 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
     ],
   ];
 
+  // Check if Roboto font is available
+  const hasRoboto = (window as any).__robotoRegularBase64;
+  const fontFamily = hasRoboto ? "Roboto" : "helvetica";
+
   autoTable(doc, {
     startY: tableStartY,
     head: [[
@@ -270,15 +282,18 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
       cellPadding: 5,
       lineColor: [200, 200, 200],
       lineWidth: 0.1,
+      font: fontFamily,
     },
     headStyles: {
       fillColor: [60, 60, 60],
       textColor: [255, 255, 255],
       fontStyle: "bold",
       fontSize: 9,
+      font: fontFamily,
     },
     bodyStyles: {
       textColor: [30, 30, 30],
+      font: fontFamily,
     },
     columnStyles: {
       0: { cellWidth: 75, halign: "left" },
@@ -305,7 +320,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   doc.rect(summaryX, summaryY - 3, summaryWidth, data.isVatPayer && !data.isReverseCharge ? 35 : 25, "FD");
 
   doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
+  setFontStyle(doc, "normal");
 
   // Základ dane
   doc.text("Základ dane:", summaryX + 3, summaryY + 4);
@@ -324,7 +339,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   doc.rect(summaryX, summaryY, summaryWidth, 12, "F");
   doc.setTextColor(255);
   doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
+  setFontStyle(doc, "bold");
   doc.text("Suma na úhradu:", summaryX + 3, summaryY + 8);
   doc.setFontSize(12);
   doc.text(`${totalAmount.toFixed(2)} €`, summaryX + summaryWidth - 3, summaryY + 8, { align: "right" });
@@ -333,7 +348,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   // VAT status notice (left side, below table)
   let noticeY = afterTableY + 12;
   doc.setFontSize(8);
-  doc.setFont("helvetica", "italic");
+  setFontStyle(doc, "normal");
   doc.setTextColor(80);
 
   if (data.isReverseCharge) {
@@ -367,9 +382,9 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
       doc.addImage(qrCodeDataUrl, "PNG", leftMargin, footerY, 38, 38);
       
       doc.setFontSize(8);
-      doc.setFont("helvetica", "bold");
+      setFontStyle(doc, "bold");
       doc.text("PAY by square", leftMargin, footerY + 43);
-      doc.setFont("helvetica", "normal");
+      setFontStyle(doc, "normal");
       doc.setTextColor(100);
       doc.setFontSize(7);
       doc.text("Naskenujte pre platbu", leftMargin, footerY + 47);
@@ -383,7 +398,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   const signatureX = rightColStart + 10;
   
   doc.setFontSize(8);
-  doc.setFont("helvetica", "normal");
+  setFontStyle(doc, "normal");
   doc.setTextColor(100);
   doc.text("Pečiatka a podpis dodávateľa", signatureX, footerY);
   doc.setTextColor(0);
