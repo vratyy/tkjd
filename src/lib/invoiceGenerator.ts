@@ -2,10 +2,10 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import QRCode from "qrcode";
 import { format, addDays } from "date-fns";
-import { initializePdfFonts, registerPdfFonts, setFontStyle, getPdfFontFamily, hasCustomFont } from "./pdfFonts";
+import { safeText, registerPdfFonts, setFontStyle, getPdfFontFamily } from "./pdfFonts";
 
 export interface InvoiceData {
-  // Supplier (Dodávateľ - Subcontractor)
+  // Supplier (Dodavatel - Subcontractor)
   supplierName: string;
   supplierCompany: string | null;
   supplierAddress: string | null;
@@ -31,7 +31,7 @@ export interface InvoiceData {
   odberatelId?: string;
 }
 
-// TKJD s.r.o. company details (Odberateľ / Customer)
+// TKJD s.r.o. company details (Odberatel / Customer)
 const CUSTOMER = {
   name: "TKJD s.r.o.",
   street: "Zalobin 114",
@@ -73,8 +73,8 @@ function generatePayBySquareData(
   const amountStr = amount.toFixed(2);
   const message = `Faktura ${invoiceNumber}`;
   
-  // PAY by square format
-  return `SPD*1.0*ACC:${cleanIban}*AM:${amountStr}*CC:EUR*MSG:${message}*RN:${beneficiaryName}`;
+  // PAY by square format (simplified SEPA)
+  return `SPD*1.0*ACC:${cleanIban}*AM:${amountStr}*CC:EUR*MSG:${message}*RN:${safeText(beneficiaryName)}`;
 }
 
 async function loadImageAsBase64(url: string): Promise<string | null> {
@@ -98,17 +98,10 @@ async function loadImageAsBase64(url: string): Promise<string | null> {
 // ============================================================================
 
 export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
-  // Initialize fonts with fallback
-  try {
-    await initializePdfFonts();
-  } catch (error) {
-    console.warn("Font init failed, continuing with Helvetica:", error);
-  }
-
   const doc = new jsPDF();
   
-  // Register fonts (will fallback to Helvetica if needed)
-  const usingCustomFont = registerPdfFonts(doc);
+  // Register fonts (uses Helvetica - crash-proof)
+  registerPdfFonts(doc);
   
   const invoiceNumber = generateInvoiceNumber(data.odberatelId);
   
@@ -141,7 +134,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   
   // Company name (top left)
   doc.setFontSize(18);
-  if (!usingCustomFont) doc.setFont("helvetica", "bold");
+  setFontStyle(doc, "bold");
   doc.setTextColor(40, 40, 40);
   doc.text("TKJD s.r.o.", margin, 20);
   
@@ -150,7 +143,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   doc.text("FAKTURA", pageWidth - margin, 20, { align: "right" });
   
   doc.setFontSize(12);
-  if (!usingCustomFont) doc.setFont("helvetica", "normal");
+  setFontStyle(doc, "normal");
   doc.setTextColor(80, 80, 80);
   doc.text(`c.: ${invoiceNumber}`, pageWidth - margin, 28, { align: "right" });
 
@@ -185,9 +178,9 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
     } else {
       doc.setTextColor(40, 40, 40);
     }
-    if (!usingCustomFont) doc.setFont("helvetica", "bold");
+    setFontStyle(doc, "bold");
     doc.text(value, pageWidth - margin, dateY, { align: "right" });
-    if (!usingCustomFont) doc.setFont("helvetica", "normal");
+    setFontStyle(doc, "normal");
     
     dateY += 6;
   });
@@ -205,28 +198,28 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   
   doc.setFontSize(8);
   doc.setTextColor(120, 120, 120);
-  if (!usingCustomFont) doc.setFont("helvetica", "bold");
+  setFontStyle(doc, "bold");
   doc.text("DODAVATEL", margin + 5, addressY + 8);
   
   doc.setFontSize(11);
   doc.setTextColor(30, 30, 30);
-  doc.text(data.supplierName, margin + 5, addressY + 16);
+  doc.text(safeText(data.supplierName), margin + 5, addressY + 16);
   
   doc.setFontSize(8);
-  if (!usingCustomFont) doc.setFont("helvetica", "normal");
+  setFontStyle(doc, "normal");
   doc.setTextColor(60, 60, 60);
   
   let supY = addressY + 22;
   
   if (data.supplierCompany) {
-    doc.text(data.supplierCompany, margin + 5, supY);
+    doc.text(safeText(data.supplierCompany), margin + 5, supY);
     supY += 4;
   }
   
   if (data.supplierAddress) {
     const addressLines = data.supplierAddress.split("\n");
     addressLines.forEach((line) => {
-      doc.text(line.trim(), margin + 5, supY);
+      doc.text(safeText(line.trim()), margin + 5, supY);
       supY += 4;
     });
   }
@@ -249,10 +242,10 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   // IBAN in supplier box
   if (data.supplierIban) {
     supY += 1;
-    if (!usingCustomFont) doc.setFont("helvetica", "bold");
+    setFontStyle(doc, "bold");
     doc.text(`IBAN: ${data.supplierIban}`, margin + 5, supY);
     supY += 4;
-    if (!usingCustomFont) doc.setFont("helvetica", "normal");
+    setFontStyle(doc, "normal");
     if (data.supplierSwiftBic) {
       doc.text(`SWIFT: ${data.supplierSwiftBic}`, margin + 5, supY);
     }
@@ -265,7 +258,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   
   doc.setFontSize(8);
   doc.setTextColor(120, 120, 120);
-  if (!usingCustomFont) doc.setFont("helvetica", "bold");
+  setFontStyle(doc, "bold");
   doc.text("ODBERATEL", rightBoxX + 5, addressY + 8);
   
   doc.setFontSize(11);
@@ -273,15 +266,15 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   doc.text(CUSTOMER.name, rightBoxX + 5, addressY + 16);
   
   doc.setFontSize(8);
-  if (!usingCustomFont) doc.setFont("helvetica", "normal");
+  setFontStyle(doc, "normal");
   doc.setTextColor(60, 60, 60);
   
   let custY = addressY + 22;
-  doc.text(CUSTOMER.street, rightBoxX + 5, custY);
+  doc.text(safeText(CUSTOMER.street), rightBoxX + 5, custY);
   custY += 4;
-  doc.text(CUSTOMER.city, rightBoxX + 5, custY);
+  doc.text(safeText(CUSTOMER.city), rightBoxX + 5, custY);
   custY += 4;
-  doc.text(CUSTOMER.country, rightBoxX + 5, custY);
+  doc.text(safeText(CUSTOMER.country), rightBoxX + 5, custY);
   custY += 6;
   doc.text(`ICO: ${CUSTOMER.ico}`, rightBoxX + 5, custY);
   custY += 4;
@@ -290,7 +283,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   doc.text(`IC DPH: ${CUSTOMER.icDph}`, rightBoxX + 5, custY);
 
   // ============================================================================
-  // PERFORMANCE TABLE
+  // PERFORMANCE TABLE (Leistungsnachweis)
   // ============================================================================
   
   const tableStartY = addressY + boxHeight + 15;
@@ -298,7 +291,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
 
   const tableBody: (string | number)[][] = [
     [
-      `${data.projectName} - KW ${data.calendarWeek}/${data.year}`,
+      safeText(`${data.projectName} - KW ${data.calendarWeek}/${data.year}`),
       data.totalHours.toFixed(2),
       data.hourlyRate.toFixed(2),
       data.isReverseCharge ? "0% (RC)" : (data.isVatPayer ? "20%" : "-"),
@@ -309,7 +302,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   autoTable(doc, {
     startY: tableStartY,
     head: [[
-      { content: "Popis vykonu", styles: { halign: "left" } },
+      { content: "Popis vykonu (Leistungsnachweis)", styles: { halign: "left" } },
       { content: "Rozsah (hod)", styles: { halign: "center" } },
       { content: "Sadzba (EUR/h)", styles: { halign: "right" } },
       { content: "DPH (%)", styles: { halign: "center" } },
@@ -363,7 +356,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   doc.setFontSize(9);
   summaryY += 8;
 
-  // Základ dane
+  // Zaklad dane
   doc.setTextColor(80, 80, 80);
   doc.text("Zaklad dane:", summaryX + 5, summaryY);
   doc.setTextColor(40, 40, 40);
@@ -385,11 +378,11 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(10);
-  if (!usingCustomFont) doc.setFont("helvetica", "bold");
+  setFontStyle(doc, "bold");
   doc.text("Suma na uhradu:", summaryX + 5, summaryY + 4);
   doc.setFontSize(11);
   doc.text(`${totalAmount.toFixed(2)} EUR`, summaryX + summaryWidth - 5, summaryY + 4, { align: "right" });
-  if (!usingCustomFont) doc.setFont("helvetica", "normal");
+  setFontStyle(doc, "normal");
 
   // VAT notice (left side)
   let noticeY = afterTableY + 5;
@@ -432,12 +425,12 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
       
       // QR Label
       doc.setFontSize(8);
-      if (!usingCustomFont) doc.setFont("helvetica", "bold");
+      setFontStyle(doc, "bold");
       doc.setTextColor(40, 40, 40);
       doc.text("PAY by square", margin, footerY + 40);
       
       doc.setFontSize(7);
-      if (!usingCustomFont) doc.setFont("helvetica", "normal");
+      setFontStyle(doc, "normal");
       doc.setTextColor(120, 120, 120);
       doc.text("Naskenujte pre platbu", margin, footerY + 44);
     } catch (error) {
@@ -475,18 +468,24 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   
   doc.setFontSize(7);
   doc.setTextColor(80, 80, 80);
-  doc.text(data.supplierName, signatureX, footerY + 43);
+  doc.text(safeText(data.supplierName), signatureX, footerY + 43);
 
   // ============================================================================
-  // LEGAL DISCLAIMER (Bottom of page)
+  // LEGAL DISCLAIMERS (Bottom of page) - BILINGUAL
   // ============================================================================
   
-  const disclaimerY = pageHeight - 15;
+  const disclaimerY = pageHeight - 20;
   
   doc.setFontSize(6);
   doc.setTextColor(140, 140, 140);
-  const disclaimer = "Tato aplikacia sluzi vylucne na evidenciu rozsahu vykonaneho diela ako podklad k fakturacii medzi B2B partnermi. Nejde o dochadzkovy ani zamestnanecky system.";
-  doc.text(disclaimer, pageWidth / 2, disclaimerY, { align: "center", maxWidth: pageWidth - 30 });
+  
+  // Slovak disclaimer
+  const disclaimerSK = "Tato aplikacia sluzi vylucne na evidenciu rozsahu vykonaneho diela ako podklad k fakturacii medzi B2B partnermi. Nejde o dochadzkovy ani zamestnanecky system.";
+  doc.text(disclaimerSK, pageWidth / 2, disclaimerY - 4, { align: "center", maxWidth: pageWidth - 30 });
+  
+  // German disclaimer
+  const disclaimerDE = "Diese App dient ausschliesslich als Abrechnungsgrundlage/Leistungsnachweis im B2B-Verhaltnis. Es handelt sich nicht um eine Arbeitszeiterfassung im arbeitsrechtlichen Sinne.";
+  doc.text(disclaimerDE, pageWidth / 2, disclaimerY + 2, { align: "center", maxWidth: pageWidth - 30 });
 
   // ============================================================================
   // SAVE PDF
