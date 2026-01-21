@@ -14,6 +14,7 @@ import LockWeeks from "./pages/LockWeeks";
 import Projects from "./pages/Projects";
 import Users from "./pages/Users";
 import Profile from "./pages/Profile";
+import AdminSettings from "./pages/AdminSettings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
               <Route path="/projects" element={<Projects />} />
               <Route path="/users" element={<Users />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/admin-settings" element={<AdminSettings />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

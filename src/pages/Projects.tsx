@@ -173,12 +173,12 @@ export default function Projects() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="location">Lokalita (voliteľné)</Label>
+                  <Label htmlFor="location">Miesto plnenia (voliteľné)</Label>
                   <Input
                     id="location"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
-                    placeholder="Bratislava"
+                    placeholder="Bratislava, Slovensko"
                   />
                 </div>
               </div>
