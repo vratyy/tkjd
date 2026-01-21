@@ -2,7 +2,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import QRCode from "qrcode";
 import { format, addDays } from "date-fns";
-import { loadRobotoFonts, registerRobotoFonts, setFontStyle } from "./pdfFonts";
+import { initializePdfFonts, registerPdfFonts, setFontStyle, getPdfFontFamily } from "./pdfFonts";
 
 interface InvoiceData {
   // Supplier (Subcontractor - User)
@@ -86,13 +86,17 @@ async function loadImageAsBase64(url: string): Promise<string | null> {
 }
 
 export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
-  // Load fonts first
-  await loadRobotoFonts();
+  // Try to load custom fonts (will use Helvetica fallback if it fails)
+  try {
+    await initializePdfFonts();
+  } catch (error) {
+    console.warn("Font initialization failed, using fallback:", error);
+  }
   
   const doc = new jsPDF();
   
-  // Register and set Roboto as default font
-  registerRobotoFonts(doc);
+  // Register fonts with fallback handling
+  registerPdfFonts(doc);
   
   const invoiceNumber = generateInvoiceNumber(data.odberatelId);
   
@@ -263,9 +267,8 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
     ],
   ];
 
-  // Check if Roboto font is available
-  const hasRoboto = (window as any).__robotoRegularBase64;
-  const fontFamily = hasRoboto ? "Roboto" : "helvetica";
+  // Get font family for table (with fallback)
+  const fontFamily = getPdfFontFamily();
 
   autoTable(doc, {
     startY: tableStartY,

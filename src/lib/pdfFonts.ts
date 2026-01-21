@@ -1,83 +1,126 @@
 import jsPDF from "jspdf";
 
-// URL to Google Fonts Roboto with full Latin Extended support
-const ROBOTO_REGULAR_URL = "https://fonts.gstatic.com/s/roboto/v47/KFO7CnqEu92Fr1ME7WxP.ttf";
-const ROBOTO_BOLD_URL = "https://fonts.gstatic.com/s/roboto/v47/KFO5CnqEu92Fr1Mu53ZEC9_Vu3r1gw.ttf";
+// Font loading state
+let fontLoadAttempted = false;
+let fontLoadSuccess = false;
 
-let fontsLoaded = false;
-let fontsLoadPromise: Promise<void> | null = null;
-
-async function fetchFontAsBase64(url: string): Promise<string> {
-  const response = await fetch(url);
-  const blob = await response.blob();
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      // Extract base64 part from data URL
-      const base64 = result.split(",")[1];
-      resolve(base64);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
-
-export async function loadRobotoFonts(): Promise<void> {
-  if (fontsLoaded) return;
-  
-  if (fontsLoadPromise) {
-    return fontsLoadPromise;
+/**
+ * Attempts to load custom fonts for PDF generation.
+ * Falls back to Helvetica if fonts fail to load.
+ */
+export async function initializePdfFonts(): Promise<boolean> {
+  if (fontLoadAttempted) {
+    return fontLoadSuccess;
   }
 
-  fontsLoadPromise = (async () => {
-    try {
-      const [regularBase64, boldBase64] = await Promise.all([
-        fetchFontAsBase64(ROBOTO_REGULAR_URL),
-        fetchFontAsBase64(ROBOTO_BOLD_URL),
-      ]);
+  fontLoadAttempted = true;
 
-      // Store in global for reuse
-      (window as any).__robotoRegularBase64 = regularBase64;
-      (window as any).__robotoBoldBase64 = boldBase64;
-      
-      fontsLoaded = true;
-    } catch (error) {
-      console.error("Failed to load Roboto fonts:", error);
-      throw error;
+  try {
+    // Try to fetch Roboto from a CDN that serves actual TTF files
+    const ttfUrl = "https://cdn.jsdelivr.net/fontsource/fonts/roboto@latest/latin-ext-400-normal.ttf";
+    
+    const response = await fetch(ttfUrl, { 
+      mode: 'cors',
+      cache: 'force-cache' 
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Font fetch failed: ${response.status}`);
     }
-  })();
 
-  return fontsLoadPromise;
+    const arrayBuffer = await response.arrayBuffer();
+    const base64 = arrayBufferToBase64(arrayBuffer);
+    
+    // Validate base64 string
+    if (!base64 || base64.length < 1000) {
+      throw new Error("Font data appears invalid");
+    }
+
+    // Store for later use
+    (window as any).__pdfFontBase64 = base64;
+    fontLoadSuccess = true;
+    
+    console.log("PDF fonts loaded successfully");
+    return true;
+  } catch (error) {
+    console.warn("Custom PDF fonts unavailable, using Helvetica fallback:", error);
+    fontLoadSuccess = false;
+    return false;
+  }
 }
 
-export function registerRobotoFonts(doc: jsPDF): void {
-  const regularBase64 = (window as any).__robotoRegularBase64;
-  const boldBase64 = (window as any).__robotoBoldBase64;
+/**
+ * Convert ArrayBuffer to Base64 string
+ */
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
 
-  if (!regularBase64 || !boldBase64) {
-    console.warn("Roboto fonts not loaded, using default fonts");
-    return;
+/**
+ * Register fonts with a jsPDF document instance.
+ * Must be called before any text is written.
+ */
+export function registerPdfFonts(doc: jsPDF): boolean {
+  const fontBase64 = (window as any).__pdfFontBase64;
+
+  if (!fontBase64) {
+    // No custom font available, use default Helvetica
+    return false;
   }
 
-  // Register regular font
-  doc.addFileToVFS("Roboto-Regular.ttf", regularBase64);
-  doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
-
-  // Register bold font
-  doc.addFileToVFS("Roboto-Bold.ttf", boldBase64);
-  doc.addFont("Roboto-Bold.ttf", "Roboto", "bold");
-
-  // Set Roboto as default font
-  doc.setFont("Roboto", "normal");
+  try {
+    // Add font to virtual file system
+    doc.addFileToVFS("CustomFont.ttf", fontBase64);
+    
+    // Register the font with jsPDF
+    doc.addFont("CustomFont.ttf", "CustomFont", "normal");
+    
+    // Set as the active font
+    doc.setFont("CustomFont", "normal");
+    
+    return true;
+  } catch (error) {
+    console.warn("Failed to register custom font, using Helvetica:", error);
+    // Ensure we fall back to a working font
+    doc.setFont("helvetica", "normal");
+    return false;
+  }
 }
 
+/**
+ * Safely set font style with fallback to Helvetica.
+ * Use this throughout the PDF generation instead of doc.setFont directly.
+ */
 export function setFontStyle(doc: jsPDF, style: "normal" | "bold"): void {
-  const hasRoboto = (window as any).__robotoRegularBase64;
-  
-  if (hasRoboto) {
-    doc.setFont("Roboto", style);
-  } else {
-    doc.setFont("helvetica", style === "bold" ? "bold" : "normal");
+  try {
+    const hasCustomFont = (window as any).__pdfFontBase64;
+    
+    if (hasCustomFont) {
+      // For custom font, we only have normal weight (bold simulation not available)
+      doc.setFont("CustomFont", "normal");
+    } else {
+      // Use Helvetica with proper weight
+      doc.setFont("helvetica", style === "bold" ? "bold" : "normal");
+    }
+  } catch (error) {
+    // Ultimate fallback
+    try {
+      doc.setFont("helvetica", "normal");
+    } catch {
+      // Font system completely broken, nothing we can do
+    }
   }
+}
+
+/**
+ * Get the font family name to use in autoTable config
+ */
+export function getPdfFontFamily(): string {
+  const hasCustomFont = (window as any).__pdfFontBase64;
+  return hasCustomFont ? "CustomFont" : "helvetica";
 }
