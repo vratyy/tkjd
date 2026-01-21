@@ -14,12 +14,20 @@ interface InvoiceData {
   supplierSwiftBic: string | null;
   signatureUrl: string | null;
   hourlyRate: number;
+  
+  // VAT settings
+  isVatPayer: boolean;
+  vatNumber: string | null;
+  isReverseCharge: boolean;
 
   // Invoice details
   projectName: string;
   calendarWeek: number;
   year: number;
   totalHours: number;
+  
+  // For unique invoice number
+  odberatelId?: string;
 }
 
 // TKJD s.r.o. company details (hardcoded - Odberateľ)
@@ -30,20 +38,22 @@ const CUSTOMER = {
   dic: "SK1234567890",
 };
 
-function generateInvoiceNumber(supplierName: string): string {
+const VAT_RATE = 0.20; // 20% VAT
+
+function generateInvoiceNumber(odberatelId?: string): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
-  const initials = supplierName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 3);
-  const random = Math.floor(Math.random() * 1000)
-    .toString()
-    .padStart(3, "0");
-  return `${year}${month}-${initials}-${random}`;
+  
+  // Last 3 digits of ID or random if not provided
+  let suffix: string;
+  if (odberatelId && odberatelId.length >= 3) {
+    suffix = odberatelId.slice(-3).toUpperCase();
+  } else {
+    suffix = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
+  }
+  
+  return `${year}${month}${suffix}`;
 }
 
 // Generate SEPA QR code data (PAY by square format)
@@ -77,8 +87,18 @@ async function loadImageAsBase64(url: string): Promise<string | null> {
 
 export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   const doc = new jsPDF();
-  const invoiceNumber = generateInvoiceNumber(data.supplierName);
-  const totalPrice = data.totalHours * data.hourlyRate;
+  const invoiceNumber = generateInvoiceNumber(data.odberatelId);
+  
+  // Calculate amounts based on VAT status
+  const baseAmount = data.totalHours * data.hourlyRate;
+  let vatAmount = 0;
+  let totalAmount = baseAmount;
+  
+  if (data.isVatPayer && !data.isReverseCharge) {
+    vatAmount = baseAmount * VAT_RATE;
+    totalAmount = baseAmount + vatAmount;
+  }
+  
   const issueDate = new Date();
   const dueDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
 
@@ -161,6 +181,10 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
     doc.text(`DIČ: ${data.supplierDic}`, leftMargin, supplierY);
     supplierY += 5;
   }
+  if (data.isVatPayer && data.vatNumber) {
+    doc.text(`IČ DPH: ${data.vatNumber}`, leftMargin, supplierY);
+    supplierY += 5;
+  }
 
   // Right column: ODBERATEĽ (Customer - TKJD s.r.o.)
   doc.setFontSize(9);
@@ -191,6 +215,26 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   // ============ INVOICE TABLE ============
   const tableStartY = 115;
 
+  // Build table body based on VAT status
+  const tableBody: string[][] = [
+    [
+      `${data.projectName}\nKW ${data.calendarWeek}/${data.year}`,
+      `${data.totalHours.toFixed(2)} h`,
+      `${data.hourlyRate.toFixed(2)} €`,
+      `${baseAmount.toFixed(2)} €`,
+    ],
+  ];
+
+  // Add VAT row if applicable
+  if (data.isVatPayer && !data.isReverseCharge) {
+    tableBody.push([
+      "DPH 20%",
+      "",
+      "",
+      `${vatAmount.toFixed(2)} €`,
+    ]);
+  }
+
   autoTable(doc, {
     startY: tableStartY,
     head: [[
@@ -199,14 +243,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
       "Hodinová sadzba",
       "Celkom bez DPH"
     ]],
-    body: [
-      [
-        `${data.projectName}\nKW ${data.calendarWeek}/${data.year}`,
-        `${data.totalHours.toFixed(2)} h`,
-        `${data.hourlyRate.toFixed(2)} €`,
-        `${totalPrice.toFixed(2)} €`,
-      ],
-    ],
+    body: tableBody,
     styles: {
       fontSize: 10,
       cellPadding: 6,
@@ -241,11 +278,30 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   doc.setFont("helvetica", "bold");
   doc.text("CELKOM K ÚHRADE:", leftMargin + 5, afterTableY + 8);
   doc.setFontSize(14);
-  doc.text(`${totalPrice.toFixed(2)} €`, pageWidth - leftMargin - 5, afterTableY + 8, { align: "right" });
+  doc.text(`${totalAmount.toFixed(2)} €`, pageWidth - leftMargin - 5, afterTableY + 8, { align: "right" });
+  doc.setTextColor(0);
+
+  // VAT status notice
+  let noticeY = afterTableY + 18;
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "italic");
+  doc.setTextColor(80);
+
+  if (data.isReverseCharge) {
+    doc.text(
+      "Faktúra je v režime prenesenej daňovej povinnosti podľa § 69 zákona o DPH.",
+      leftMargin,
+      noticeY
+    );
+    noticeY += 5;
+  } else if (!data.isVatPayer) {
+    doc.text("Dodávateľ nie je platcom DPH.", leftMargin, noticeY);
+    noticeY += 5;
+  }
   doc.setTextColor(0);
 
   // ============ PAYMENT INFO SECTION ============
-  const paymentY = afterTableY + 25;
+  const paymentY = noticeY + 8;
 
   doc.setFillColor(248, 248, 248);
   doc.rect(leftMargin, paymentY, pageWidth - leftMargin * 2, 28, "F");
@@ -281,7 +337,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
     try {
       const qrData = generatePaymentQRData(
         data.supplierIban,
-        totalPrice,
+        totalAmount,
         invoiceNumber,
         data.supplierName
       );
@@ -344,7 +400,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   doc.setFontSize(7);
   doc.setTextColor(120);
   doc.text(
-    "Faktúra slúži ako podklad pre B2B fakturáciu medzi subdodávateľom a objednávateľom. Nie sme platcami DPH.",
+    "Faktúra slúži ako podklad pre B2B fakturáciu medzi subdodávateľom a objednávateľom.",
     pageWidth / 2,
     282,
     { align: "center" }

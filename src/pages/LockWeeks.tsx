@@ -22,6 +22,8 @@ interface Profile {
   iban: string | null;
   swift_bic: string | null;
   signature_url: string | null;
+  is_vat_payer: boolean;
+  vat_number: string | null;
 }
 
 interface PerformanceRecord {
@@ -82,7 +84,7 @@ export default function LockWeeks() {
     const userIds = [...new Set(closings?.map(c => c.user_id) || [])];
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("user_id, full_name, company_name, billing_address, hourly_rate, iban, swift_bic, signature_url")
+      .select("user_id, full_name, company_name, billing_address, hourly_rate, iban, swift_bic, signature_url, is_vat_payer, vat_number")
       .in("user_id", userIds);
 
     const weeks: ApprovedWeek[] = [];
@@ -116,6 +118,8 @@ export default function LockWeeks() {
           iban: profile.iban,
           swift_bic: profile.swift_bic,
           signature_url: profile.signature_url,
+          is_vat_payer: profile.is_vat_payer,
+          vat_number: profile.vat_number,
         } : null
       };
 
@@ -229,10 +233,14 @@ export default function LockWeeks() {
         supplierSwiftBic: profile.swift_bic,
         signatureUrl: profile.signature_url,
         hourlyRate: profile.hourly_rate,
+        isVatPayer: profile.is_vat_payer ?? false,
+        vatNumber: profile.vat_number,
+        isReverseCharge: false,
         projectName,
         calendarWeek: week.closing.calendar_week,
         year: week.closing.year,
         totalHours: week.totalHours,
+        odberatelId: week.closing.id,
       });
 
       toast({
