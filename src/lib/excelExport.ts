@@ -6,7 +6,8 @@ interface ExportRecord {
   date: string;
   time_from: string;
   time_to: string;
-  break_minutes: number;
+  break_start: string | null;
+  break_end: string | null;
   total_hours: number;
   note?: string | null;
 }
@@ -45,13 +46,9 @@ function getWeekDateRange(week: number, year: number): { start: Date; end: Date 
   return { start, end };
 }
 
-function formatBreakTime(minutes: number): string {
-  if (minutes === 0) return "—";
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  if (hours > 0 && mins > 0) return `${hours}h ${mins}min`;
-  if (hours > 0) return `${hours}h`;
-  return `${mins}min`;
+function formatBreakTime(breakStart: string | null, breakEnd: string | null): string {
+  if (!breakStart || !breakEnd) return "—";
+  return `${breakStart.slice(0, 5)} - ${breakEnd.slice(0, 5)}`;
 }
 
 export function exportWeeklyRecordsToExcel(params: ExportParams): void {
@@ -89,7 +86,7 @@ export function exportWeeklyRecordsToExcel(params: ExportParams): void {
       germanDay,
       format(recordDate, "dd.MM.yyyy"),
       record.time_from.slice(0, 5), // Remove seconds if present
-      formatBreakTime(record.break_minutes),
+      formatBreakTime(record.break_start, record.break_end),
       record.time_to.slice(0, 5),
       Number(record.total_hours).toFixed(2),
       record.note || "",
@@ -98,7 +95,6 @@ export function exportWeeklyRecordsToExcel(params: ExportParams): void {
 
   // Calculate totals
   const totalHours = records.reduce((sum, r) => sum + Number(r.total_hours), 0);
-  const totalBreakMinutes = records.reduce((sum, r) => sum + r.break_minutes, 0);
 
   // Footer data
   const footerData = [
@@ -189,7 +185,7 @@ export function exportMultipleWeeksToExcel(
         germanDay,
         format(recordDate, "dd.MM.yyyy"),
         record.time_from.slice(0, 5),
-        formatBreakTime(record.break_minutes),
+        formatBreakTime(record.break_start, record.break_end),
         record.time_to.slice(0, 5),
         Number(record.total_hours).toFixed(2),
         record.note || "",
