@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, Calendar, ChevronDown, ChevronUp, FileSpreadsheet } from "lucide-react";
+import { Loader2, Send, Calendar, ChevronDown, ChevronUp, FileSpreadsheet, FileText } from "lucide-react";
 import { format, getWeek, getYear } from "date-fns";
 import { sk } from "date-fns/locale";
 import {
@@ -14,6 +14,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { exportWeeklyRecordsToExcel } from "@/lib/excelExport";
+import { generateInvoicePDF } from "@/lib/invoiceGenerator";
 
 interface PerformanceRecord {
   id: string;
@@ -45,15 +46,24 @@ export default function WeeklyClosings() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [openWeeks, setOpenWeeks] = useState<Set<string>>(new Set());
-  const [userProfile, setUserProfile] = useState<{ full_name: string } | null>(null);
+  const [userProfile, setUserProfile] = useState<{
+    full_name: string;
+    company_name: string | null;
+    billing_address: string | null;
+    hourly_rate: number | null;
+    iban: string | null;
+    swift_bic: string | null;
+    signature_url: string | null;
+  } | null>(null);
+  const [generatingInvoice, setGeneratingInvoice] = useState<string | null>(null);
 
   const fetchData = async () => {
     if (!user) return;
 
-    // Fetch user profile
+    // Fetch user profile with billing info
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name")
+      .select("full_name, company_name, billing_address, hourly_rate, iban, swift_bic, signature_url")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -230,6 +240,60 @@ export default function WeeklyClosings() {
     });
   };
 
+  const canGenerateInvoice = (group: WeekGroup) => {
+    return (
+      (group.closingStatus === "approved" || group.closingStatus === "locked") &&
+      userProfile?.hourly_rate &&
+      userProfile.hourly_rate > 0
+    );
+  };
+
+  const handleGenerateInvoice = async (group: WeekGroup) => {
+    if (!userProfile || !userProfile.hourly_rate) {
+      toast({
+        variant: "destructive",
+        title: "Chýbajúce údaje",
+        description: "Najprv vyplňte hodinovú sadzbu v profile.",
+      });
+      return;
+    }
+
+    const key = `${group.year}-${group.week}`;
+    setGeneratingInvoice(key);
+
+    try {
+      const projectNames = [...new Set(group.records.map((r) => r.projects?.name).filter(Boolean))];
+      const projectName = projectNames.join(", ") || "Projekt";
+
+      await generateInvoicePDF({
+        supplierName: userProfile.full_name,
+        supplierCompany: userProfile.company_name,
+        supplierAddress: userProfile.billing_address,
+        supplierIban: userProfile.iban,
+        supplierSwiftBic: userProfile.swift_bic,
+        signatureUrl: userProfile.signature_url,
+        hourlyRate: userProfile.hourly_rate,
+        projectName,
+        calendarWeek: group.week,
+        year: group.year,
+        totalHours: group.totalHours,
+      });
+
+      toast({
+        title: "Faktúra vygenerovaná",
+        description: `PDF faktúra pre KW ${group.week}/${group.year} bola stiahnutá.`,
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Chyba",
+        description: error.message,
+      });
+    }
+
+    setGeneratingInvoice(null);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -292,6 +356,23 @@ export default function WeeklyClosings() {
                           <FileSpreadsheet className="h-4 w-4 sm:mr-2" />
                           <span className="hidden sm:inline">Export Excel</span>
                         </Button>
+                        {canGenerateInvoice(group) && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleGenerateInvoice(group)}
+                            disabled={generatingInvoice === key}
+                          >
+                            {generatingInvoice === key ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <FileText className="h-4 w-4 sm:mr-2" />
+                                <span className="hidden sm:inline">Faktúra PDF</span>
+                              </>
+                            )}
+                          </Button>
+                        )}
                         {canSubmit(group) && (
                           <Button
                             size="sm"

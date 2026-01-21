@@ -10,7 +10,7 @@ import {
   CheckCircle,
   Lock,
   Users,
-  Menu,
+  UserCircle,
 } from "lucide-react";
 import {
   Sidebar,
@@ -37,6 +37,7 @@ const mainNavItems: NavItem[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Denný záznam", url: "/daily-entry", icon: ClipboardList },
   { title: "Týždňové uzávierky", url: "/weekly-closings", icon: Calendar },
+  { title: "Profil", url: "/profile", icon: UserCircle },
 ];
 
 const managementNavItems: NavItem[] = [
