@@ -20,7 +20,8 @@ interface PerformanceRecord {
   date: string;
   time_from: string;
   time_to: string;
-  break_minutes: number;
+  break_start: string | null;
+  break_end: string | null;
   total_hours: number;
   status: string;
   note: string | null;
@@ -61,8 +62,9 @@ export default function WeeklyClosings() {
     // Fetch all records for the user
     const { data: records, error: recordsError } = await supabase
       .from("performance_records")
-      .select("id, date, time_from, time_to, break_minutes, total_hours, status, note, projects(name)")
+      .select("id, date, time_from, time_to, break_start, break_end, total_hours, status, note, projects(name)")
       .eq("user_id", user.id)
+      .is("deleted_at", null)
       .order("date", { ascending: false });
 
     if (recordsError) {
@@ -211,7 +213,8 @@ export default function WeeklyClosings() {
         date: r.date,
         time_from: r.time_from,
         time_to: r.time_to,
-        break_minutes: r.break_minutes || 0,
+        break_start: r.break_start,
+        break_end: r.break_end,
         total_hours: r.total_hours,
         note: r.note,
       })),

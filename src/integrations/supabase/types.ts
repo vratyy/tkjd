@@ -16,9 +16,11 @@ export type Database = {
     Tables: {
       performance_records: {
         Row: {
-          break_minutes: number
+          break_end: string | null
+          break_start: string | null
           created_at: string
           date: string
+          deleted_at: string | null
           id: string
           note: string | null
           project_id: string
@@ -30,9 +32,11 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          break_minutes?: number
+          break_end?: string | null
+          break_start?: string | null
           created_at?: string
           date: string
+          deleted_at?: string | null
           id?: string
           note?: string | null
           project_id: string
@@ -44,9 +48,11 @@ export type Database = {
           user_id: string
         }
         Update: {
-          break_minutes?: number
+          break_end?: string | null
+          break_start?: string | null
           created_at?: string
           date?: string
+          deleted_at?: string | null
           id?: string
           note?: string | null
           project_id?: string
@@ -69,26 +75,44 @@ export type Database = {
       }
       profiles: {
         Row: {
+          billing_address: string | null
           company_name: string | null
           created_at: string
+          deleted_at: string | null
           full_name: string
+          hourly_rate: number | null
+          iban: string | null
           id: string
+          signature_url: string | null
+          swift_bic: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          billing_address?: string | null
           company_name?: string | null
           created_at?: string
+          deleted_at?: string | null
           full_name: string
+          hourly_rate?: number | null
+          iban?: string | null
           id?: string
+          signature_url?: string | null
+          swift_bic?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          billing_address?: string | null
           company_name?: string | null
           created_at?: string
+          deleted_at?: string | null
           full_name?: string
+          hourly_rate?: number | null
+          iban?: string | null
           id?: string
+          signature_url?: string | null
+          swift_bic?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -98,6 +122,7 @@ export type Database = {
         Row: {
           client: string
           created_at: string
+          deleted_at: string | null
           id: string
           is_active: boolean
           location: string | null
@@ -107,6 +132,7 @@ export type Database = {
         Insert: {
           client: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           is_active?: boolean
           location?: string | null
@@ -116,6 +142,7 @@ export type Database = {
         Update: {
           client?: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           is_active?: boolean
           location?: string | null
@@ -127,18 +154,21 @@ export type Database = {
       user_roles: {
         Row: {
           created_at: string
+          deleted_at: string | null
           id: string
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
           id?: string
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
@@ -151,6 +181,7 @@ export type Database = {
           approved_by: string | null
           calendar_week: number
           created_at: string
+          deleted_at: string | null
           id: string
           status: Database["public"]["Enums"]["closing_status"]
           submitted_at: string | null
@@ -163,6 +194,7 @@ export type Database = {
           approved_by?: string | null
           calendar_week: number
           created_at?: string
+          deleted_at?: string | null
           id?: string
           status?: Database["public"]["Enums"]["closing_status"]
           submitted_at?: string | null
@@ -175,6 +207,7 @@ export type Database = {
           approved_by?: string | null
           calendar_week?: number
           created_at?: string
+          deleted_at?: string | null
           id?: string
           status?: Database["public"]["Enums"]["closing_status"]
           submitted_at?: string | null

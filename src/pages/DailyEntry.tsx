@@ -35,7 +35,8 @@ export default function DailyEntry() {
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [timeFrom, setTimeFrom] = useState("07:00");
   const [timeTo, setTimeTo] = useState("15:30");
-  const [breakMinutes, setBreakMinutes] = useState("30");
+  const [breakStart, setBreakStart] = useState("12:00");
+  const [breakEnd, setBreakEnd] = useState("12:30");
   const [note, setNote] = useState("");
 
   // Calculate duration
@@ -45,10 +46,18 @@ export default function DailyEntry() {
     const [toH, toM] = timeTo.split(":").map(Number);
     const fromMinutes = fromH * 60 + fromM;
     const toMinutes = toH * 60 + toM;
-    const breakMins = parseInt(breakMinutes) || 0;
+    
+    // Calculate break duration
+    let breakMins = 0;
+    if (breakStart && breakEnd) {
+      const [breakStartH, breakStartM] = breakStart.split(":").map(Number);
+      const [breakEndH, breakEndM] = breakEnd.split(":").map(Number);
+      breakMins = (breakEndH * 60 + breakEndM) - (breakStartH * 60 + breakStartM);
+    }
+    
     const totalMinutes = toMinutes - fromMinutes - breakMins;
     return Math.round((totalMinutes / 60) * 100) / 100;
-  }, [timeFrom, timeTo, breakMinutes]);
+  }, [timeFrom, timeTo, breakStart, breakEnd]);
 
   useEffect(() => {
     async function fetchProjects() {
@@ -81,7 +90,8 @@ export default function DailyEntry() {
       date,
       time_from: timeFrom,
       time_to: timeTo,
-      break_minutes: parseInt(breakMinutes) || 0,
+      break_start: breakStart || null,
+      break_end: breakEnd || null,
       note: note || null,
       status: "draft",
     });
@@ -181,16 +191,25 @@ export default function DailyEntry() {
                 />
               </div>
 
-              {/* Break */}
+              {/* Break Start */}
               <div className="space-y-2">
-                <Label htmlFor="break">Prestávka (minúty)</Label>
+                <Label htmlFor="breakStart">Prestávka od</Label>
                 <Input
-                  id="break"
-                  type="number"
-                  min="0"
-                  max="480"
-                  value={breakMinutes}
-                  onChange={(e) => setBreakMinutes(e.target.value)}
+                  id="breakStart"
+                  type="time"
+                  value={breakStart}
+                  onChange={(e) => setBreakStart(e.target.value)}
+                />
+              </div>
+
+              {/* Break End */}
+              <div className="space-y-2">
+                <Label htmlFor="breakEnd">Prestávka do</Label>
+                <Input
+                  id="breakEnd"
+                  type="time"
+                  value={breakEnd}
+                  onChange={(e) => setBreakEnd(e.target.value)}
                 />
               </div>
 
