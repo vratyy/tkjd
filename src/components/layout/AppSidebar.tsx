@@ -11,6 +11,7 @@ import {
   Lock,
   Users,
   UserCircle,
+  Settings,
 } from "lucide-react";
 import {
   Sidebar,
@@ -42,9 +43,10 @@ const mainNavItems: NavItem[] = [
 
 const managementNavItems: NavItem[] = [
   { title: "Schvaľovanie", url: "/approvals", icon: CheckCircle, roles: ["manager", "admin"] },
-  { title: "Projekty", url: "/projects", icon: FolderOpen, roles: ["manager", "admin"] },
-  { title: "Uzamknutie", url: "/lock-weeks", icon: Lock, roles: ["admin"] },
-  { title: "Používatelia", url: "/users", icon: Users, roles: ["admin"] },
+  { title: "Všetky projekty", url: "/projects", icon: FolderOpen, roles: ["manager", "admin"] },
+  { title: "Všetky uzávierky", url: "/lock-weeks", icon: Lock, roles: ["admin"] },
+  { title: "Správa používateľov", url: "/users", icon: Users, roles: ["admin"] },
+  { title: "Administrácia", url: "/admin-settings", icon: Settings, roles: ["admin"] },
 ];
 
 export function AppSidebar() {
