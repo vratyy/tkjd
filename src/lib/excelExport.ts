@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
-import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
-import { de } from "date-fns/locale";
+import { format, addDays } from "date-fns";
+import { sk } from "date-fns/locale";
 
 interface ExportRecord {
   date: string;
@@ -10,6 +10,7 @@ interface ExportRecord {
   break_end: string | null;
   total_hours: number;
   note?: string | null;
+  location?: string;
 }
 
 interface ExportParams {
@@ -18,57 +19,86 @@ interface ExportParams {
   workerName: string;
   calendarWeek: number;
   year: number;
+  projectLocation?: string;
 }
 
-// German day names for the Stundenzettel
-const germanDays: Record<string, string> = {
-  Monday: "Montag",
-  Tuesday: "Dienstag",
-  Wednesday: "Mittwoch",
-  Thursday: "Donnerstag",
-  Friday: "Freitag",
-  Saturday: "Samstag",
-  Sunday: "Sonntag",
-};
-
 function getWeekDateRange(week: number, year: number): { start: Date; end: Date } {
-  // Get the first day of the year
   const firstDayOfYear = new Date(year, 0, 1);
-  // Find the first Monday of the year
   const dayOfWeek = firstDayOfYear.getDay();
   const daysToMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 0 : 8 - dayOfWeek;
   const firstMonday = addDays(firstDayOfYear, daysToMonday);
   
-  // Calculate the start of the requested week
   const start = addDays(firstMonday, (week - 1) * 7);
   const end = addDays(start, 6);
   
   return { start, end };
 }
 
-function formatBreakTime(breakStart: string | null, breakEnd: string | null): string {
+function formatBreakDuration(breakStart: string | null, breakEnd: string | null): string {
   if (!breakStart || !breakEnd) return "—";
-  return `${breakStart.slice(0, 5)} - ${breakEnd.slice(0, 5)}`;
+  const start = breakStart.split(':').map(Number);
+  const end = breakEnd.split(':').map(Number);
+  const startMinutes = start[0] * 60 + start[1];
+  const endMinutes = end[0] * 60 + end[1];
+  const diffMinutes = endMinutes - startMinutes;
+  if (diffMinutes <= 0) return "—";
+  const hours = Math.floor(diffMinutes / 60);
+  const mins = diffMinutes % 60;
+  return hours > 0 ? `${hours}h ${mins}min` : `${mins} min`;
+}
+
+function applyHeaderStyle(ws: XLSX.WorkSheet, cellRef: string): void {
+  if (!ws[cellRef]) ws[cellRef] = { v: "", t: "s" };
+  ws[cellRef].s = {
+    font: { bold: true, sz: 11 },
+    fill: { fgColor: { rgb: "E0E0E0" } },
+    border: {
+      top: { style: "thin", color: { rgb: "000000" } },
+      bottom: { style: "thin", color: { rgb: "000000" } },
+      left: { style: "thin", color: { rgb: "000000" } },
+      right: { style: "thin", color: { rgb: "000000" } },
+    },
+    alignment: { horizontal: "center", vertical: "center", wrapText: true },
+  };
+}
+
+function applyCellStyle(ws: XLSX.WorkSheet, cellRef: string): void {
+  if (!ws[cellRef]) return;
+  ws[cellRef].s = {
+    font: { sz: 10 },
+    border: {
+      top: { style: "thin", color: { rgb: "000000" } },
+      bottom: { style: "thin", color: { rgb: "000000" } },
+      left: { style: "thin", color: { rgb: "000000" } },
+      right: { style: "thin", color: { rgb: "000000" } },
+    },
+    alignment: { horizontal: "center", vertical: "center" },
+  };
 }
 
 export function exportWeeklyRecordsToExcel(params: ExportParams): void {
-  const { records, projectName, workerName, calendarWeek, year } = params;
+  const { records, projectName, workerName, calendarWeek, year, projectLocation } = params;
   const { start, end } = getWeekDateRange(calendarWeek, year);
 
-  // Create workbook and worksheet
   const wb = XLSX.utils.book_new();
 
-  // Prepare header data
+  // Header section - company info on left, project info on right
   const headerData = [
-    ["LEISTUNGSNACHWEIS / STUNDENZETTEL"],
+    ["TKJD s.r.o.", "", "", "", "", "Subdodávateľ:", workerName],
+    ["LEISTUNGSNACHWEIS / VÝKAZ PRÁCE", "", "", "", "", "Projekt:", projectName],
+    ["", "", "", "", "", "Kalendárny týždeň:", `KW ${calendarWeek} / ${year}`],
+    ["", "", "", "", "", "Obdobie:", `${format(start, "dd.MM.yyyy")} - ${format(end, "dd.MM.yyyy")}`],
     [],
-    ["Projekt:", projectName],
-    ["Subdodávateľ / Montér:", workerName],
-    ["Kalenderwoche (KW):", `KW ${calendarWeek} / ${year}`],
-    ["Zeitraum:", `${format(start, "dd.MM.yyyy")} - ${format(end, "dd.MM.yyyy")}`],
-    [],
-    // Column headers in German
-    ["Tag", "Datum", "Beginn", "Pause", "Ende", "Summe (h)", "Bemerkung"],
+    // Column headers (bilingual SK/DE)
+    [
+      "Dátum\n(Tag)",
+      "Miesto plnenia\n(Einsatzort)",
+      "Začiatok výkonu\n(Von)",
+      "Koniec výkonu\n(Bis)",
+      "Prestávka\n(Pause)",
+      "Rozsah výkonu celkom\n(Summe Stunden)",
+      "Popis činnosti\n(Tätigkeitsbeschreibung)",
+    ],
   ];
 
   // Sort records by date
@@ -79,16 +109,16 @@ export function exportWeeklyRecordsToExcel(params: ExportParams): void {
   // Prepare record rows
   const recordRows = sortedRecords.map((record) => {
     const recordDate = new Date(record.date);
-    const dayName = format(recordDate, "EEEE", { locale: de });
-    const germanDay = germanDays[format(recordDate, "EEEE")] || dayName;
+    const dayName = format(recordDate, "EEEE", { locale: sk });
+    const formattedDate = `${dayName}\n${format(recordDate, "dd.MM.yyyy")}`;
 
     return [
-      germanDay,
-      format(recordDate, "dd.MM.yyyy"),
-      record.time_from.slice(0, 5), // Remove seconds if present
-      formatBreakTime(record.break_start, record.break_end),
+      formattedDate,
+      record.location || projectLocation || projectName,
+      record.time_from.slice(0, 5),
       record.time_to.slice(0, 5),
-      Number(record.total_hours).toFixed(2),
+      formatBreakDuration(record.break_start, record.break_end),
+      Number(record.total_hours).toFixed(2) + " h",
       record.note || "",
     ];
   });
@@ -99,18 +129,13 @@ export function exportWeeklyRecordsToExcel(params: ExportParams): void {
   // Footer data
   const footerData = [
     [],
-    ["", "", "", "", "GESAMT:", totalHours.toFixed(2) + " h", ""],
+    ["", "", "", "", "CELKOM / GESAMT:", totalHours.toFixed(2) + " h", ""],
     [],
     [],
-    ["Unterschrift Subdodávateľ:", "", "", "", "Unterschrift Auftraggeber:", "", ""],
+    ["Potvrdil za TKJD s.r.o. (PM):", "", "", "", "Vypracoval Subdodávateľ:", "", ""],
     [],
     ["_______________________", "", "", "", "_______________________", "", ""],
-    ["Datum:", format(new Date(), "dd.MM.yyyy")],
-    [],
-    [],
-    [
-      "Táto aplikácia slúži výlučne na evidenciu rozsahu vykonaného diela ako podklad k fakturácii medzi B2B partnermi.",
-    ],
+    ["Dátum:", format(new Date(), "dd.MM.yyyy"), "", "", "Dátum:", format(new Date(), "dd.MM.yyyy"), ""],
   ];
 
   // Combine all data
@@ -121,20 +146,40 @@ export function exportWeeklyRecordsToExcel(params: ExportParams): void {
 
   // Set column widths
   ws["!cols"] = [
-    { wch: 12 }, // Tag
-    { wch: 12 }, // Datum
-    { wch: 8 },  // Beginn
-    { wch: 10 }, // Pause
-    { wch: 8 },  // Ende
-    { wch: 10 }, // Summe
-    { wch: 30 }, // Bemerkung
+    { wch: 16 }, // Dátum
+    { wch: 18 }, // Miesto plnenia
+    { wch: 12 }, // Začiatok
+    { wch: 12 }, // Koniec
+    { wch: 12 }, // Prestávka
+    { wch: 16 }, // Rozsah celkom
+    { wch: 35 }, // Popis činnosti
   ];
 
-  // Merge cells for header title
+  // Set row heights for header row
+  ws["!rows"] = [];
+  ws["!rows"][5] = { hpt: 40 }; // Header row height
+
+  // Merge cells for company name and title
   ws["!merges"] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }, // Title row
-    { s: { r: wsData.length - 1, c: 0 }, e: { r: wsData.length - 1, c: 6 } }, // Disclaimer
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }, // Company name
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } }, // Title
   ];
+
+  // Apply styles to header row (row 6, index 5)
+  const headerRowIndex = 5;
+  const cols = ["A", "B", "C", "D", "E", "F", "G"];
+  cols.forEach((col) => {
+    applyHeaderStyle(ws, `${col}${headerRowIndex + 1}`);
+  });
+
+  // Apply styles to data cells
+  const dataStartRow = 7;
+  const dataEndRow = dataStartRow + recordRows.length - 1;
+  for (let row = dataStartRow; row <= dataEndRow; row++) {
+    cols.forEach((col) => {
+      applyCellStyle(ws, `${col}${row}`);
+    });
+  }
 
   // Add worksheet to workbook
   XLSX.utils.book_append_sheet(wb, ws, "Leistungsnachweis");
@@ -154,23 +199,30 @@ export function exportMultipleWeeksToExcel(
     workerName: string;
     calendarWeek: number;
     year: number;
+    projectLocation?: string;
   }>
 ): void {
   const wb = XLSX.utils.book_new();
 
-  weeks.forEach((weekData, index) => {
-    const { records, projectName, workerName, calendarWeek, year } = weekData;
+  weeks.forEach((weekData) => {
+    const { records, projectName, workerName, calendarWeek, year, projectLocation } = weekData;
     const { start, end } = getWeekDateRange(calendarWeek, year);
 
     const headerData = [
-      ["LEISTUNGSNACHWEIS / STUNDENZETTEL"],
+      ["TKJD s.r.o.", "", "", "", "", "Subdodávateľ:", workerName],
+      ["LEISTUNGSNACHWEIS / VÝKAZ PRÁCE", "", "", "", "", "Projekt:", projectName],
+      ["", "", "", "", "", "Kalendárny týždeň:", `KW ${calendarWeek} / ${year}`],
+      ["", "", "", "", "", "Obdobie:", `${format(start, "dd.MM.yyyy")} - ${format(end, "dd.MM.yyyy")}`],
       [],
-      ["Projekt:", projectName],
-      ["Subdodávateľ / Montér:", workerName],
-      ["Kalenderwoche (KW):", `KW ${calendarWeek} / ${year}`],
-      ["Zeitraum:", `${format(start, "dd.MM.yyyy")} - ${format(end, "dd.MM.yyyy")}`],
-      [],
-      ["Tag", "Datum", "Beginn", "Pause", "Ende", "Summe (h)", "Bemerkung"],
+      [
+        "Dátum\n(Tag)",
+        "Miesto plnenia\n(Einsatzort)",
+        "Začiatok výkonu\n(Von)",
+        "Koniec výkonu\n(Bis)",
+        "Prestávka\n(Pause)",
+        "Rozsah výkonu celkom\n(Summe Stunden)",
+        "Popis činnosti\n(Tätigkeitsbeschreibung)",
+      ],
     ];
 
     const sortedRecords = [...records].sort(
@@ -179,15 +231,16 @@ export function exportMultipleWeeksToExcel(
 
     const recordRows = sortedRecords.map((record) => {
       const recordDate = new Date(record.date);
-      const germanDay = germanDays[format(recordDate, "EEEE")] || format(recordDate, "EEEE", { locale: de });
+      const dayName = format(recordDate, "EEEE", { locale: sk });
+      const formattedDate = `${dayName}\n${format(recordDate, "dd.MM.yyyy")}`;
 
       return [
-        germanDay,
-        format(recordDate, "dd.MM.yyyy"),
+        formattedDate,
+        record.location || projectLocation || projectName,
         record.time_from.slice(0, 5),
-        formatBreakTime(record.break_start, record.break_end),
         record.time_to.slice(0, 5),
-        Number(record.total_hours).toFixed(2),
+        formatBreakDuration(record.break_start, record.break_end),
+        Number(record.total_hours).toFixed(2) + " h",
         record.note || "",
       ];
     });
@@ -196,9 +249,9 @@ export function exportMultipleWeeksToExcel(
 
     const footerData = [
       [],
-      ["", "", "", "", "GESAMT:", totalHours.toFixed(2) + " h", ""],
+      ["", "", "", "", "CELKOM / GESAMT:", totalHours.toFixed(2) + " h", ""],
       [],
-      ["Unterschrift Subdodávateľ:", "", "", "", "Unterschrift Auftraggeber:", "", ""],
+      ["Potvrdil za TKJD s.r.o. (PM):", "", "", "", "Vypracoval Subdodávateľ:", "", ""],
       [],
       ["_______________________", "", "", "", "_______________________", "", ""],
     ];
@@ -207,18 +260,23 @@ export function exportMultipleWeeksToExcel(
     const ws = XLSX.utils.aoa_to_sheet(wsData);
 
     ws["!cols"] = [
+      { wch: 16 },
+      { wch: 18 },
       { wch: 12 },
       { wch: 12 },
-      { wch: 8 },
-      { wch: 10 },
-      { wch: 8 },
-      { wch: 10 },
-      { wch: 30 },
+      { wch: 12 },
+      { wch: 16 },
+      { wch: 35 },
     ];
 
-    ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }];
+    ws["!rows"] = [];
+    ws["!rows"][5] = { hpt: 40 };
 
-    // Sheet name (max 31 chars)
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } },
+    ];
+
     const sheetName = `KW${calendarWeek}_${workerName.slice(0, 15)}`.slice(0, 31);
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
   });
