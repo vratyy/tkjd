@@ -21,6 +21,8 @@ interface ProfileData {
   signature_url: string | null;
   is_vat_payer: boolean;
   vat_number: string | null;
+  ico: string | null;
+  dic: string | null;
 }
 
 export default function Profile() {
@@ -38,6 +40,8 @@ export default function Profile() {
     signature_url: null,
     is_vat_payer: false,
     vat_number: null,
+    ico: null,
+    dic: null,
   });
 
   useEffect(() => {
@@ -46,7 +50,7 @@ export default function Profile() {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("full_name, company_name, hourly_rate, iban, swift_bic, billing_address, signature_url, is_vat_payer, vat_number")
+        .select("full_name, company_name, hourly_rate, iban, swift_bic, billing_address, signature_url, is_vat_payer, vat_number, ico, dic")
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -78,6 +82,8 @@ export default function Profile() {
         billing_address: profile.billing_address,
         is_vat_payer: profile.is_vat_payer,
         vat_number: profile.vat_number,
+        ico: profile.ico,
+        dic: profile.dic,
       })
       .eq("user_id", user.id);
 
@@ -141,7 +147,7 @@ export default function Profile() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="companyName">Názov firmy (IČO)</Label>
+                <Label htmlFor="companyName">Názov firmy</Label>
                 <Input
                   id="companyName"
                   value={profile.company_name || ""}
@@ -150,6 +156,31 @@ export default function Profile() {
                   }
                   placeholder="Napr. Ján Novák s.r.o."
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="ico">IČO</Label>
+                  <Input
+                    id="ico"
+                    value={profile.ico || ""}
+                    onChange={(e) =>
+                      setProfile((prev) => ({ ...prev, ico: e.target.value }))
+                    }
+                    placeholder="12345678"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="dic">DIČ</Label>
+                  <Input
+                    id="dic"
+                    value={profile.dic || ""}
+                    onChange={(e) =>
+                      setProfile((prev) => ({ ...prev, dic: e.target.value }))
+                    }
+                    placeholder="2012345678"
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">

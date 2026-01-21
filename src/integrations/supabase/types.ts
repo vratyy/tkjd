@@ -79,9 +79,11 @@ export type Database = {
           company_name: string | null
           created_at: string
           deleted_at: string | null
+          dic: string | null
           full_name: string
           hourly_rate: number | null
           iban: string | null
+          ico: string | null
           id: string
           is_vat_payer: boolean
           signature_url: string | null
@@ -95,9 +97,11 @@ export type Database = {
           company_name?: string | null
           created_at?: string
           deleted_at?: string | null
+          dic?: string | null
           full_name: string
           hourly_rate?: number | null
           iban?: string | null
+          ico?: string | null
           id?: string
           is_vat_payer?: boolean
           signature_url?: string | null
@@ -111,9 +115,11 @@ export type Database = {
           company_name?: string | null
           created_at?: string
           deleted_at?: string | null
+          dic?: string | null
           full_name?: string
           hourly_rate?: number | null
           iban?: string | null
+          ico?: string | null
           id?: string
           is_vat_payer?: boolean
           signature_url?: string | null
