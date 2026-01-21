@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, User, CreditCard, Euro } from "lucide-react";
+import { Loader2, Save, User, CreditCard, Euro, Building2 } from "lucide-react";
 import { SignaturePad } from "@/components/SignaturePad";
+import { Switch } from "@/components/ui/switch";
 
 interface ProfileData {
   full_name: string;
@@ -18,6 +19,8 @@ interface ProfileData {
   swift_bic: string | null;
   billing_address: string | null;
   signature_url: string | null;
+  is_vat_payer: boolean;
+  vat_number: string | null;
 }
 
 export default function Profile() {
@@ -33,6 +36,8 @@ export default function Profile() {
     swift_bic: null,
     billing_address: null,
     signature_url: null,
+    is_vat_payer: false,
+    vat_number: null,
   });
 
   useEffect(() => {
@@ -41,7 +46,7 @@ export default function Profile() {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("full_name, company_name, hourly_rate, iban, swift_bic, billing_address, signature_url")
+        .select("full_name, company_name, hourly_rate, iban, swift_bic, billing_address, signature_url, is_vat_payer, vat_number")
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -71,6 +76,8 @@ export default function Profile() {
         iban: profile.iban,
         swift_bic: profile.swift_bic,
         billing_address: profile.billing_address,
+        is_vat_payer: profile.is_vat_payer,
+        vat_number: profile.vat_number,
       })
       .eq("user_id", user.id);
 
@@ -168,6 +175,64 @@ export default function Profile() {
                   <>
                     <Save className="mr-2 h-4 w-4" />
                     Uložiť osobné údaje
+                  </>
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* VAT Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Daňové údaje
+            </CardTitle>
+            <CardDescription>Nastavenia DPH pre fakturáciu</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <Label htmlFor="isVatPayer" className="text-base">Platca DPH</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Aktivujte, ak ste registrovaný platca DPH
+                  </p>
+                </div>
+                <Switch
+                  id="isVatPayer"
+                  checked={profile.is_vat_payer}
+                  onCheckedChange={(checked) =>
+                    setProfile((prev) => ({ ...prev, is_vat_payer: checked }))
+                  }
+                />
+              </div>
+
+              {profile.is_vat_payer && (
+                <div className="space-y-2">
+                  <Label htmlFor="vatNumber">IČ DPH</Label>
+                  <Input
+                    id="vatNumber"
+                    value={profile.vat_number || ""}
+                    onChange={(e) =>
+                      setProfile((prev) => ({ ...prev, vat_number: e.target.value }))
+                    }
+                    placeholder="SK1234567890"
+                  />
+                </div>
+              )}
+
+              <Button type="submit" disabled={saving} className="w-full">
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Ukladám...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Uložiť daňové údaje
                   </>
                 )}
               </Button>

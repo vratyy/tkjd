@@ -54,6 +54,8 @@ export default function WeeklyClosings() {
     iban: string | null;
     swift_bic: string | null;
     signature_url: string | null;
+    is_vat_payer: boolean;
+    vat_number: string | null;
   } | null>(null);
   const [generatingInvoice, setGeneratingInvoice] = useState<string | null>(null);
 
@@ -63,7 +65,7 @@ export default function WeeklyClosings() {
     // Fetch user profile with billing info
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name, company_name, billing_address, hourly_rate, iban, swift_bic, signature_url")
+      .select("full_name, company_name, billing_address, hourly_rate, iban, swift_bic, signature_url, is_vat_payer, vat_number")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -273,10 +275,14 @@ export default function WeeklyClosings() {
         supplierSwiftBic: userProfile.swift_bic,
         signatureUrl: userProfile.signature_url,
         hourlyRate: userProfile.hourly_rate,
+        isVatPayer: userProfile.is_vat_payer ?? false,
+        vatNumber: userProfile.vat_number,
+        isReverseCharge: false,
         projectName,
         calendarWeek: group.week,
         year: group.year,
         totalHours: group.totalHours,
+        odberatelId: group.closingId,
       });
 
       toast({

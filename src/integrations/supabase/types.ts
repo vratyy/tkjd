@@ -83,10 +83,12 @@ export type Database = {
           hourly_rate: number | null
           iban: string | null
           id: string
+          is_vat_payer: boolean
           signature_url: string | null
           swift_bic: string | null
           updated_at: string
           user_id: string
+          vat_number: string | null
         }
         Insert: {
           billing_address?: string | null
@@ -97,10 +99,12 @@ export type Database = {
           hourly_rate?: number | null
           iban?: string | null
           id?: string
+          is_vat_payer?: boolean
           signature_url?: string | null
           swift_bic?: string | null
           updated_at?: string
           user_id: string
+          vat_number?: string | null
         }
         Update: {
           billing_address?: string | null
@@ -111,10 +115,12 @@ export type Database = {
           hourly_rate?: number | null
           iban?: string | null
           id?: string
+          is_vat_payer?: boolean
           signature_url?: string | null
           swift_bic?: string | null
           updated_at?: string
           user_id?: string
+          vat_number?: string | null
         }
         Relationships: []
       }
