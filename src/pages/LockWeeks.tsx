@@ -6,16 +6,22 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Lock, User, ChevronDown, ChevronUp, FileSpreadsheet } from "lucide-react";
+import { Loader2, Lock, User, ChevronDown, ChevronUp, FileSpreadsheet, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Navigate } from "react-router-dom";
 import { exportWeeklyRecordsToExcel } from "@/lib/excelExport";
+import { generateInvoicePDF } from "@/lib/invoiceGenerator";
 
 interface Profile {
   full_name: string;
   company_name: string | null;
+  billing_address: string | null;
+  hourly_rate: number | null;
+  iban: string | null;
+  swift_bic: string | null;
+  signature_url: string | null;
 }
 
 interface PerformanceRecord {
@@ -54,6 +60,7 @@ export default function LockWeeks() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
   const [openItems, setOpenItems] = useState<Set<string>>(new Set());
+  const [generatingInvoice, setGeneratingInvoice] = useState<string | null>(null);
 
   const fetchData = async () => {
     if (!user) return;
@@ -75,7 +82,7 @@ export default function LockWeeks() {
     const userIds = [...new Set(closings?.map(c => c.user_id) || [])];
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("user_id, full_name, company_name")
+      .select("user_id, full_name, company_name, billing_address, hourly_rate, iban, swift_bic, signature_url")
       .in("user_id", userIds);
 
     const weeks: ApprovedWeek[] = [];
@@ -101,7 +108,15 @@ export default function LockWeeks() {
 
       const closingWithProfile: WeeklyClosing = {
         ...closing,
-        profiles: profile ? { full_name: profile.full_name, company_name: profile.company_name } : null
+        profiles: profile ? {
+          full_name: profile.full_name,
+          company_name: profile.company_name,
+          billing_address: profile.billing_address,
+          hourly_rate: profile.hourly_rate,
+          iban: profile.iban,
+          swift_bic: profile.swift_bic,
+          signature_url: profile.signature_url,
+        } : null
       };
 
       weeks.push({
@@ -180,6 +195,59 @@ export default function LockWeeks() {
       title: "Export úspešný",
       description: `Leistungsnachweis bol stiahnutý.`,
     });
+  };
+
+  const canGenerateInvoice = (week: ApprovedWeek) => {
+    return (
+      week.closing.profiles?.hourly_rate &&
+      week.closing.profiles.hourly_rate > 0
+    );
+  };
+
+  const handleGenerateInvoice = async (week: ApprovedWeek) => {
+    const profile = week.closing.profiles;
+    if (!profile || !profile.hourly_rate) {
+      toast({
+        variant: "destructive",
+        title: "Chýbajúce údaje",
+        description: "Používateľ nemá nastavenú hodinovú sadzbu.",
+      });
+      return;
+    }
+
+    setGeneratingInvoice(week.closing.id);
+
+    try {
+      const projectNames = [...new Set(week.records.map((r) => r.projects?.name).filter(Boolean))];
+      const projectName = projectNames.join(", ") || "Projekt";
+
+      await generateInvoicePDF({
+        supplierName: profile.full_name,
+        supplierCompany: profile.company_name,
+        supplierAddress: profile.billing_address,
+        supplierIban: profile.iban,
+        supplierSwiftBic: profile.swift_bic,
+        signatureUrl: profile.signature_url,
+        hourlyRate: profile.hourly_rate,
+        projectName,
+        calendarWeek: week.closing.calendar_week,
+        year: week.closing.year,
+        totalHours: week.totalHours,
+      });
+
+      toast({
+        title: "Faktúra vygenerovaná",
+        description: `PDF faktúra bola stiahnutá.`,
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Chyba",
+        description: error.message,
+      });
+    }
+
+    setGeneratingInvoice(null);
   };
 
   const toggleItem = (id: string) => {
@@ -273,6 +341,23 @@ export default function LockWeeks() {
                           <FileSpreadsheet className="h-4 w-4 sm:mr-1" />
                           <span className="hidden sm:inline">Export</span>
                         </Button>
+                        {canGenerateInvoice(week) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleGenerateInvoice(week)}
+                            disabled={generatingInvoice === week.closing.id}
+                          >
+                            {generatingInvoice === week.closing.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <FileText className="h-4 w-4 sm:mr-1" />
+                                <span className="hidden sm:inline">Faktúra</span>
+                              </>
+                            )}
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="secondary"

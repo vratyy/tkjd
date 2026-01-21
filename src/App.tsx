@@ -13,6 +13,7 @@ import Approvals from "./pages/Approvals";
 import LockWeeks from "./pages/LockWeeks";
 import Projects from "./pages/Projects";
 import Users from "./pages/Users";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
               <Route path="/lock-weeks" element={<LockWeeks />} />
               <Route path="/projects" element={<Projects />} />
               <Route path="/users" element={<Users />} />
+              <Route path="/profile" element={<Profile />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
