@@ -519,21 +519,30 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   doc.text(safeText(data.supplierName), signatureX, footerY + 43);
 
   // ============================================================================
-  // LEGAL DISCLAIMERS (Bottom of page) - BILINGUAL
+  // LEGAL DISCLAIMERS (Bottom of page) - BILINGUAL + TRANSACTION TAX INFO
   // ============================================================================
   
-  const disclaimerY = pageHeight - 20;
+  const disclaimerY = pageHeight - 24;
   
   doc.setFontSize(6);
   doc.setTextColor(140, 140, 140);
   
+  // Transaction Tax Info (internal usage note)
+  const transactionTaxRate = 0.4; // Default rate
+  const transactionTaxAmount = Math.ceil((totalAmount * transactionTaxRate / 100) * 100) / 100;
+  const taxInfoText = `Informativna vyska transakcnej dane (${transactionTaxRate}%): ${transactionTaxAmount.toFixed(2)} EUR`;
+  doc.setTextColor(100, 100, 100);
+  doc.text(taxInfoText, pageWidth / 2, disclaimerY - 8, { align: "center" });
+  
+  doc.setTextColor(140, 140, 140);
+  
   // Slovak disclaimer
   const disclaimerSK = "Tato aplikacia sluzi vylucne na evidenciu rozsahu vykonaneho diela ako podklad k fakturacii medzi B2B partnermi. Nejde o dochadzkovy ani zamestnanecky system.";
-  doc.text(disclaimerSK, pageWidth / 2, disclaimerY - 4, { align: "center", maxWidth: pageWidth - 30 });
+  doc.text(disclaimerSK, pageWidth / 2, disclaimerY, { align: "center", maxWidth: pageWidth - 30 });
   
   // German disclaimer
   const disclaimerDE = "Diese App dient ausschliesslich als Abrechnungsgrundlage/Leistungsnachweis im B2B-Verhaltnis. Es handelt sich nicht um eine Arbeitszeiterfassung im arbeitsrechtlichen Sinne.";
-  doc.text(disclaimerDE, pageWidth / 2, disclaimerY + 2, { align: "center", maxWidth: pageWidth - 30 });
+  doc.text(disclaimerDE, pageWidth / 2, disclaimerY + 6, { align: "center", maxWidth: pageWidth - 30 });
 
   // ============================================================================
   // SAVE PDF WITH EXACT NAMING FORMAT

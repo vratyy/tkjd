@@ -234,13 +234,21 @@ export function InvoiceDetailDialog({
               </div>
             )}
 
-            <div className="rounded-lg bg-muted/50 p-4">
+            {/* Prominent Transaction Tax Box - Visible to both Admin and Subcontractor */}
+            <div className="rounded-lg bg-warning/10 border-2 border-warning p-4">
               <div className="flex justify-between items-center">
-                <span>Výpočet: {formatAmount(Number(invoice.total_amount))} × {taxRate}%</span>
-                <span className="text-xl font-bold text-primary">{formatAmount(calculatedTax)}</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-warning animate-pulse" />
+                  <span className="font-medium text-warning-foreground">
+                    Transakčná daň ({taxRate}%)
+                  </span>
+                </div>
+                <span className="text-2xl font-bold text-warning-foreground">
+                  {formatAmount(calculatedTax)}
+                </span>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Zaokrúhlené nahor na najbližší cent
+              <p className="text-xs text-muted-foreground mt-2">
+                Informatívna výška transakčnej dane – zaokrúhlené nahor na najbližší cent
               </p>
             </div>
           </div>
