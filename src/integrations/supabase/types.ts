@@ -14,6 +14,87 @@ export type Database = {
   }
   public: {
     Tables: {
+      invoices: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          delivery_date: string
+          due_date: string
+          hourly_rate: number
+          id: string
+          invoice_number: string
+          is_reverse_charge: boolean
+          issue_date: string
+          paid_at: string | null
+          project_id: string | null
+          status: Database["public"]["Enums"]["invoice_status"]
+          subtotal: number
+          total_amount: number
+          total_hours: number
+          updated_at: string
+          user_id: string
+          vat_amount: number
+          week_closing_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          delivery_date?: string
+          due_date: string
+          hourly_rate?: number
+          id?: string
+          invoice_number: string
+          is_reverse_charge?: boolean
+          issue_date?: string
+          paid_at?: string | null
+          project_id?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          subtotal?: number
+          total_amount?: number
+          total_hours?: number
+          updated_at?: string
+          user_id: string
+          vat_amount?: number
+          week_closing_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          delivery_date?: string
+          due_date?: string
+          hourly_rate?: number
+          id?: string
+          invoice_number?: string
+          is_reverse_charge?: boolean
+          issue_date?: string
+          paid_at?: string | null
+          project_id?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          subtotal?: number
+          total_amount?: number
+          total_hours?: number
+          updated_at?: string
+          user_id?: string
+          vat_amount?: number
+          week_closing_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_week_closing_id_fkey"
+            columns: ["week_closing_id"]
+            isOneToOne: false
+            referencedRelation: "weekly_closings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       performance_records: {
         Row: {
           break_end: string | null
@@ -249,6 +330,7 @@ export type Database = {
     Enums: {
       app_role: "monter" | "manager" | "admin" | "accountant"
       closing_status: "open" | "submitted" | "approved" | "locked"
+      invoice_status: "pending" | "due_soon" | "overdue" | "paid"
       record_status:
         | "draft"
         | "submitted"
@@ -384,6 +466,7 @@ export const Constants = {
     Enums: {
       app_role: ["monter", "manager", "admin", "accountant"],
       closing_status: ["open", "submitted", "approved", "locked"],
+      invoice_status: ["pending", "due_soon", "overdue", "paid"],
       record_status: ["draft", "submitted", "approved", "rejected", "returned"],
     },
   },
