@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Table,
   TableBody,
@@ -9,8 +10,10 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InvoiceStatusBadge } from "./InvoiceStatusBadge";
+import { TaxPaymentStatusBadge } from "./TaxPaymentStatusBadge";
+import { InvoiceDetailDialog } from "./InvoiceDetailDialog";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, AlertTriangle } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
 
@@ -23,6 +26,12 @@ interface Invoice {
   issue_date: string;
   due_date: string;
   status: "pending" | "due_soon" | "overdue" | "paid";
+  transaction_tax_rate: number;
+  transaction_tax_amount: number;
+  tax_payment_status: "pending" | "confirmed" | "verified";
+  tax_confirmed_at: string | null;
+  tax_verified_at: string | null;
+  advance_deduction: number;
   profile?: {
     full_name: string;
     company_name: string | null;
@@ -37,9 +46,13 @@ interface InvoicesTrafficTableProps {
   invoices: Invoice[];
   loading: boolean;
   onMarkAsPaid: (invoiceId: string) => void;
+  onRefresh: () => void;
 }
 
-export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid }: InvoicesTrafficTableProps) {
+export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefresh }: InvoicesTrafficTableProps) {
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat("sk-SK", {
       style: "currency",
@@ -137,7 +150,8 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid }: Invoic
                 <TableHead>Dátum vystavenia</TableHead>
                 <TableHead>Splatnosť</TableHead>
                 <TableHead className="text-right">Suma</TableHead>
-                <TableHead>Stav</TableHead>
+                <TableHead>Stav platby</TableHead>
+                <TableHead>Stav dane</TableHead>
                 <TableHead className="text-right">Akcie</TableHead>
               </TableRow>
             </TableHeader>
@@ -169,24 +183,49 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid }: Invoic
                   <TableCell>
                     <InvoiceStatusBadge status={invoice.status} dueDate={invoice.due_date} />
                   </TableCell>
+                  <TableCell>
+                    <TaxPaymentStatusBadge status={invoice.tax_payment_status || "pending"} />
+                  </TableCell>
                   <TableCell className="text-right">
-                    {invoice.status !== "paid" && (
+                    <div className="flex items-center justify-end gap-2">
                       <Button
                         size="sm"
-                        variant="outline"
-                        onClick={() => onMarkAsPaid(invoice.id)}
-                        className="gap-1"
+                        variant="ghost"
+                        onClick={() => {
+                          setSelectedInvoice(invoice);
+                          setDetailOpen(true);
+                        }}
                       >
-                        <CheckCircle2 className="h-3 w-3" />
-                        Označiť ako zaplatené
+                        <Eye className="h-4 w-4" />
                       </Button>
-                    )}
+                      {invoice.status !== "paid" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onMarkAsPaid(invoice.id)}
+                          className="gap-1"
+                        >
+                          <CheckCircle2 className="h-3 w-3" />
+                          Zaplatené
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         )}
+
+        <InvoiceDetailDialog
+          invoice={selectedInvoice}
+          open={detailOpen}
+          onOpenChange={setDetailOpen}
+          onUpdate={() => {
+            onRefresh();
+            setDetailOpen(false);
+          }}
+        />
       </CardContent>
     </Card>
   );

@@ -2,7 +2,9 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import { FinancialMetricsCards } from "@/components/financial/FinancialMetricsCards";
 import { InvoicesTrafficTable } from "@/components/financial/InvoicesTrafficTable";
+import { AdvancesManagement } from "@/components/financial/AdvancesManagement";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RefreshCw } from "lucide-react";
 import { Navigate } from "react-router-dom";
 
@@ -21,7 +23,7 @@ export default function FinancialDashboard() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Finančný prehľad</h1>
           <p className="text-muted-foreground">
-            Prehľad všetkých faktúr a ich stavu platby
+            Prehľad všetkých faktúr, záloh a ich stavu platby
           </p>
         </div>
         <Button variant="outline" onClick={refetch} disabled={loading}>
@@ -32,11 +34,25 @@ export default function FinancialDashboard() {
 
       <FinancialMetricsCards data={metrics} loading={loading} />
       
-      <InvoicesTrafficTable 
-        invoices={invoices} 
-        loading={loading}
-        onMarkAsPaid={markAsPaid}
-      />
+      <Tabs defaultValue="invoices" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="invoices">Faktúry</TabsTrigger>
+          <TabsTrigger value="advances">Zálohy</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="invoices">
+          <InvoicesTrafficTable 
+            invoices={invoices} 
+            loading={loading}
+            onMarkAsPaid={markAsPaid}
+            onRefresh={refetch}
+          />
+        </TabsContent>
+        
+        <TabsContent value="advances">
+          <AdvancesManagement />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

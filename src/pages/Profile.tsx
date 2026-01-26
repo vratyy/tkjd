@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 interface ProfileData {
   full_name: string;
   company_name: string | null;
+  contract_number: string | null;
   hourly_rate: number | null;
   iban: string | null;
   swift_bic: string | null;
@@ -33,6 +34,7 @@ export default function Profile() {
   const [profile, setProfile] = useState<ProfileData>({
     full_name: "",
     company_name: null,
+    contract_number: null,
     hourly_rate: null,
     iban: null,
     swift_bic: null,
@@ -50,7 +52,7 @@ export default function Profile() {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("full_name, company_name, hourly_rate, iban, swift_bic, billing_address, signature_url, is_vat_payer, vat_number, ico, dic")
+        .select("full_name, company_name, contract_number, hourly_rate, iban, swift_bic, billing_address, signature_url, is_vat_payer, vat_number, ico, dic")
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -76,6 +78,7 @@ export default function Profile() {
       .update({
         full_name: profile.full_name,
         company_name: profile.company_name,
+        contract_number: profile.contract_number,
         hourly_rate: profile.hourly_rate,
         iban: profile.iban,
         swift_bic: profile.swift_bic,
@@ -155,6 +158,18 @@ export default function Profile() {
                     setProfile((prev) => ({ ...prev, company_name: e.target.value }))
                   }
                   placeholder="Napr. Ján Novák s.r.o."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="contractNumber">Číslo zmluvy</Label>
+                <Input
+                  id="contractNumber"
+                  value={profile.contract_number || ""}
+                  onChange={(e) =>
+                    setProfile((prev) => ({ ...prev, contract_number: e.target.value }))
+                  }
+                  placeholder="Napr. ZML-2024-001"
                 />
               </div>
 
