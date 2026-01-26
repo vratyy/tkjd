@@ -15,6 +15,7 @@ import Projects from "./pages/Projects";
 import Users from "./pages/Users";
 import Profile from "./pages/Profile";
 import AdminSettings from "./pages/AdminSettings";
+import FinancialDashboard from "./pages/FinancialDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,6 +39,7 @@ const App = () => (
               <Route path="/users" element={<Users />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin-settings" element={<AdminSettings />} />
+              <Route path="/financial-dashboard" element={<FinancialDashboard />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
