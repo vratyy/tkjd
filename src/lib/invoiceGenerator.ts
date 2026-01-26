@@ -104,13 +104,13 @@ function generatePayBySquareData(
 ): string {
   const cleanIban = iban.replace(/\s/g, "");
   const amountStr = amount.toFixed(2);
-  const kwFormatted = formatKW(calendarWeek);
   
-  // Variable Symbol = numeric part of invoice number
+  // Variable Symbol = strictly numeric part of invoice number
   const variableSymbol = extractNumericVS(invoiceNumber);
   
-  // Message for recipient: [KW] KW [User Name]
-  const message = `${kwFormatted} KW ${safeText(supplierName)}`;
+  // Message for recipient: [KW] woche [First Name] [Last Name]
+  // Example: "49 woche Patrik Cmar" - uses plain KW number without leading zero
+  const message = `${calendarWeek} woche ${safeText(supplierName)}`;
   
   // PAY by square format (SEPA with VS and proper message)
   // SPD format: SPD*1.0*ACC:IBAN*AM:amount*CC:EUR*X-VS:variableSymbol*MSG:message*RN:beneficiary
