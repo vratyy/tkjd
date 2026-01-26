@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import QRCode from "qrcode";
-import { format, addDays } from "date-fns";
+import { format, addDays, getISOWeek } from "date-fns";
 import { safeText, registerPdfFonts, setFontStyle, getPdfFontFamily } from "./pdfFonts";
 
 export interface InvoiceData {
@@ -15,6 +15,7 @@ export interface InvoiceData {
   supplierSwiftBic: string | null;
   signatureUrl: string | null;
   hourlyRate: number;
+  contractNumber?: string | null;
   
   // VAT settings
   isVatPayer: boolean;
@@ -26,6 +27,10 @@ export interface InvoiceData {
   calendarWeek: number;
   year: number;
   totalHours: number;
+  
+  // Service period dates (for accurate KW calculation)
+  serviceDateFrom?: Date;
+  serviceDateTo?: Date;
   
   // For unique invoice number
   odberatelId?: string;
@@ -48,6 +53,23 @@ const VAT_RATE = 0.20;
 // HELPER FUNCTIONS
 // ============================================================================
 
+/**
+ * Calculate the correct ISO Calendar Week from a date
+ */
+function getCalendarWeek(date: Date): number {
+  return getISOWeek(date);
+}
+
+/**
+ * Format KW number with leading zero (e.g., 05, 12, 52)
+ */
+function formatKW(kw: number): string {
+  return String(kw).padStart(2, "0");
+}
+
+/**
+ * Generate invoice number in format: YYYYMMXXX
+ */
 function generateInvoiceNumber(odberatelId?: string): string {
   const now = new Date();
   const year = now.getFullYear();
@@ -63,18 +85,36 @@ function generateInvoiceNumber(odberatelId?: string): string {
   return `${year}${month}${suffix}`;
 }
 
+/**
+ * Extract numeric part from invoice number for Variable Symbol
+ */
+function extractNumericVS(invoiceNumber: string): string {
+  return invoiceNumber.replace(/\D/g, "");
+}
+
+/**
+ * Generate proper PAY by square QR data with Variable Symbol and correct message
+ */
 function generatePayBySquareData(
   iban: string,
   amount: number,
   invoiceNumber: string,
-  beneficiaryName: string
+  calendarWeek: number,
+  supplierName: string
 ): string {
   const cleanIban = iban.replace(/\s/g, "");
   const amountStr = amount.toFixed(2);
-  const message = `Faktura ${invoiceNumber}`;
+  const kwFormatted = formatKW(calendarWeek);
   
-  // PAY by square format (simplified SEPA)
-  return `SPD*1.0*ACC:${cleanIban}*AM:${amountStr}*CC:EUR*MSG:${message}*RN:${safeText(beneficiaryName)}`;
+  // Variable Symbol = numeric part of invoice number
+  const variableSymbol = extractNumericVS(invoiceNumber);
+  
+  // Message for recipient: [KW] KW [User Name]
+  const message = `${kwFormatted} KW ${safeText(supplierName)}`;
+  
+  // PAY by square format (SEPA with VS and proper message)
+  // SPD format: SPD*1.0*ACC:IBAN*AM:amount*CC:EUR*X-VS:variableSymbol*MSG:message*RN:beneficiary
+  return `SPD*1.0*ACC:${cleanIban}*AM:${amountStr}*CC:EUR*X-VS:${variableSymbol}*MSG:${message}*RN:TKJD s.r.o.`;
 }
 
 async function loadImageAsBase64(url: string): Promise<string | null> {
@@ -104,6 +144,13 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   registerPdfFonts(doc);
   
   const invoiceNumber = generateInvoiceNumber(data.odberatelId);
+  
+  // Determine the correct Calendar Week from service dates or use provided value
+  let calendarWeek = data.calendarWeek;
+  if (data.serviceDateFrom) {
+    calendarWeek = getCalendarWeek(data.serviceDateFrom);
+  }
+  const kwFormatted = formatKW(calendarWeek);
   
   // Calculate amounts
   const baseAmount = data.totalHours * data.hourlyRate;
@@ -145,7 +192,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   doc.setFontSize(12);
   setFontStyle(doc, "normal");
   doc.setTextColor(80, 80, 80);
-  doc.text(`c.: ${invoiceNumber}`, pageWidth - margin, 28, { align: "right" });
+  doc.text(`c.: ${invoiceNumber} | KW ${kwFormatted}`, pageWidth - margin, 28, { align: "right" });
 
   // Separator line
   doc.setDrawColor(200, 200, 200);
@@ -291,7 +338,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
 
   const tableBody: (string | number)[][] = [
     [
-      safeText(`${data.projectName} - KW ${data.calendarWeek}/${data.year}`),
+      safeText(`${data.projectName} - KW ${kwFormatted}/${data.year}`),
       data.totalHours.toFixed(2),
       data.hourlyRate.toFixed(2),
       data.isReverseCharge ? "0% (RC)" : (data.isVatPayer ? "20%" : "-"),
@@ -412,6 +459,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
         data.supplierIban,
         totalAmount,
         invoiceNumber,
+        calendarWeek,
         data.supplierName
       );
       const qrCodeDataUrl = await QRCode.toDataURL(qrData, {
@@ -488,9 +536,22 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   doc.text(disclaimerDE, pageWidth / 2, disclaimerY + 2, { align: "center", maxWidth: pageWidth - 30 });
 
   // ============================================================================
-  // SAVE PDF
+  // SAVE PDF WITH EXACT NAMING FORMAT
+  // Format: [KW Number] KW [Invoice Number] [User Name] [Project Name].pdf
+  // Example: 05 KW 202601 Patrik Cmar Berlin.pdf
   // ============================================================================
   
-  const filename = `Faktura_${invoiceNumber}.pdf`;
+  // Sanitize names for filename (remove special characters)
+  const sanitize = (str: string): string => {
+    return str
+      .replace(/[/\\?%*:|"<>]/g, "") // Remove invalid filename chars
+      .replace(/\s+/g, " ")          // Normalize spaces
+      .trim();
+  };
+  
+  const userName = sanitize(safeText(data.supplierName));
+  const projectName = sanitize(safeText(data.projectName));
+  
+  const filename = `${kwFormatted} KW ${invoiceNumber} ${userName} ${projectName}.pdf`;
   doc.save(filename);
 }
