@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Calendar, ClipboardList, FolderOpen, Plus } from "lucide-react";
+import { Calendar, ClipboardList, FolderOpen, Plus, Home, Users } from "lucide-react";
 import { format, getWeek, getYear } from "date-fns";
 import { sk } from "date-fns/locale";
 
@@ -28,11 +28,19 @@ interface PerformanceRecord {
   projects: { name: string } | null;
 }
 
+interface AccommodationInfo {
+  id: string;
+  user_name: string;
+  accommodation_name: string;
+  check_out: string | null;
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const { role, isManager, isAdmin } = useUserRole();
   const [openClosings, setOpenClosings] = useState<WeeklyClosing[]>([]);
   const [recentRecords, setRecentRecords] = useState<PerformanceRecord[]>([]);
+  const [currentAccommodations, setCurrentAccommodations] = useState<AccommodationInfo[]>([]);
   const [stats, setStats] = useState({ monthlyHours: 0, activeProjects: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -89,11 +97,43 @@ export default function Dashboard() {
         activeProjects: projectCount || 0,
       });
 
+      // Fetch current accommodations for Admin widget
+      if (isAdmin) {
+        const today = new Date().toISOString().split("T")[0];
+        const { data: assignments } = await supabase
+          .from("accommodation_assignments")
+          .select(`
+            id,
+            check_out,
+            accommodation:accommodations(name)
+          `)
+          .is("deleted_at", null)
+          .or(`check_out.is.null,check_out.gte.${today}`)
+          .limit(5);
+
+        const enrichedAssignments = await Promise.all(
+          (assignments || []).map(async (a: any) => {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("full_name")
+              .eq("user_id", a.user_id)
+              .maybeSingle();
+            return {
+              id: a.id,
+              user_name: profile?.full_name || "Neznámy",
+              accommodation_name: a.accommodation?.name || "—",
+              check_out: a.check_out,
+            } as AccommodationInfo;
+          })
+        );
+        setCurrentAccommodations(enrichedAssignments);
+      }
+
       setLoading(false);
     }
 
     fetchData();
-  }, [user]);
+  }, [user, isAdmin]);
 
   const currentWeek = getWeek(new Date(), { weekStartsOn: 1 });
   const currentYear = getYear(new Date());
@@ -253,6 +293,45 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Admin Widget: Current Accommodations */}
+      {isAdmin && currentAccommodations.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Home className="h-5 w-5" />
+              Aktuálne ubytovaní
+            </CardTitle>
+            <CardDescription>Prehľad pracovníkov v ubytovaniach</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {currentAccommodations.map((acc) => (
+                <div
+                  key={acc.id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <span className="font-medium">{acc.user_name}</span>
+                      <p className="text-sm text-muted-foreground">{acc.accommodation_name}</p>
+                    </div>
+                  </div>
+                  <div className="text-right text-sm text-muted-foreground">
+                    {acc.check_out 
+                      ? format(new Date(acc.check_out), "d. MMM", { locale: sk })
+                      : "Bez dátumu"}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Button variant="link" className="mt-2 p-0" asChild>
+              <Link to="/accommodations">Zobraziť všetky →</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

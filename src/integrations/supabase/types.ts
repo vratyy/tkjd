@@ -14,6 +14,108 @@ export type Database = {
   }
   public: {
     Tables: {
+      accommodation_assignments: {
+        Row: {
+          accommodation_id: string
+          check_in: string
+          check_out: string | null
+          created_at: string
+          deleted_at: string | null
+          id: string
+          note: string | null
+          price_per_night: number
+          project_id: string | null
+          total_cost: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          accommodation_id: string
+          check_in: string
+          check_out?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          note?: string | null
+          price_per_night: number
+          project_id?: string | null
+          total_cost?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          accommodation_id?: string
+          check_in?: string
+          check_out?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          note?: string | null
+          price_per_night?: number
+          project_id?: string | null
+          total_cost?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accommodation_assignments_accommodation_id_fkey"
+            columns: ["accommodation_id"]
+            isOneToOne: false
+            referencedRelation: "accommodations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accommodation_assignments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accommodations: {
+        Row: {
+          address: string
+          contact: string | null
+          created_at: string
+          default_price_per_night: number
+          deleted_at: string | null
+          id: string
+          is_active: boolean
+          lat: number | null
+          lng: number | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          address: string
+          contact?: string | null
+          created_at?: string
+          default_price_per_night?: number
+          deleted_at?: string | null
+          id?: string
+          is_active?: boolean
+          lat?: number | null
+          lng?: number | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          contact?: string | null
+          created_at?: string
+          default_price_per_night?: number
+          deleted_at?: string | null
+          id?: string
+          is_active?: boolean
+          lat?: number | null
+          lng?: number | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       advances: {
         Row: {
           amount: number

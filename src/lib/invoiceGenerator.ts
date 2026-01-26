@@ -164,10 +164,10 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
     totalAmount = baseAmount + vatAmount;
   }
   
-  // Dates
+  // Dates - CEO requirement: due date = issue date + 21 days
   const issueDate = new Date();
   const deliveryDate = issueDate;
-  const dueDate = addDays(issueDate, 14);
+  const dueDate = addDays(issueDate, 21);
 
   // Layout constants
   const pageWidth = doc.internal.pageSize.getWidth();
