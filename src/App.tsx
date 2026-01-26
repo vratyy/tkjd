@@ -16,6 +16,7 @@ import Users from "./pages/Users";
 import Profile from "./pages/Profile";
 import AdminSettings from "./pages/AdminSettings";
 import FinancialDashboard from "./pages/FinancialDashboard";
+import Accommodations from "./pages/Accommodations";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,6 +41,7 @@ const App = () => (
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin-settings" element={<AdminSettings />} />
               <Route path="/financial-dashboard" element={<FinancialDashboard />} />
+              <Route path="/accommodations" element={<Accommodations />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

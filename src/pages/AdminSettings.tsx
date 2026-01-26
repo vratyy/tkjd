@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Database, Shield, FolderPlus, FileCheck } from "lucide-react";
+import { Loader2, Database, Shield, FolderPlus, FileCheck, Download } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { addDays, format, startOfWeek, getISOWeek, getYear } from "date-fns";
 
@@ -14,6 +14,7 @@ export default function AdminSettings() {
   const { isAdmin, loading: roleLoading } = useUserRole();
   const { toast } = useToast();
   const [seeding, setSeeding] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const seedTestData = async () => {
     if (!user) return;
@@ -90,6 +91,58 @@ export default function AdminSettings() {
       });
     } finally {
       setSeeding(false);
+    }
+  };
+
+  const exportBackup = async () => {
+    setExporting(true);
+    try {
+      // Fetch all data from main tables
+      const [profilesRes, projectsRes, recordsRes, invoicesRes, accommodationsRes, assignmentsRes] = await Promise.all([
+        supabase.from("profiles").select("*").is("deleted_at", null),
+        supabase.from("projects").select("*").is("deleted_at", null),
+        supabase.from("performance_records").select("*").is("deleted_at", null),
+        supabase.from("invoices").select("*").is("deleted_at", null),
+        supabase.from("accommodations").select("*").is("deleted_at", null),
+        supabase.from("accommodation_assignments").select("*").is("deleted_at", null),
+      ]);
+
+      const backup = {
+        exported_at: new Date().toISOString(),
+        version: "1.0",
+        data: {
+          profiles: profilesRes.data || [],
+          projects: projectsRes.data || [],
+          performance_records: recordsRes.data || [],
+          invoices: invoicesRes.data || [],
+          accommodations: accommodationsRes.data || [],
+          accommodation_assignments: assignmentsRes.data || [],
+        },
+      };
+
+      // Create and download JSON file
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `tkjd-backup-${format(new Date(), "yyyy-MM-dd-HHmmss")}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Záloha stiahnutá",
+        description: "Kompletná záloha dát bola úspešne exportovaná.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Chyba",
+        description: error.message,
+      });
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -176,6 +229,43 @@ export default function AdminSettings() {
                 <>
                   <Database className="h-4 w-4 mr-2" />
                   Vytvoriť testovacie dáta
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Download className="h-5 w-5 text-primary" />
+              Zálohovanie dát
+            </CardTitle>
+            <CardDescription>
+              Stiahnite kompletnú zálohu všetkých dát vo formáte JSON
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p>Záloha obsahuje:</p>
+              <ul className="list-disc list-inside ml-2 space-y-1">
+                <li>Profily používateľov</li>
+                <li>Projekty</li>
+                <li>Výkonové záznamy</li>
+                <li>Faktúry</li>
+                <li>Ubytovanie a priradenia</li>
+              </ul>
+            </div>
+            <Button onClick={exportBackup} disabled={exporting} className="w-full" variant="secondary">
+              {exporting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Exportujem...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Stiahnuť kompletnú zálohu (JSON)
                 </>
               )}
             </Button>

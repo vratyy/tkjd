@@ -13,6 +13,7 @@ import {
   UserCircle,
   Settings,
   Wallet,
+  Home,
 } from "lucide-react";
 import {
   Sidebar,
@@ -44,6 +45,7 @@ const mainNavItems: NavItem[] = [
 
 const managementNavItems: NavItem[] = [
   { title: "Finančný prehľad", url: "/financial-dashboard", icon: Wallet, roles: ["admin"] },
+  { title: "Ubytovanie", url: "/accommodations", icon: Home, roles: ["manager", "admin"] },
   { title: "Schvaľovanie", url: "/approvals", icon: CheckCircle, roles: ["manager", "admin"] },
   { title: "Všetky projekty", url: "/projects", icon: FolderOpen, roles: ["manager", "admin"] },
   { title: "Všetky uzávierky", url: "/lock-weeks", icon: Lock, roles: ["admin"] },
