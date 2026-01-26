@@ -36,9 +36,9 @@ interface NavItem {
 }
 
 const mainNavItems: NavItem[] = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Denný záznam", url: "/daily-entry", icon: ClipboardList },
-  { title: "Týždňové uzávierky", url: "/weekly-closings", icon: Calendar },
+  { title: "Prehľad", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Môj Výkaz", url: "/daily-entry", icon: ClipboardList },
+  { title: "Faktúry", url: "/weekly-closings", icon: Calendar },
   { title: "Profil", url: "/profile", icon: UserCircle },
 ];
 

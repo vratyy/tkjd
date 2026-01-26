@@ -100,20 +100,41 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Hero Action Button - LARGE and PROMINENT for subcontractors */}
+      <Card className="bg-gradient-to-r from-primary to-primary/80 border-0 shadow-lg">
+        <CardContent className="p-6 md:p-8">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="text-center md:text-left">
+              <h2 className="text-xl md:text-2xl font-bold text-primary-foreground">
+                KW {currentWeek}/{currentYear}
+              </h2>
+              <p className="text-primary-foreground/80 mt-1">
+                Zaznamenajte váš dnešný pracovný výkon
+              </p>
+            </div>
+            <Button 
+              asChild 
+              size="lg" 
+              variant="secondary"
+              className="h-14 px-8 text-lg font-semibold shadow-md hover:shadow-lg transition-all"
+            >
+              <Link to="/daily-entry">
+                <Plus className="h-6 w-6 mr-3" />
+                ➕ Zapísať denný výkon
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Welcome section */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
+          <h2 className="text-2xl font-bold text-foreground">Prehľad</h2>
           <p className="text-muted-foreground">
-            KW {currentWeek}/{currentYear}
+            Vaše aktuálne štatistiky a úlohy
           </p>
         </div>
-        <Button asChild>
-          <Link to="/daily-entry">
-            <Plus className="h-4 w-4 mr-2" />
-            Nový záznam
-          </Link>
-        </Button>
       </div>
 
       {/* Quick stats */}

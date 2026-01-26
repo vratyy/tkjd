@@ -45,14 +45,16 @@ export function useFinancialData() {
 
     const getEffectiveStatus = (inv: Invoice) => {
       if (inv.status === "paid") return "paid";
+      const dueDate = new Date(inv.due_date);
       const daysUntilDue = Math.ceil(
-        (new Date(inv.due_date).getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+        (dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
       );
       if (daysUntilDue < 0) return "overdue";
       if (daysUntilDue <= 3) return "due_soon";
       return "pending";
     };
 
+    // Total invoiced = ALL invoices (regardless of status)
     const totalInvoiced = {
       count: invoiceList.length,
       amount: invoiceList.reduce((sum, inv) => sum + Number(inv.total_amount), 0),
@@ -70,6 +72,7 @@ export function useFinancialData() {
       amount: overdueInvoices.reduce((sum, inv) => sum + Number(inv.total_amount), 0),
     };
 
+    // Pending = all unpaid invoices (pending + due_soon)
     const pendingInvoices = invoiceList.filter((inv) => {
       const status = getEffectiveStatus(inv);
       return status === "pending" || status === "due_soon";
