@@ -18,6 +18,12 @@ interface Invoice {
   issue_date: string;
   due_date: string;
   status: "pending" | "due_soon" | "overdue" | "paid";
+  transaction_tax_rate: number;
+  transaction_tax_amount: number;
+  tax_payment_status: "pending" | "confirmed" | "verified";
+  tax_confirmed_at: string | null;
+  tax_verified_at: string | null;
+  advance_deduction: number;
   profile?: {
     full_name: string;
     company_name: string | null;

@@ -14,8 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      advances: {
+        Row: {
+          amount: number
+          created_at: string
+          date: string
+          deleted_at: string | null
+          id: string
+          note: string | null
+          updated_at: string
+          used_in_invoice_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          date?: string
+          deleted_at?: string | null
+          id?: string
+          note?: string | null
+          updated_at?: string
+          used_in_invoice_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          date?: string
+          deleted_at?: string | null
+          id?: string
+          note?: string | null
+          updated_at?: string
+          used_in_invoice_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "advances_used_in_invoice_id_fkey"
+            columns: ["used_in_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
+          advance_deduction: number | null
           created_at: string
           deleted_at: string | null
           delivery_date: string
@@ -29,14 +74,24 @@ export type Database = {
           project_id: string | null
           status: Database["public"]["Enums"]["invoice_status"]
           subtotal: number
+          tax_confirmed_at: string | null
+          tax_confirmed_by: string | null
+          tax_payment_status:
+            | Database["public"]["Enums"]["tax_payment_status"]
+            | null
+          tax_verified_at: string | null
+          tax_verified_by: string | null
           total_amount: number
           total_hours: number
+          transaction_tax_amount: number | null
+          transaction_tax_rate: number | null
           updated_at: string
           user_id: string
           vat_amount: number
           week_closing_id: string | null
         }
         Insert: {
+          advance_deduction?: number | null
           created_at?: string
           deleted_at?: string | null
           delivery_date?: string
@@ -50,14 +105,24 @@ export type Database = {
           project_id?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
+          tax_confirmed_at?: string | null
+          tax_confirmed_by?: string | null
+          tax_payment_status?:
+            | Database["public"]["Enums"]["tax_payment_status"]
+            | null
+          tax_verified_at?: string | null
+          tax_verified_by?: string | null
           total_amount?: number
           total_hours?: number
+          transaction_tax_amount?: number | null
+          transaction_tax_rate?: number | null
           updated_at?: string
           user_id: string
           vat_amount?: number
           week_closing_id?: string | null
         }
         Update: {
+          advance_deduction?: number | null
           created_at?: string
           deleted_at?: string | null
           delivery_date?: string
@@ -71,8 +136,17 @@ export type Database = {
           project_id?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
+          tax_confirmed_at?: string | null
+          tax_confirmed_by?: string | null
+          tax_payment_status?:
+            | Database["public"]["Enums"]["tax_payment_status"]
+            | null
+          tax_verified_at?: string | null
+          tax_verified_by?: string | null
           total_amount?: number
           total_hours?: number
+          transaction_tax_amount?: number | null
+          transaction_tax_rate?: number | null
           updated_at?: string
           user_id?: string
           vat_amount?: number
@@ -158,6 +232,7 @@ export type Database = {
         Row: {
           billing_address: string | null
           company_name: string | null
+          contract_number: string | null
           created_at: string
           deleted_at: string | null
           dic: string | null
@@ -176,6 +251,7 @@ export type Database = {
         Insert: {
           billing_address?: string | null
           company_name?: string | null
+          contract_number?: string | null
           created_at?: string
           deleted_at?: string | null
           dic?: string | null
@@ -194,6 +270,7 @@ export type Database = {
         Update: {
           billing_address?: string | null
           company_name?: string | null
+          contract_number?: string | null
           created_at?: string
           deleted_at?: string | null
           dic?: string | null
@@ -337,6 +414,7 @@ export type Database = {
         | "approved"
         | "rejected"
         | "returned"
+      tax_payment_status: "pending" | "confirmed" | "verified"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -468,6 +546,7 @@ export const Constants = {
       closing_status: ["open", "submitted", "approved", "locked"],
       invoice_status: ["pending", "due_soon", "overdue", "paid"],
       record_status: ["draft", "submitted", "approved", "rejected", "returned"],
+      tax_payment_status: ["pending", "confirmed", "verified"],
     },
   },
 } as const
