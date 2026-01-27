@@ -100,16 +100,16 @@ export function exportWeeklyRecordsToExcel(params: ExportParams): void {
     return [
       formattedDate,
       record.location || record.projectName || projectLocation || projectName,
-      record.time_from.slice(0, 5),
-      record.time_to.slice(0, 5),
+      record.time_from?.slice(0, 5) ?? "—",
+      record.time_to?.slice(0, 5) ?? "—",
       formatBreakDuration(record.break_start, record.break_end),
-      Number(record.total_hours).toFixed(2),
+      Number(record.total_hours || 0).toFixed(2),
       record.note || "",
     ];
   });
 
   // Calculate totals
-  const totalHours = records.reduce((sum, r) => sum + Number(r.total_hours), 0);
+  const totalHours = records.reduce((sum, r) => sum + (Number(r.total_hours) || 0), 0);
 
   // ============ FOOTER SECTION ============
   const footerData: (string | number)[][] = [
@@ -225,15 +225,15 @@ export function exportMultipleWeeksToExcel(
       return [
         formattedDate,
         record.location || record.projectName || projectLocation || projectName,
-        record.time_from.slice(0, 5),
-        record.time_to.slice(0, 5),
+        record.time_from?.slice(0, 5) ?? "—",
+        record.time_to?.slice(0, 5) ?? "—",
         formatBreakDuration(record.break_start, record.break_end),
-        Number(record.total_hours).toFixed(2),
+        Number(record.total_hours || 0).toFixed(2),
         record.note || "",
       ];
     });
 
-    const totalHours = records.reduce((sum, r) => sum + Number(r.total_hours), 0);
+    const totalHours = records.reduce((sum, r) => sum + (Number(r.total_hours) || 0), 0);
 
     const footerData: (string | number)[][] = [
       ["", "", "", "", "SPOLU / GESAMT:", totalHours.toFixed(2) + " h", ""],

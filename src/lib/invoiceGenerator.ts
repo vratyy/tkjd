@@ -152,8 +152,16 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   }
   const kwFormatted = formatKW(calendarWeek);
   
-  // Calculate amounts
-  const baseAmount = data.totalHours * data.hourlyRate;
+  // Safe number conversion helper
+  const safeNumber = (val: unknown): number => {
+    const num = Number(val);
+    return isNaN(num) ? 0 : num;
+  };
+  
+  // Calculate amounts with safe number handling
+  const totalHours = safeNumber(data.totalHours);
+  const hourlyRate = safeNumber(data.hourlyRate);
+  const baseAmount = totalHours * hourlyRate;
   let vatAmount = 0;
   let vatPercent = 0;
   let totalAmount = baseAmount;
@@ -339,8 +347,8 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   const tableBody: (string | number)[][] = [
     [
       safeText(`${data.projectName} - KW ${kwFormatted}/${data.year}`),
-      data.totalHours.toFixed(2),
-      data.hourlyRate.toFixed(2),
+      totalHours.toFixed(2),
+      hourlyRate.toFixed(2),
       data.isReverseCharge ? "0% (RC)" : (data.isVatPayer ? "20%" : "-"),
       `${baseAmount.toFixed(2)} EUR`,
     ],

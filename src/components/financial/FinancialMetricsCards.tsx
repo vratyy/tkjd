@@ -17,10 +17,11 @@ interface FinancialMetricsCardsProps {
 
 export function FinancialMetricsCards({ data, loading }: FinancialMetricsCardsProps) {
   const formatAmount = (amount: number) => {
+    const safeAmount = Number(amount) || 0;
     return new Intl.NumberFormat("sk-SK", {
       style: "currency",
       currency: "EUR",
-    }).format(amount);
+    }).format(safeAmount);
   };
 
   const metrics = [

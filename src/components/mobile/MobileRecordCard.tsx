@@ -55,9 +55,9 @@ export function MobileRecordCard({
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Clock className="h-4 w-4 flex-shrink-0" />
-                <span>{timeFrom} - {timeTo}</span>
+                <span>{timeFrom || "—"} - {timeTo || "—"}</span>
               </div>
-              <span className="font-bold text-lg text-primary">{totalHours}h</span>
+              <span className="font-bold text-lg text-primary">{Number(totalHours) || 0}h</span>
             </div>
             
             {/* Note (if exists) */}
