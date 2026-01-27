@@ -254,35 +254,43 @@ export default function WeeklyClosings() {
     });
   };
 
-  const handleExportStundenzettel = (group: WeekGroup) => {
+  const handleExportStundenzettel = async (group: WeekGroup) => {
     // Get project info for this week
     const firstProject = group.records.find((r) => r.projects)?.projects;
     const projectName = firstProject?.name || "Neznámy projekt";
     const projectClient = firstProject?.client || "";
     const projectLocation = firstProject?.location || null;
 
-    exportStundenzettelToExcel({
-      records: group.records.map((r) => ({
-        date: r.date,
-        time_from: r.time_from,
-        time_to: r.time_to,
-        break_start: r.break_start,
-        break_end: r.break_end,
-        total_hours: r.total_hours,
-        note: r.note,
-      })),
-      projectName,
-      projectClient,
-      projectLocation,
-      workerName: userProfile?.full_name || "Neznámy používateľ",
-      calendarWeek: group.week,
-      year: group.year,
-    });
+    try {
+      await exportStundenzettelToExcel({
+        records: group.records.map((r) => ({
+          date: r.date,
+          time_from: r.time_from,
+          time_to: r.time_to,
+          break_start: r.break_start,
+          break_end: r.break_end,
+          total_hours: r.total_hours,
+          note: r.note,
+        })),
+        projectName,
+        projectClient,
+        projectLocation,
+        workerName: userProfile?.full_name || "Neznámy používateľ",
+        calendarWeek: group.week,
+        year: group.year,
+      });
 
-    toast({
-      title: "Export úspešný",
-      description: `Stundenzettel pre KW ${group.week}/${group.year} bol stiahnutý.`,
-    });
+      toast({
+        title: "Export úspešný",
+        description: `Stundenzettel pre KW ${group.week}/${group.year} bol stiahnutý.`,
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Chyba pri exporte",
+        description: error.message || "Nepodarilo sa exportovať Stundenzettel.",
+      });
+    }
   };
 
   const canGenerateInvoice = (group: WeekGroup) => {
