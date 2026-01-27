@@ -159,20 +159,20 @@ export default function DailyEntry() {
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>;
   }
-  return <div className="space-y-6">
+  return <div className="space-y-4 md:space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-foreground">Denný záznam</h2>
-        <p className="text-muted-foreground">Zaznamenajte svoj výkon pre fakturáciu</p>
+        <h2 className="text-xl md:text-2xl font-bold text-foreground">Denný záznam</h2>
+        <p className="text-muted-foreground text-sm md:text-base">Zaznamenajte svoj výkon pre fakturáciu</p>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Nový záznam výkonu</CardTitle>
-          <CardDescription>Vyplňte údaje o vykonanej práci</CardDescription>
+        <CardHeader className="p-4 md:p-6">
+          <CardTitle className="text-base md:text-lg">Nový záznam výkonu</CardTitle>
+          <CardDescription className="text-xs md:text-sm">Vyplňte údaje o vykonanej práci</CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
+          <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               {/* Project selection */}
               <div className="space-y-2">
                 <Label htmlFor="project">Projekt</Label>
@@ -249,8 +249,8 @@ export default function DailyEntry() {
               <Textarea id="note" placeholder="Popis vykonaných prác..." value={note} onChange={e => setNote(e.target.value)} rows={3} />
             </div>
 
-            <div className="flex justify-end gap-3">
-              <Button type="submit" disabled={saving || !projectId}>
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-3">
+              <Button type="submit" disabled={saving || !projectId} className="h-12 md:h-10 text-base md:text-sm">
                 {saving ? <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Ukladám...

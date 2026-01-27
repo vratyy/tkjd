@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
+import { MobileRecordCard } from "@/components/mobile/MobileRecordCard";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, Calendar, ChevronDown, ChevronUp, FileSpreadsheet, FileText } from "lucide-react";
 import { format, getWeek, getYear } from "date-fns";
@@ -42,6 +44,7 @@ interface WeekGroup {
 export default function WeeklyClosings() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [weekGroups, setWeekGroups] = useState<WeekGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<string | null>(null);
@@ -313,10 +316,10 @@ export default function WeeklyClosings() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-foreground">Týždňové uzávierky</h2>
-        <p className="text-muted-foreground">Prehľad a odoslanie vašich výkonov po týždňoch</p>
+        <h2 className="text-xl md:text-2xl font-bold text-foreground">Týždňové uzávierky</h2>
+        <p className="text-muted-foreground text-sm md:text-base">Prehľad a odoslanie vašich výkonov po týždňoch</p>
       </div>
 
       {weekGroups.length === 0 ? (
@@ -335,9 +338,9 @@ export default function WeeklyClosings() {
             return (
               <Card key={key}>
                 <Collapsible open={isOpen} onOpenChange={() => toggleWeek(key)}>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
+                  <CardHeader className="pb-3 p-4 md:p-6">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 md:gap-4">
                         <CollapsibleTrigger asChild>
                           <Button variant="ghost" size="sm" className="p-0 h-auto">
                             {isOpen ? (
@@ -348,16 +351,18 @@ export default function WeeklyClosings() {
                           </Button>
                         </CollapsibleTrigger>
                         <div>
-                          <CardTitle className="text-lg">
+                          <CardTitle className="text-base md:text-lg">
                             KW {group.week}/{group.year}
                           </CardTitle>
-                          <CardDescription>
+                          <CardDescription className="text-xs md:text-sm">
                             {group.records.length} záznamov • {Math.round(group.totalHours * 10) / 10}h
                           </CardDescription>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2 sm:gap-3">
                         <StatusBadge status={group.closingStatus as any} />
+                      </div>
+                      
+                      {/* Desktop action buttons */}
+                      <div className="hidden md:flex items-center gap-2 sm:gap-3">
                         <Button
                           size="sm"
                           variant="outline"
@@ -401,6 +406,55 @@ export default function WeeklyClosings() {
                         )}
                       </div>
                     </div>
+                    
+                    {/* Mobile action buttons - stacked */}
+                    <div className="flex flex-wrap gap-2 mt-3 md:hidden">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleExport(group)}
+                        className="flex-1 h-10 text-sm"
+                      >
+                        <FileSpreadsheet className="h-4 w-4 mr-2" />
+                        Excel
+                      </Button>
+                      {canGenerateInvoice(group) && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => handleGenerateInvoice(group)}
+                          disabled={generatingInvoice === key}
+                          className="flex-1 h-10 text-sm"
+                        >
+                          {generatingInvoice === key ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <FileText className="h-4 w-4 mr-2" />
+                              Faktúra
+                            </>
+                          )}
+                        </Button>
+                      )}
+                      {canSubmit(group) && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleSubmitWeek(group)}
+                          disabled={submitting === key}
+                          className="w-full h-10 text-sm"
+                        >
+                          {submitting === key ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Send className="h-4 w-4 mr-2" />
+                              Odoslať týždeň
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                    
                     {group.returnComment && (
                       <div className="mt-3 p-3 rounded-md bg-destructive/10 border border-destructive/20">
                         <p className="text-sm text-destructive">
@@ -410,8 +464,26 @@ export default function WeeklyClosings() {
                     )}
                   </CardHeader>
                   <CollapsibleContent>
-                    <CardContent className="pt-0">
-                      <div className="space-y-2">
+                    <CardContent className="pt-0 px-4 pb-4 md:px-6 md:pb-6">
+                      {/* Mobile: Card view */}
+                      <div className="md:hidden space-y-0">
+                        {group.records.map((record) => (
+                          <MobileRecordCard
+                            key={record.id}
+                            id={record.id}
+                            date={record.date}
+                            projectName={record.projects?.name}
+                            timeFrom={record.time_from}
+                            timeTo={record.time_to}
+                            totalHours={record.total_hours}
+                            status={record.status}
+                            note={record.note}
+                          />
+                        ))}
+                      </div>
+                      
+                      {/* Desktop: List view */}
+                      <div className="hidden md:block space-y-2">
                         {group.records.map((record) => (
                           <div
                             key={record.id}

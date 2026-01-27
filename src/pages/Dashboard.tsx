@@ -6,6 +6,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
+import { MobileRecordCard } from "@/components/mobile/MobileRecordCard";
+import { StickyActionButton } from "@/components/mobile/StickyActionButton";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Calendar, ClipboardList, FolderOpen, Plus, Home, Users } from "lucide-react";
 import { format, getWeek, getYear } from "date-fns";
 import { sk } from "date-fns/locale";
@@ -38,6 +41,7 @@ interface AccommodationInfo {
 export default function Dashboard() {
   const { user } = useAuth();
   const { role, isManager, isAdmin } = useUserRole();
+  const isMobile = useIsMobile();
   const [openClosings, setOpenClosings] = useState<WeeklyClosing[]>([]);
   const [recentRecords, setRecentRecords] = useState<PerformanceRecord[]>([]);
   const [currentAccommodations, setCurrentAccommodations] = useState<AccommodationInfo[]>([]);
@@ -139,9 +143,9 @@ export default function Dashboard() {
   const currentYear = getYear(new Date());
 
   return (
-    <div className="space-y-6">
-      {/* Hero Action Button - LARGE and PROMINENT for subcontractors */}
-      <Card className="bg-gradient-to-r from-primary to-primary/80 border-0 shadow-lg">
+    <div className="space-y-6 pb-20 md:pb-6">
+      {/* Hero Action Button - LARGE and PROMINENT for subcontractors - hide on mobile since we have sticky button */}
+      <Card className="bg-gradient-to-r from-primary to-primary/80 border-0 shadow-lg hidden md:block">
         <CardContent className="p-6 md:p-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="text-center md:text-left">
@@ -167,25 +171,39 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
+      {/* Mobile Hero - Simplified for small screens */}
+      <div className="md:hidden">
+        <Card className="bg-gradient-to-r from-primary to-primary/80 border-0">
+          <CardContent className="p-4 text-center">
+            <h2 className="text-lg font-bold text-primary-foreground">
+              KW {currentWeek}/{currentYear}
+            </h2>
+            <p className="text-primary-foreground/80 text-sm mt-1">
+              {format(new Date(), "EEEE, d. MMMM yyyy", { locale: sk })}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Welcome section */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Prehľad</h2>
-          <p className="text-muted-foreground">
+          <h2 className="text-xl md:text-2xl font-bold text-foreground">Prehľad</h2>
+          <p className="text-muted-foreground text-sm md:text-base">
             Vaše aktuálne štatistiky a úlohy
           </p>
         </div>
       </div>
 
-      {/* Quick stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Quick stats - Stack on mobile */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
         <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Otvorené uzávierky</CardDescription>
-            <CardTitle className="text-3xl">{openClosings.length}</CardTitle>
+          <CardHeader className="pb-2 p-4 md:p-6">
+            <CardDescription className="text-xs md:text-sm">Otvorené uzávierky</CardDescription>
+            <CardTitle className="text-2xl md:text-3xl">{openClosings.length}</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center text-sm text-muted-foreground">
+          <CardContent className="px-4 pb-4 md:px-6 md:pb-6 pt-0">
+            <div className="flex items-center text-xs md:text-sm text-muted-foreground">
               <Calendar className="h-4 w-4 mr-1" />
               Na schválenie
             </div>
@@ -193,12 +211,12 @@ export default function Dashboard() {
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Aktívne projekty</CardDescription>
-            <CardTitle className="text-3xl">{stats.activeProjects}</CardTitle>
+          <CardHeader className="pb-2 p-4 md:p-6">
+            <CardDescription className="text-xs md:text-sm">Aktívne projekty</CardDescription>
+            <CardTitle className="text-2xl md:text-3xl">{stats.activeProjects}</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center text-sm text-muted-foreground">
+          <CardContent className="px-4 pb-4 md:px-6 md:pb-6 pt-0">
+            <div className="flex items-center text-xs md:text-sm text-muted-foreground">
               <FolderOpen className="h-4 w-4 mr-1" />
               K dispozícii
             </div>
@@ -206,12 +224,12 @@ export default function Dashboard() {
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Hodiny tento mesiac</CardDescription>
-            <CardTitle className="text-3xl">{stats.monthlyHours}h</CardTitle>
+          <CardHeader className="pb-2 p-4 md:p-6">
+            <CardDescription className="text-xs md:text-sm">Hodiny tento mesiac</CardDescription>
+            <CardTitle className="text-2xl md:text-3xl">{stats.monthlyHours}h</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center text-sm text-muted-foreground">
+          <CardContent className="px-4 pb-4 md:px-6 md:pb-6 pt-0">
+            <div className="flex items-center text-xs md:text-sm text-muted-foreground">
               <ClipboardList className="h-4 w-4 mr-1" />
               Celkový čas
             </div>
@@ -222,22 +240,22 @@ export default function Dashboard() {
       {/* Open closings alert */}
       {openClosings.some((c) => c.status === "returned") && (
         <Card className="border-destructive/30 bg-destructive/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-destructive text-lg">
+          <CardHeader className="pb-2 p-4 md:p-6">
+            <CardTitle className="text-destructive text-base md:text-lg">
               Vrátené na opravu
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 pb-4 md:px-6 md:pb-6 pt-0">
             {openClosings
               .filter((c) => c.status === "returned")
               .map((closing) => (
                 <div key={closing.id} className="flex items-center justify-between py-2">
                   <div>
-                    <span className="font-medium">
+                    <span className="font-medium text-sm md:text-base">
                       KW {closing.calendar_week}/{closing.year}
                     </span>
                     {closing.return_comment && (
-                      <p className="text-sm text-destructive mt-1">
+                      <p className="text-xs md:text-sm text-destructive mt-1">
                         {closing.return_comment}
                       </p>
                     )}
@@ -251,11 +269,11 @@ export default function Dashboard() {
 
       {/* Recent records */}
       <Card>
-        <CardHeader>
-          <CardTitle>Posledné záznamy</CardTitle>
-          <CardDescription>Vaše nedávne výkony</CardDescription>
+        <CardHeader className="p-4 md:p-6">
+          <CardTitle className="text-base md:text-lg">Posledné záznamy</CardTitle>
+          <CardDescription className="text-xs md:text-sm">Vaše nedávne výkony</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 pb-4 md:px-6 md:pb-6 pt-0">
           {loading ? (
             <div className="text-center py-8 text-muted-foreground">Načítavam...</div>
           ) : recentRecords.length === 0 ? (
@@ -267,29 +285,48 @@ export default function Dashboard() {
               </Button>
             </div>
           ) : (
-            <div className="space-y-2">
-              {recentRecords.map((record) => (
-                <div
-                  key={record.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">
-                        {format(new Date(record.date), "d. MMM yyyy", { locale: sk })}
-                      </span>
-                      <StatusBadge status={record.status as any} />
+            <>
+              {/* Mobile: Card view */}
+              <div className="md:hidden space-y-0">
+                {recentRecords.map((record) => (
+                  <MobileRecordCard
+                    key={record.id}
+                    id={record.id}
+                    date={record.date}
+                    projectName={record.projects?.name}
+                    timeFrom={record.time_from}
+                    timeTo={record.time_to}
+                    totalHours={record.total_hours}
+                    status={record.status}
+                  />
+                ))}
+              </div>
+              
+              {/* Desktop: List view */}
+              <div className="hidden md:block space-y-2">
+                {recentRecords.map((record) => (
+                  <div
+                    key={record.id}
+                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">
+                          {format(new Date(record.date), "d. MMM yyyy", { locale: sk })}
+                        </span>
+                        <StatusBadge status={record.status as any} />
+                      </div>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {record.projects?.name || "—"} • {record.time_from} - {record.time_to}
+                      </p>
                     </div>
-                    <p className="text-sm text-muted-foreground truncate">
-                      {record.projects?.name || "—"} • {record.time_from} - {record.time_to}
-                    </p>
+                    <div className="text-right">
+                      <span className="font-semibold">{record.total_hours}h</span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="font-semibold">{record.total_hours}h</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -297,14 +334,14 @@ export default function Dashboard() {
       {/* Admin Widget: Current Accommodations */}
       {isAdmin && currentAccommodations.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="flex items-center gap-2 text-base md:text-lg">
               <Home className="h-5 w-5" />
               Aktuálne ubytovaní
             </CardTitle>
-            <CardDescription>Prehľad pracovníkov v ubytovaniach</CardDescription>
+            <CardDescription className="text-xs md:text-sm">Prehľad pracovníkov v ubytovaniach</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 pb-4 md:px-6 md:pb-6 pt-0">
             <div className="space-y-2">
               {currentAccommodations.map((acc) => (
                 <div
@@ -314,11 +351,11 @@ export default function Dashboard() {
                   <div className="flex items-center gap-3">
                     <Users className="h-4 w-4 text-muted-foreground" />
                     <div>
-                      <span className="font-medium">{acc.user_name}</span>
-                      <p className="text-sm text-muted-foreground">{acc.accommodation_name}</p>
+                      <span className="font-medium text-sm md:text-base">{acc.user_name}</span>
+                      <p className="text-xs md:text-sm text-muted-foreground">{acc.accommodation_name}</p>
                     </div>
                   </div>
-                  <div className="text-right text-sm text-muted-foreground">
+                  <div className="text-right text-xs md:text-sm text-muted-foreground">
                     {acc.check_out 
                       ? format(new Date(acc.check_out), "d. MMM", { locale: sk })
                       : "Bez dátumu"}
@@ -326,12 +363,15 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
-            <Button variant="link" className="mt-2 p-0" asChild>
+            <Button variant="link" className="mt-2 p-0 text-sm" asChild>
               <Link to="/accommodations">Zobraziť všetky →</Link>
             </Button>
           </CardContent>
         </Card>
       )}
+
+      {/* Sticky Mobile Action Button */}
+      <StickyActionButton to="/daily-entry" label="Zapísať denný výkon" />
     </div>
   );
 }
