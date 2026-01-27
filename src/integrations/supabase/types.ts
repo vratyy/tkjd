@@ -455,6 +455,7 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           id: string
+          return_comment: string | null
           status: Database["public"]["Enums"]["closing_status"]
           submitted_at: string | null
           updated_at: string
@@ -468,6 +469,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           id?: string
+          return_comment?: string | null
           status?: Database["public"]["Enums"]["closing_status"]
           submitted_at?: string | null
           updated_at?: string
@@ -481,6 +483,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           id?: string
+          return_comment?: string | null
           status?: Database["public"]["Enums"]["closing_status"]
           submitted_at?: string | null
           updated_at?: string
