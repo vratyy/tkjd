@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, User, CreditCard, Euro, Building2 } from "lucide-react";
 import { SignaturePad } from "@/components/SignaturePad";
 import { Switch } from "@/components/ui/switch";
+import { getSignedSignatureUrl } from "@/lib/signatureUtils";
 
 interface ProfileData {
   full_name: string;
@@ -31,6 +32,7 @@ export default function Profile() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [signedSignatureUrl, setSignedSignatureUrl] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileData>({
     full_name: "",
     company_name: null,
@@ -60,6 +62,12 @@ export default function Profile() {
         console.error("Error fetching profile:", error);
       } else if (data) {
         setProfile(data);
+        
+        // Generate signed URL for signature display
+        if (data.signature_url) {
+          const signedUrl = await getSignedSignatureUrl(data.signature_url, 3600);
+          setSignedSignatureUrl(signedUrl);
+        }
       }
       setLoading(false);
     }
@@ -107,7 +115,8 @@ export default function Profile() {
   };
 
   const handleSignatureSaved = (url: string) => {
-    setProfile((prev) => ({ ...prev, signature_url: url }));
+    setProfile((prev) => ({ ...prev, signature_url: prev.signature_url }));
+    setSignedSignatureUrl(url); // url is already a signed URL from SignaturePad
   };
 
   if (loading) {
@@ -364,7 +373,7 @@ export default function Profile() {
           <div className="lg:col-span-2">
             <SignaturePad
               userId={user.id}
-              currentSignatureUrl={profile.signature_url}
+              currentSignatureUrl={signedSignatureUrl}
               onSignatureSaved={handleSignatureSaved}
             />
           </div>

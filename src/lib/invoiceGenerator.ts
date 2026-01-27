@@ -3,6 +3,7 @@ import autoTable from "jspdf-autotable";
 import QRCode from "qrcode";
 import { format, addDays, getISOWeek } from "date-fns";
 import { safeText, registerPdfFonts, setFontStyle, getPdfFontFamily } from "./pdfFonts";
+import { getSignedSignatureUrl } from "./signatureUtils";
 
 export interface InvoiceData {
   // Supplier (Dodavatel - Subcontractor)
@@ -509,9 +510,13 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   // Add signature image if available
   if (data.signatureUrl) {
     try {
-      const signatureBase64 = await loadImageAsBase64(data.signatureUrl);
-      if (signatureBase64) {
-        doc.addImage(signatureBase64, "PNG", signatureX + 3, footerY + 2, 49, 28);
+      // Get signed URL for the signature (handles both old URLs and new paths)
+      const signedUrl = await getSignedSignatureUrl(data.signatureUrl, 300); // 5 min expiry for immediate use
+      if (signedUrl) {
+        const signatureBase64 = await loadImageAsBase64(signedUrl);
+        if (signatureBase64) {
+          doc.addImage(signatureBase64, "PNG", signatureX + 3, footerY + 2, 49, 28);
+        }
       }
     } catch (error) {
       console.error("Signature loading failed:", error);

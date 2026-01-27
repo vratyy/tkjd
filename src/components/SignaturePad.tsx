@@ -59,22 +59,23 @@ export function SignaturePad({ userId, currentSignatureUrl, onSignatureSaved }: 
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from("signatures")
-        .getPublicUrl(fileName);
+      // Store the file path (not public URL) - we'll generate signed URLs when needed
+      const signaturePath = fileName;
 
-      const signatureUrl = urlData.publicUrl;
-
-      // Update profile with signature URL
+      // Update profile with signature path (stored as signature_url for compatibility)
       const { error: updateError } = await supabase
         .from("profiles")
-        .update({ signature_url: signatureUrl })
+        .update({ signature_url: signaturePath })
         .eq("user_id", userId);
 
       if (updateError) throw updateError;
 
-      onSignatureSaved(signatureUrl);
+      // Generate a signed URL for immediate display
+      const { data: signedUrlData } = await supabase.storage
+        .from("signatures")
+        .createSignedUrl(signaturePath, 3600); // 1 hour expiry
+
+      onSignatureSaved(signedUrlData?.signedUrl || signaturePath);
       
       toast({
         title: "Podpis uložený",
