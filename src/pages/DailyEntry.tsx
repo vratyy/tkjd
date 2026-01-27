@@ -5,33 +5,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, Info } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
-
 interface Project {
   id: string;
   name: string;
   client: string;
 }
-
 export default function DailyEntry() {
-  const { user } = useAuth();
-  const { toast } = useToast();
+  const {
+    user
+  } = useAuth();
+  const {
+    toast
+  } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -54,17 +45,16 @@ export default function DailyEntry() {
     const [toH, toM] = timeTo.split(":").map(Number);
     const fromMinutes = fromH * 60 + fromM;
     const toMinutes = toH * 60 + toM;
-    
+
     // Calculate break duration
     let breakMins = 0;
     if (breakStart && breakEnd) {
       const [breakStartH, breakStartM] = breakStart.split(":").map(Number);
       const [breakEndH, breakEndM] = breakEnd.split(":").map(Number);
-      breakMins = (breakEndH * 60 + breakEndM) - (breakStartH * 60 + breakStartM);
+      breakMins = breakEndH * 60 + breakEndM - (breakStartH * 60 + breakStartM);
     }
-    
     const totalMinutes = toMinutes - fromMinutes - breakMins;
-    return Math.round((totalMinutes / 60) * 100) / 100;
+    return Math.round(totalMinutes / 60 * 100) / 100;
   }, [timeFrom, timeTo, breakStart, breakEnd]);
 
   // Auto-update manual hours when calculated hours change (unless user manually overrode)
@@ -89,30 +79,24 @@ export default function DailyEntry() {
     setTimeFrom(value);
     setIsManualOverride(false);
   };
-
   const handleTimeToChange = (value: string) => {
     setTimeTo(value);
     setIsManualOverride(false);
   };
-
   const handleBreakStartChange = (value: string) => {
     setBreakStart(value);
     setIsManualOverride(false);
   };
-
   const handleBreakEndChange = (value: string) => {
     setBreakEnd(value);
     setIsManualOverride(false);
   };
-
   useEffect(() => {
     async function fetchProjects() {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("id, name, client")
-        .eq("is_active", true)
-        .order("name");
-
+      const {
+        data,
+        error
+      } = await supabase.from("projects").select("id, name, client").eq("is_active", true).order("name");
       if (error) {
         console.error("Error fetching projects:", error);
       } else {
@@ -120,29 +104,26 @@ export default function DailyEntry() {
       }
       setLoading(false);
     }
-
     fetchProjects();
   }, []);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !projectId) return;
 
     // Parse the final hours value (manual input or calculated)
     const finalHours = parseFloat(manualHours) || calculatedHours;
-    
     if (finalHours <= 0) {
       toast({
         variant: "destructive",
         title: "Chyba",
-        description: "Odpracované hodiny musia byť väčšie ako 0.",
+        description: "Odpracované hodiny musia byť väčšie ako 0."
       });
       return;
     }
-
     setSaving(true);
-
-    const { error } = await supabase.from("performance_records").insert({
+    const {
+      error
+    } = await supabase.from("performance_records").insert({
       user_id: user.id,
       project_id: projectId,
       date,
@@ -152,19 +133,18 @@ export default function DailyEntry() {
       break_end: breakEnd || null,
       note: note || null,
       total_hours: finalHours,
-      status: "draft",
+      status: "draft"
     });
-
     if (error) {
       toast({
         variant: "destructive",
         title: "Chyba pri ukladaní",
-        description: error.message,
+        description: error.message
       });
     } else {
       toast({
         title: "Záznam uložený",
-        description: "Váš výkon bol úspešne zaznamenaný.",
+        description: "Váš výkon bol úspešne zaznamenaný."
       });
       // Reset form
       setNote("");
@@ -172,20 +152,14 @@ export default function DailyEntry() {
       setManualHours("");
       setIsManualOverride(false);
     }
-
     setSaving(false);
   };
-
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
+    return <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+      </div>;
   }
-
-  return (
-    <div className="space-y-6">
+  return <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-foreground">Denný záznam</h2>
         <p className="text-muted-foreground">Zaznamenajte svoj výkon pre fakturáciu</p>
@@ -207,11 +181,9 @@ export default function DailyEntry() {
                     <SelectValue placeholder="Vyberte projekt" />
                   </SelectTrigger>
                   <SelectContent>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
+                    {projects.map(project => <SelectItem key={project.id} value={project.id}>
                         {project.name} ({project.client})
-                      </SelectItem>
-                    ))}
+                      </SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -219,59 +191,31 @@ export default function DailyEntry() {
               {/* Date */}
               <div className="space-y-2">
                 <Label htmlFor="date">Dátum</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  required
-                />
+                <Input id="date" type="date" value={date} onChange={e => setDate(e.target.value)} required />
               </div>
 
               {/* Time From (Von) */}
               <div className="space-y-2">
                 <Label htmlFor="timeFrom">Von (začiatok)</Label>
-                <Input
-                  id="timeFrom"
-                  type="time"
-                  value={timeFrom}
-                  onChange={(e) => handleTimeFromChange(e.target.value)}
-                  required
-                />
+                <Input id="timeFrom" type="time" value={timeFrom} onChange={e => handleTimeFromChange(e.target.value)} required />
               </div>
 
               {/* Time To (Bis) */}
               <div className="space-y-2">
                 <Label htmlFor="timeTo">Bis (koniec)</Label>
-                <Input
-                  id="timeTo"
-                  type="time"
-                  value={timeTo}
-                  onChange={(e) => handleTimeToChange(e.target.value)}
-                  required
-                />
+                <Input id="timeTo" type="time" value={timeTo} onChange={e => handleTimeToChange(e.target.value)} required />
               </div>
 
               {/* Break Start */}
               <div className="space-y-2">
                 <Label htmlFor="breakStart">Prestávka od</Label>
-                <Input
-                  id="breakStart"
-                  type="time"
-                  value={breakStart}
-                  onChange={(e) => handleBreakStartChange(e.target.value)}
-                />
+                <Input id="breakStart" type="time" value={breakStart} onChange={e => handleBreakStartChange(e.target.value)} />
               </div>
 
               {/* Break End */}
               <div className="space-y-2">
                 <Label htmlFor="breakEnd">Prestávka do</Label>
-                <Input
-                  id="breakEnd"
-                  type="time"
-                  value={breakEnd}
-                  onChange={(e) => handleBreakEndChange(e.target.value)}
-                />
+                <Input id="breakEnd" type="time" value={breakEnd} onChange={e => handleBreakEndChange(e.target.value)} />
               </div>
 
               {/* Editable total hours with tooltip */}
@@ -290,60 +234,34 @@ export default function DailyEntry() {
                   </TooltipProvider>
                 </div>
                 <div className="relative">
-                  <Input
-                    id="totalHours"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={manualHours}
-                    onChange={(e) => handleManualHoursChange(e.target.value)}
-                    className={isManualOverride ? "border-primary ring-1 ring-primary" : ""}
-                  />
-                  {isManualOverride && (
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-primary font-medium">
-                      manuálne
-                    </span>
-                  )}
+                  <Input id="totalHours" type="number" step="0.01" min="0" placeholder="0.00" value={manualHours} onChange={e => handleManualHoursChange(e.target.value)} className={isManualOverride ? "border-primary ring-1 ring-primary" : ""} />
+                  {isManualOverride}
                 </div>
-                {isManualOverride && calculatedHours > 0 && (
-                  <p className="text-xs text-muted-foreground">
+                {isManualOverride && calculatedHours > 0 && <p className="text-xs text-muted-foreground">
                     Vypočítané: {calculatedHours} h
-                  </p>
-                )}
+                  </p>}
               </div>
             </div>
 
             {/* Note */}
             <div className="space-y-2">
               <Label htmlFor="note">Poznámka (voliteľné)</Label>
-              <Textarea
-                id="note"
-                placeholder="Popis vykonaných prác..."
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                rows={3}
-              />
+              <Textarea id="note" placeholder="Popis vykonaných prác..." value={note} onChange={e => setNote(e.target.value)} rows={3} />
             </div>
 
             <div className="flex justify-end gap-3">
               <Button type="submit" disabled={saving || !projectId}>
-                {saving ? (
-                  <>
+                {saving ? <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Ukladám...
-                  </>
-                ) : (
-                  <>
+                  </> : <>
                     <Save className="mr-2 h-4 w-4" />
                     Uložiť záznam
-                  </>
-                )}
+                  </>}
               </Button>
             </div>
           </form>
         </CardContent>
       </Card>
-    </div>
-  );
+    </div>;
 }
