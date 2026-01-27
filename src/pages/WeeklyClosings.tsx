@@ -227,31 +227,39 @@ export default function WeeklyClosings() {
     return hasEditableRecords && group.closingStatus !== "locked";
   };
 
-  const handleExportLeistungsnachweis = (group: WeekGroup) => {
+  const handleExportLeistungsnachweis = async (group: WeekGroup) => {
     // Get unique project name(s) for this week
     const projectNames = [...new Set(group.records.map((r) => r.projects?.name).filter(Boolean))];
     const projectName = projectNames.join(", ") || "Neznámy projekt";
 
-    exportWeeklyRecordsToExcel({
-      records: group.records.map((r) => ({
-        date: r.date,
-        time_from: r.time_from,
-        time_to: r.time_to,
-        break_start: r.break_start,
-        break_end: r.break_end,
-        total_hours: r.total_hours,
-        note: r.note,
-      })),
-      projectName,
-      workerName: userProfile?.full_name || "Neznámy používateľ",
-      calendarWeek: group.week,
-      year: group.year,
-    });
+    try {
+      await exportWeeklyRecordsToExcel({
+        records: group.records.map((r) => ({
+          date: r.date,
+          time_from: r.time_from,
+          time_to: r.time_to,
+          break_start: r.break_start,
+          break_end: r.break_end,
+          total_hours: r.total_hours,
+          note: r.note,
+        })),
+        projectName,
+        workerName: userProfile?.full_name || "Neznámy používateľ",
+        calendarWeek: group.week,
+        year: group.year,
+      });
 
-    toast({
-      title: "Export úspešný",
-      description: `Leistungsnachweis pre KW ${group.week}/${group.year} bol stiahnutý.`,
-    });
+      toast({
+        title: "Export úspešný",
+        description: `Leistungsnachweis pre KW ${group.week}/${group.year} bol stiahnutý.`,
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Chyba pri exporte",
+        description: error.message,
+      });
+    }
   };
 
   const handleExportStundenzettel = async (group: WeekGroup) => {
