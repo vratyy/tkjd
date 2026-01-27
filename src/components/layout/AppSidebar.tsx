@@ -72,7 +72,7 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarHeader className="border-b border-sidebar-border p-4">
-        <div className="flex items-center gap-3">
+        <NavLink to="/dashboard" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
           <div className="w-10 h-10 rounded-xl bg-sidebar-primary flex items-center justify-center flex-shrink-0">
             <Building2 className="h-5 w-5 text-sidebar-primary-foreground" />
           </div>
@@ -82,7 +82,7 @@ export function AppSidebar() {
               <p className="text-xs text-sidebar-foreground/60 truncate">Evidencia výkonov</p>
             </div>
           )}
-        </div>
+        </NavLink>
       </SidebarHeader>
 
       <SidebarContent>
