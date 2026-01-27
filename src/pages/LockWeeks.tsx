@@ -179,30 +179,38 @@ export default function LockWeeks() {
     setProcessing(null);
   };
 
-  const handleExport = (week: ApprovedWeek) => {
+  const handleExport = async (week: ApprovedWeek) => {
     const projectNames = [...new Set(week.records.map((r) => r.projects?.name).filter(Boolean))];
     const projectName = projectNames.join(", ") || "Neznámy projekt";
 
-    exportWeeklyRecordsToExcel({
-      records: week.records.map((r) => ({
-        date: r.date,
-        time_from: r.time_from,
-        time_to: r.time_to,
-        break_start: r.break_start,
-        break_end: r.break_end,
-        total_hours: r.total_hours,
-        note: r.note,
-      })),
-      projectName,
-      workerName: week.closing.profiles?.full_name || "Neznámy používateľ",
-      calendarWeek: week.closing.calendar_week,
-      year: week.closing.year,
-    });
+    try {
+      await exportWeeklyRecordsToExcel({
+        records: week.records.map((r) => ({
+          date: r.date,
+          time_from: r.time_from,
+          time_to: r.time_to,
+          break_start: r.break_start,
+          break_end: r.break_end,
+          total_hours: r.total_hours,
+          note: r.note,
+        })),
+        projectName,
+        workerName: week.closing.profiles?.full_name || "Neznámy používateľ",
+        calendarWeek: week.closing.calendar_week,
+        year: week.closing.year,
+      });
 
-    toast({
-      title: "Export úspešný",
-      description: `Leistungsnachweis bol stiahnutý.`,
-    });
+      toast({
+        title: "Export úspešný",
+        description: `Leistungsnachweis bol stiahnutý.`,
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Chyba pri exporte",
+        description: error.message,
+      });
+    }
   };
 
   const canGenerateInvoice = (week: ApprovedWeek) => {
