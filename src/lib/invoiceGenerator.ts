@@ -34,17 +34,19 @@ export interface InvoiceData {
   
   // For unique invoice number
   odberatelId?: string;
+  
+  // Advance deduction (optional)
+  advanceDeduction?: number;
 }
 
 // TKJD s.r.o. company details (Odberatel / Customer)
 const CUSTOMER = {
-  name: "TKJD s.r.o.",
-  street: "Zalobin 114",
-  city: "094 03 Zalobin",
+  name: "TKJD, s. r. o.",
+  street: "114 094 03 Zalobin",
   country: "Slovenska republika",
-  ico: "56004133",
-  dic: "2122094097",
-  icDph: "SK2122094097",
+  ico: "47417528",
+  dic: "2023943845",
+  icDph: "SK2023943845",
 };
 
 const VAT_RATE = 0.20;
@@ -61,28 +63,22 @@ function getCalendarWeek(date: Date): number {
 }
 
 /**
- * Format KW number with leading zero (e.g., 05, 12, 52)
- */
-function formatKW(kw: number): string {
-  return String(kw).padStart(2, "0");
-}
-
-/**
- * Generate invoice number in format: YYYYMMXXX
+ * Generate invoice number in format: YYYYXXX
  */
 function generateInvoiceNumber(odberatelId?: string): string {
   const now = new Date();
   const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
   
   let suffix: string;
   if (odberatelId && odberatelId.length >= 3) {
-    suffix = odberatelId.replace(/-/g, "").slice(-3).toUpperCase();
+    // Use last 3 digits of ID for uniqueness
+    const numericPart = odberatelId.replace(/\D/g, "");
+    suffix = numericPart.slice(-3).padStart(3, "0");
   } else {
     suffix = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
   }
   
-  return `${year}${month}${suffix}`;
+  return `${year}0${suffix}`;
 }
 
 /**
@@ -109,11 +105,9 @@ function generatePayBySquareData(
   const variableSymbol = extractNumericVS(invoiceNumber);
   
   // Message for recipient: [KW] woche [First Name] [Last Name]
-  // Example: "49 woche Patrik Cmar" - uses plain KW number without leading zero
   const message = `${calendarWeek} woche ${safeText(supplierName)}`;
   
   // PAY by square format (SEPA with VS and proper message)
-  // SPD format: SPD*1.0*ACC:IBAN*AM:amount*CC:EUR*X-VS:variableSymbol*MSG:message*RN:beneficiary
   return `SPD*1.0*ACC:${cleanIban}*AM:${amountStr}*CC:EUR*X-VS:${variableSymbol}*MSG:${message}*RN:TKJD s.r.o.`;
 }
 
@@ -133,8 +127,18 @@ async function loadImageAsBase64(url: string): Promise<string | null> {
   }
 }
 
+/**
+ * Format currency with Slovak formatting (space as thousand separator)
+ */
+function formatCurrency(amount: number): string {
+  return amount.toLocaleString("sk-SK", { 
+    minimumFractionDigits: 2, 
+    maximumFractionDigits: 2 
+  });
+}
+
 // ============================================================================
-// MAIN PDF GENERATOR
+// MAIN PDF GENERATOR - B2B STANDARD FORMAT
 // ============================================================================
 
 export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
@@ -150,7 +154,6 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   if (data.serviceDateFrom) {
     calendarWeek = getCalendarWeek(data.serviceDateFrom);
   }
-  const kwFormatted = formatKW(calendarWeek);
   
   // Safe number conversion helper
   const safeNumber = (val: unknown): number => {
@@ -162,14 +165,14 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   const totalHours = safeNumber(data.totalHours);
   const hourlyRate = safeNumber(data.hourlyRate);
   const baseAmount = totalHours * hourlyRate;
+  const advanceDeduction = safeNumber(data.advanceDeduction);
+  
   let vatAmount = 0;
-  let vatPercent = 0;
-  let totalAmount = baseAmount;
+  let totalAmount = baseAmount - advanceDeduction;
   
   if (data.isVatPayer && !data.isReverseCharge) {
-    vatPercent = 20;
     vatAmount = baseAmount * VAT_RATE;
-    totalAmount = baseAmount + vatAmount;
+    totalAmount = baseAmount + vatAmount - advanceDeduction;
   }
   
   // Dates - CEO requirement: due date = issue date + 21 days
@@ -181,286 +184,289 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 15;
-  const colWidth = (pageWidth - margin * 2 - 10) / 2;
+  const fontFamily = getPdfFontFamily();
 
   // ============================================================================
-  // HEADER SECTION
+  // HEADER: INVOICE TITLE (Top Right, Large)
   // ============================================================================
   
-  // Company name (top left)
-  doc.setFontSize(18);
+  doc.setFontSize(24);
   setFontStyle(doc, "bold");
   doc.setTextColor(40, 40, 40);
-  doc.text("TKJD s.r.o.", margin, 20);
-  
-  // Invoice title and number (top right)
-  doc.setFontSize(22);
-  doc.text("FAKTURA", pageWidth - margin, 20, { align: "right" });
-  
-  doc.setFontSize(12);
-  setFontStyle(doc, "normal");
-  doc.setTextColor(80, 80, 80);
-  doc.text(`c.: ${invoiceNumber} | KW ${kwFormatted}`, pageWidth - margin, 28, { align: "right" });
-
-  // Separator line
-  doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(0.5);
-  doc.line(margin, 35, pageWidth - margin, 35);
+  doc.text(`FAKTURA ${invoiceNumber}`, pageWidth - margin, 22, { align: "right" });
 
   // ============================================================================
-  // DATE SECTION (Right aligned, below header)
+  // ADDRESS BLOCKS (Two Columns with Grey Labels)
   // ============================================================================
   
-  const dateBlockX = pageWidth - margin - 80;
-  let dateY = 45;
+  const addressY = 35;
+  const colWidth = 85;
   
+  // Left block: DODAVATEL (Supplier)
   doc.setFontSize(9);
-  doc.setTextColor(60, 60, 60);
-  
-  // Date labels and values
-  const dateLabels = [
-    { label: "Datum vystavenia:", value: format(issueDate, "dd.MM.yyyy") },
-    { label: "Datum dodania:", value: format(deliveryDate, "dd.MM.yyyy") },
-    { label: "Datum splatnosti:", value: format(dueDate, "dd.MM.yyyy"), highlight: true },
-  ];
-  
-  dateLabels.forEach(({ label, value, highlight }) => {
-    doc.setTextColor(100, 100, 100);
-    doc.text(label, dateBlockX, dateY);
-    
-    if (highlight) {
-      doc.setTextColor(180, 0, 0);
-    } else {
-      doc.setTextColor(40, 40, 40);
-    }
-    setFontStyle(doc, "bold");
-    doc.text(value, pageWidth - margin, dateY, { align: "right" });
-    setFontStyle(doc, "normal");
-    
-    dateY += 6;
-  });
-
-  // ============================================================================
-  // ADDRESS BLOCKS (Two Columns)
-  // ============================================================================
-  
-  const addressY = 70;
-  const boxHeight = 55;
-  
-  // Left box: DODAVATEL (Supplier)
-  doc.setFillColor(248, 248, 248);
-  doc.roundedRect(margin, addressY, colWidth, boxHeight, 2, 2, "F");
-  
-  doc.setFontSize(8);
-  doc.setTextColor(120, 120, 120);
+  doc.setTextColor(130, 130, 130);
   setFontStyle(doc, "bold");
-  doc.text("DODAVATEL", margin + 5, addressY + 8);
+  doc.text("DODAVATEL", margin, addressY);
   
+  setFontStyle(doc, "normal");
   doc.setFontSize(11);
   doc.setTextColor(30, 30, 30);
-  doc.text(safeText(data.supplierName), margin + 5, addressY + 16);
   
-  doc.setFontSize(8);
+  let supY = addressY + 8;
+  
+  // Supplier name (bold)
+  setFontStyle(doc, "bold");
+  doc.text(safeText(data.supplierName), margin, supY);
   setFontStyle(doc, "normal");
-  doc.setTextColor(60, 60, 60);
+  supY += 6;
   
-  let supY = addressY + 22;
+  doc.setFontSize(9);
+  doc.setTextColor(50, 50, 50);
   
-  if (data.supplierCompany) {
-    doc.text(safeText(data.supplierCompany), margin + 5, supY);
-    supY += 4;
-  }
-  
+  // Address
   if (data.supplierAddress) {
     const addressLines = data.supplierAddress.split("\n");
     addressLines.forEach((line) => {
-      doc.text(safeText(line.trim()), margin + 5, supY);
-      supY += 4;
+      doc.text(safeText(line.trim()), margin, supY);
+      supY += 5;
     });
   }
   
   supY += 2;
   
+  // ICO, DIC
   if (data.supplierIco) {
-    doc.text(`ICO: ${data.supplierIco}`, margin + 5, supY);
-    supY += 4;
+    doc.text(`ICO: ${data.supplierIco}`, margin, supY);
+    supY += 5;
   }
   if (data.supplierDic) {
-    doc.text(`DIC: ${data.supplierDic}`, margin + 5, supY);
-    supY += 4;
-  }
-  if (data.isVatPayer && data.vatNumber) {
-    doc.text(`IC DPH: ${data.vatNumber}`, margin + 5, supY);
-    supY += 4;
+    doc.text(`DIC: ${data.supplierDic}`, margin, supY);
+    supY += 5;
   }
   
-  // IBAN in supplier box
-  if (data.supplierIban) {
-    supY += 1;
-    setFontStyle(doc, "bold");
-    doc.text(`IBAN: ${data.supplierIban}`, margin + 5, supY);
-    supY += 4;
-    setFontStyle(doc, "normal");
-    if (data.supplierSwiftBic) {
-      doc.text(`SWIFT: ${data.supplierSwiftBic}`, margin + 5, supY);
-    }
+  // VAT payer status
+  if (!data.isVatPayer) {
+    doc.setTextColor(100, 100, 100);
+    doc.text("Nie je platitel DPH.", margin, supY);
+    supY += 5;
+  } else if (data.vatNumber) {
+    doc.text(`IC DPH: ${data.vatNumber}`, margin, supY);
+    supY += 5;
   }
 
-  // Right box: ODBERATEL (Customer)
-  const rightBoxX = margin + colWidth + 10;
-  doc.setFillColor(248, 248, 248);
-  doc.roundedRect(rightBoxX, addressY, colWidth, boxHeight, 2, 2, "F");
+  // Right block: ODBERATEL (Customer)
+  const rightBlockX = pageWidth / 2 + 5;
   
-  doc.setFontSize(8);
-  doc.setTextColor(120, 120, 120);
+  doc.setFontSize(9);
+  doc.setTextColor(130, 130, 130);
   setFontStyle(doc, "bold");
-  doc.text("ODBERATEL", rightBoxX + 5, addressY + 8);
+  doc.text("ODBERATEL", rightBlockX, addressY);
   
+  setFontStyle(doc, "normal");
   doc.setFontSize(11);
   doc.setTextColor(30, 30, 30);
-  doc.text(CUSTOMER.name, rightBoxX + 5, addressY + 16);
+  
+  let custY = addressY + 8;
+  
+  // Customer name (bold)
+  setFontStyle(doc, "bold");
+  doc.text(CUSTOMER.name, rightBlockX, custY);
+  setFontStyle(doc, "normal");
+  custY += 6;
+  
+  doc.setFontSize(9);
+  doc.setTextColor(50, 50, 50);
+  
+  doc.text(safeText(CUSTOMER.street), rightBlockX, custY);
+  custY += 5;
+  doc.text(safeText(CUSTOMER.country), rightBlockX, custY);
+  custY += 7;
+  doc.text(`ICO: ${CUSTOMER.ico}`, rightBlockX, custY);
+  custY += 5;
+  doc.text(`DIC: ${CUSTOMER.dic}`, rightBlockX, custY);
+  custY += 5;
+  doc.text(`IC DPH: ${CUSTOMER.icDph}`, rightBlockX, custY);
+
+  // ============================================================================
+  // DATES STRIP (Grey Background)
+  // ============================================================================
+  
+  const datesY = 95;
+  const datesHeight = 18;
+  
+  // Grey background strip
+  doc.setFillColor(245, 245, 245);
+  doc.rect(margin, datesY, pageWidth - margin * 2, datesHeight, "F");
+  
+  // Date labels and values
+  doc.setFontSize(8);
+  const dateColWidth = (pageWidth - margin * 2) / 3;
+  
+  // Column 1: Datum vystavenia
+  let dateX = margin + 5;
+  doc.setTextColor(100, 100, 100);
+  setFontStyle(doc, "normal");
+  doc.text("Datum vystavenia:", dateX, datesY + 6);
+  doc.setTextColor(30, 30, 30);
+  setFontStyle(doc, "bold");
+  doc.text(format(issueDate, "dd.MM.yyyy"), dateX, datesY + 12);
+  
+  // Column 2: Datum dodania
+  dateX = margin + dateColWidth + 5;
+  doc.setTextColor(100, 100, 100);
+  setFontStyle(doc, "normal");
+  doc.text("Datum dodania:", dateX, datesY + 6);
+  doc.setTextColor(30, 30, 30);
+  setFontStyle(doc, "bold");
+  doc.text(format(deliveryDate, "dd.MM.yyyy"), dateX, datesY + 12);
+  
+  // Column 3: Splatnost
+  dateX = margin + dateColWidth * 2 + 5;
+  doc.setTextColor(100, 100, 100);
+  setFontStyle(doc, "normal");
+  doc.text("Splatnost:", dateX, datesY + 6);
+  doc.setTextColor(180, 0, 0);
+  setFontStyle(doc, "bold");
+  doc.text(format(dueDate, "dd.MM.yyyy"), dateX, datesY + 12);
+
+  // ============================================================================
+  // PAYMENT INFO STRIP
+  // ============================================================================
+  
+  const paymentY = datesY + datesHeight + 5;
+  const paymentHeight = 16;
+  
+  doc.setFillColor(250, 250, 250);
+  doc.rect(margin, paymentY, pageWidth - margin * 2, paymentHeight, "F");
   
   doc.setFontSize(8);
   setFontStyle(doc, "normal");
-  doc.setTextColor(60, 60, 60);
   
-  let custY = addressY + 22;
-  doc.text(safeText(CUSTOMER.street), rightBoxX + 5, custY);
-  custY += 4;
-  doc.text(safeText(CUSTOMER.city), rightBoxX + 5, custY);
-  custY += 4;
-  doc.text(safeText(CUSTOMER.country), rightBoxX + 5, custY);
-  custY += 6;
-  doc.text(`ICO: ${CUSTOMER.ico}`, rightBoxX + 5, custY);
-  custY += 4;
-  doc.text(`DIC: ${CUSTOMER.dic}`, rightBoxX + 5, custY);
-  custY += 4;
-  doc.text(`IC DPH: ${CUSTOMER.icDph}`, rightBoxX + 5, custY);
+  // Payment method
+  dateX = margin + 5;
+  doc.setTextColor(100, 100, 100);
+  doc.text("Sposob uhrady:", dateX, paymentY + 5);
+  doc.setTextColor(30, 30, 30);
+  
+  // Amount, Variable Symbol, IBAN
+  let payInfoX = margin + 5;
+  doc.setTextColor(30, 30, 30);
+  setFontStyle(doc, "bold");
+  doc.text(`Suma: ${formatCurrency(totalAmount)} EUR`, payInfoX, paymentY + 11);
+  
+  payInfoX = margin + 60;
+  doc.setTextColor(100, 100, 100);
+  setFontStyle(doc, "normal");
+  doc.text("Variabilny symbol:", payInfoX, paymentY + 11);
+  doc.setTextColor(30, 30, 30);
+  setFontStyle(doc, "bold");
+  doc.text(extractNumericVS(invoiceNumber), payInfoX + 32, paymentY + 11);
+  
+  payInfoX = margin + 115;
+  doc.setTextColor(100, 100, 100);
+  setFontStyle(doc, "normal");
+  doc.text("IBAN:", payInfoX, paymentY + 11);
+  doc.setTextColor(30, 30, 30);
+  setFontStyle(doc, "bold");
+  doc.text(data.supplierIban || "-", payInfoX + 12, paymentY + 11);
 
   // ============================================================================
-  // PERFORMANCE TABLE (Leistungsnachweis)
+  // SERVICE TABLE
   // ============================================================================
   
-  const tableStartY = addressY + boxHeight + 15;
-  const fontFamily = getPdfFontFamily();
+  const tableStartY = paymentY + paymentHeight + 10;
 
   const tableBody: (string | number)[][] = [
     [
-      safeText(`${data.projectName} - KW ${kwFormatted}/${data.year}`),
-      totalHours.toFixed(2),
-      hourlyRate.toFixed(2),
-      data.isReverseCharge ? "0% (RC)" : (data.isVatPayer ? "20%" : "-"),
-      `${baseAmount.toFixed(2)} EUR`,
+      "1.",
+      safeText(`Fakturujem Vam na zaklade zmluvy za vykonanu pracu za ${calendarWeek}. kalendarny tyzden.`),
+      `${totalHours.toFixed(2)} hod`,
+      `${formatCurrency(hourlyRate)}`,
+      `${formatCurrency(baseAmount)}`,
     ],
   ];
 
   autoTable(doc, {
     startY: tableStartY,
     head: [[
-      { content: "Popis vykonu (Leistungsnachweis)", styles: { halign: "left" } },
-      { content: "Rozsah (hod)", styles: { halign: "center" } },
-      { content: "Sadzba (EUR/h)", styles: { halign: "right" } },
-      { content: "DPH (%)", styles: { halign: "center" } },
-      { content: "Celkom", styles: { halign: "right" } },
+      { content: "C.", styles: { halign: "center", cellWidth: 12 } },
+      { content: "NAZOV", styles: { halign: "left" } },
+      { content: "MNOZSTVO", styles: { halign: "center", cellWidth: 28 } },
+      { content: "JEDN. CENA", styles: { halign: "right", cellWidth: 28 } },
+      { content: "SPOLU", styles: { halign: "right", cellWidth: 30 } },
     ]],
     body: tableBody,
     styles: {
       fontSize: 9,
-      cellPadding: 6,
-      lineColor: [220, 220, 220],
+      cellPadding: 5,
+      lineColor: [200, 200, 200],
       lineWidth: 0.1,
       font: fontFamily,
     },
     headStyles: {
-      fillColor: [50, 50, 50],
-      textColor: [255, 255, 255],
+      fillColor: [255, 255, 255],
+      textColor: [80, 80, 80],
       fontStyle: "bold",
-      fontSize: 9,
+      fontSize: 8,
     },
     bodyStyles: {
-      textColor: [40, 40, 40],
+      textColor: [30, 30, 30],
     },
     columnStyles: {
-      0: { cellWidth: 70, halign: "left" },
-      1: { cellWidth: 28, halign: "center" },
-      2: { cellWidth: 30, halign: "right" },
-      3: { cellWidth: 22, halign: "center" },
-      4: { cellWidth: 32, halign: "right" },
+      0: { halign: "center" },
+      1: { halign: "left" },
+      2: { halign: "center" },
+      3: { halign: "right" },
+      4: { halign: "right" },
     },
     margin: { left: margin, right: margin },
     tableWidth: "auto",
+    theme: "plain",
+    didDrawCell: (data) => {
+      // Draw bottom border for header and body rows
+      if (data.row.index >= 0) {
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.2);
+        doc.line(
+          data.cell.x,
+          data.cell.y + data.cell.height,
+          data.cell.x + data.cell.width,
+          data.cell.y + data.cell.height
+        );
+      }
+    },
   });
 
-  const afterTableY = (doc as any).lastAutoTable.finalY + 10;
+  const afterTableY = (doc as any).lastAutoTable.finalY + 5;
 
   // ============================================================================
-  // SUMMARY BLOCK (Bottom Right)
+  // TOTALS SECTION (Right Aligned)
   // ============================================================================
   
-  const summaryWidth = 85;
-  const summaryX = pageWidth - margin - summaryWidth;
-  let summaryY = afterTableY;
-
-  // Summary box background
-  doc.setFillColor(250, 250, 250);
-  doc.setDrawColor(220, 220, 220);
-  doc.setLineWidth(0.3);
-  const summaryHeight = data.isVatPayer && !data.isReverseCharge ? 42 : 32;
-  doc.roundedRect(summaryX, summaryY, summaryWidth, summaryHeight, 2, 2, "FD");
-
-  doc.setFontSize(9);
-  summaryY += 8;
-
-  // Zaklad dane
-  doc.setTextColor(80, 80, 80);
-  doc.text("Zaklad dane:", summaryX + 5, summaryY);
-  doc.setTextColor(40, 40, 40);
-  doc.text(`${baseAmount.toFixed(2)} EUR`, summaryX + summaryWidth - 5, summaryY, { align: "right" });
-
-  // DPH (if applicable)
-  if (data.isVatPayer && !data.isReverseCharge) {
-    summaryY += 8;
-    doc.setTextColor(80, 80, 80);
-    doc.text(`DPH ${vatPercent}%:`, summaryX + 5, summaryY);
-    doc.setTextColor(40, 40, 40);
-    doc.text(`${vatAmount.toFixed(2)} EUR`, summaryX + summaryWidth - 5, summaryY, { align: "right" });
-  }
-
-  // Total amount (highlighted)
-  summaryY += 10;
-  doc.setFillColor(50, 50, 50);
-  doc.roundedRect(summaryX, summaryY - 4, summaryWidth, 14, 2, 2, "F");
+  const totalsWidth = 70;
+  const totalsX = pageWidth - margin - totalsWidth;
+  let totalsY = afterTableY + 5;
   
-  doc.setTextColor(255, 255, 255);
   doc.setFontSize(10);
+  
+  // Spolu label and total
+  doc.setTextColor(30, 30, 30);
   setFontStyle(doc, "bold");
-  doc.text("Suma na uhradu:", summaryX + 5, summaryY + 4);
-  doc.setFontSize(11);
-  doc.text(`${totalAmount.toFixed(2)} EUR`, summaryX + summaryWidth - 5, summaryY + 4, { align: "right" });
-  setFontStyle(doc, "normal");
-
-  // VAT notice (left side)
-  let noticeY = afterTableY + 5;
-  doc.setFontSize(8);
-  doc.setTextColor(100, 100, 100);
+  doc.text("Spolu", totalsX, totalsY);
+  doc.text(`${formatCurrency(totalAmount)} EUR`, pageWidth - margin, totalsY, { align: "right" });
   
-  if (data.isReverseCharge) {
-    doc.text(
-      "Prenesena danova povinnost podla § 69 ods. 12 zakona c. 222/2004 Z.z. o DPH.",
-      margin,
-      noticeY
-    );
-  } else if (!data.isVatPayer) {
-    doc.text("Dodavatel nie je platcom DPH.", margin, noticeY);
-  }
+  // Draw separator line
+  totalsY += 4;
+  doc.setDrawColor(50, 50, 50);
+  doc.setLineWidth(0.8);
+  doc.line(totalsX, totalsY, pageWidth - margin, totalsY);
 
   // ============================================================================
-  // FOOTER SECTION (QR Code + Signature)
+  // QR CODE (Bottom Left)
   // ============================================================================
   
-  const footerY = Math.max(summaryY + 25, afterTableY + 50);
-
-  // QR Code (bottom left)
+  const footerY = totalsY + 20;
+  
   if (data.supplierIban) {
     try {
       const qrData = generatePayBySquareData(
@@ -471,98 +477,87 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
         data.supplierName
       );
       const qrCodeDataUrl = await QRCode.toDataURL(qrData, {
-        width: 120,
+        width: 150,
         margin: 1,
         color: { dark: "#000000", light: "#FFFFFF" },
       });
       
       // QR Code image
-      doc.addImage(qrCodeDataUrl, "PNG", margin, footerY, 35, 35);
+      doc.addImage(qrCodeDataUrl, "PNG", margin, footerY, 40, 40);
       
       // QR Label
       doc.setFontSize(8);
       setFontStyle(doc, "bold");
       doc.setTextColor(40, 40, 40);
-      doc.text("PAY by square", margin, footerY + 40);
-      
-      doc.setFontSize(7);
-      setFontStyle(doc, "normal");
-      doc.setTextColor(120, 120, 120);
-      doc.text("Naskenujte pre platbu", margin, footerY + 44);
+      doc.text("PAY by square", margin, footerY + 45);
     } catch (error) {
       console.error("QR code generation failed:", error);
     }
   }
 
-  // Signature (bottom right)
-  const signatureX = pageWidth - margin - 60;
+  // ============================================================================
+  // SIGNATURE (Bottom Right)
+  // ============================================================================
   
-  doc.setFontSize(8);
-  doc.setTextColor(100, 100, 100);
-  doc.text("Peciatka a podpis dodavatela", signatureX, footerY);
-
+  const signatureX = pageWidth - margin - 55;
+  
   // Signature box
-  doc.setDrawColor(180, 180, 180);
+  doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.3);
-  doc.roundedRect(signatureX, footerY + 3, 60, 32, 2, 2, "S");
+  doc.roundedRect(signatureX, footerY, 55, 35, 2, 2, "S");
 
   // Add signature image if available
   if (data.signatureUrl) {
     try {
       const signatureBase64 = await loadImageAsBase64(data.signatureUrl);
       if (signatureBase64) {
-        doc.addImage(signatureBase64, "PNG", signatureX + 3, footerY + 5, 54, 26);
+        doc.addImage(signatureBase64, "PNG", signatureX + 3, footerY + 2, 49, 28);
       }
     } catch (error) {
       console.error("Signature loading failed:", error);
     }
   }
 
-  // Signature line
-  doc.setDrawColor(150, 150, 150);
-  doc.line(signatureX, footerY + 38, signatureX + 60, footerY + 38);
-  
+  // Label below signature
   doc.setFontSize(7);
   doc.setTextColor(80, 80, 80);
-  doc.text(safeText(data.supplierName), signatureX, footerY + 43);
+  setFontStyle(doc, "normal");
+  doc.text(`Fakturu vystavil: ${safeText(data.supplierName)}`, signatureX, footerY + 42);
 
   // ============================================================================
-  // LEGAL DISCLAIMERS (Bottom of page) - BILINGUAL + TRANSACTION TAX INFO
+  // LEGAL DISCLAIMERS (Bottom of page)
   // ============================================================================
   
-  const disclaimerY = pageHeight - 24;
+  const disclaimerY = pageHeight - 20;
   
   doc.setFontSize(6);
-  doc.setTextColor(140, 140, 140);
+  doc.setTextColor(130, 130, 130);
   
   // Transaction Tax Info (internal usage note)
-  const transactionTaxRate = 0.4; // Default rate
+  const transactionTaxRate = 0.4;
   const transactionTaxAmount = Math.ceil((totalAmount * transactionTaxRate / 100) * 100) / 100;
   const taxInfoText = `Informativna vyska transakcnej dane (${transactionTaxRate}%): ${transactionTaxAmount.toFixed(2)} EUR`;
-  doc.setTextColor(100, 100, 100);
-  doc.text(taxInfoText, pageWidth / 2, disclaimerY - 8, { align: "center" });
-  
-  doc.setTextColor(140, 140, 140);
+  doc.text(taxInfoText, pageWidth / 2, disclaimerY - 6, { align: "center" });
   
   // Slovak disclaimer
-  const disclaimerSK = "Tato aplikacia sluzi vylucne na evidenciu rozsahu vykonaneho diela ako podklad k fakturacii medzi B2B partnermi. Nejde o dochadzkovy ani zamestnanecky system.";
+  const disclaimerSK = "Tato aplikacia sluzi vylucne na evidenciu rozsahu vykonaneho diela ako podklad k fakturacii medzi B2B partnermi.";
   doc.text(disclaimerSK, pageWidth / 2, disclaimerY, { align: "center", maxWidth: pageWidth - 30 });
   
   // German disclaimer
-  const disclaimerDE = "Diese App dient ausschliesslich als Abrechnungsgrundlage/Leistungsnachweis im B2B-Verhaltnis. Es handelt sich nicht um eine Arbeitszeiterfassung im arbeitsrechtlichen Sinne.";
-  doc.text(disclaimerDE, pageWidth / 2, disclaimerY + 6, { align: "center", maxWidth: pageWidth - 30 });
+  const disclaimerDE = "Diese App dient ausschliesslich als Leistungsnachweis im B2B-Verhaltnis.";
+  doc.text(disclaimerDE, pageWidth / 2, disclaimerY + 5, { align: "center", maxWidth: pageWidth - 30 });
 
   // ============================================================================
   // SAVE PDF WITH EXACT NAMING FORMAT
   // Format: [KW Number] KW [Invoice Number] [User Name] [Project Name].pdf
-  // Example: 05 KW 202601 Patrik Cmar Berlin.pdf
   // ============================================================================
   
-  // Sanitize names for filename (remove special characters)
+  const kwFormatted = String(calendarWeek).padStart(2, "0");
+  
   const sanitize = (str: string): string => {
     return str
-      .replace(/[/\\?%*:|"<>]/g, "") // Remove invalid filename chars
-      .replace(/\s+/g, " ")          // Normalize spaces
+      .replace(/[/\\?%*:|"<>]/g, "")
+      .replace(/\s+/g, " ")
       .trim();
   };
   
