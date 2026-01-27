@@ -12,6 +12,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { InvoiceStatusBadge } from "./InvoiceStatusBadge";
 import { TaxPaymentStatusBadge } from "./TaxPaymentStatusBadge";
 import { InvoiceDetailDialog } from "./InvoiceDetailDialog";
+import { MobileInvoiceCard } from "@/components/mobile/MobileInvoiceCard";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, AlertTriangle, Eye } from "lucide-react";
 import { format } from "date-fns";
@@ -52,6 +54,7 @@ interface InvoicesTrafficTableProps {
 export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefresh }: InvoicesTrafficTableProps) {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat("sk-SK", {
@@ -141,80 +144,112 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
             Žiadne faktúry na zobrazenie
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Číslo faktúry</TableHead>
-                <TableHead>Dodávateľ</TableHead>
-                <TableHead>Projekt</TableHead>
-                <TableHead>Dátum vystavenia</TableHead>
-                <TableHead>Splatnosť</TableHead>
-                <TableHead className="text-right">Suma</TableHead>
-                <TableHead>Stav platby</TableHead>
-                <TableHead>Stav dane</TableHead>
-                <TableHead className="text-right">Akcie</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <>
+            {/* Mobile: Card view */}
+            <div className="md:hidden space-y-0">
               {sortedInvoices.map((invoice) => (
-                <TableRow key={invoice.id}>
-                  <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{invoice.profile?.full_name ?? "—"}</div>
-                      {invoice.profile?.company_name && (
-                        <div className="text-xs text-muted-foreground">{invoice.profile.company_name}</div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      <div>{invoice.project?.name ?? "—"}</div>
-                      {invoice.project?.client && (
-                        <div className="text-xs text-muted-foreground">{invoice.project.client}</div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>{formatDate(invoice.issue_date)}</TableCell>
-                  <TableCell>{formatDate(invoice.due_date)}</TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatAmount(invoice.total_amount)}
-                  </TableCell>
-                  <TableCell>
-                    <InvoiceStatusBadge status={invoice.status} dueDate={invoice.due_date} />
-                  </TableCell>
-                  <TableCell>
-                    <TaxPaymentStatusBadge status={invoice.tax_payment_status || "pending"} />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setSelectedInvoice(invoice);
-                          setDetailOpen(true);
-                        }}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      {invoice.status !== "paid" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => onMarkAsPaid(invoice.id)}
-                          className="gap-1"
-                        >
-                          <CheckCircle2 className="h-3 w-3" />
-                          Zaplatené
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
+                <MobileInvoiceCard
+                  key={invoice.id}
+                  id={invoice.id}
+                  invoiceNumber={invoice.invoice_number}
+                  supplierName={invoice.profile?.full_name}
+                  companyName={invoice.profile?.company_name}
+                  projectName={invoice.project?.name}
+                  issueDate={invoice.issue_date}
+                  dueDate={invoice.due_date}
+                  totalAmount={invoice.total_amount}
+                  status={invoice.status}
+                  taxPaymentStatus={invoice.tax_payment_status || "pending"}
+                  onView={(id) => {
+                    const inv = sortedInvoices.find((i) => i.id === id);
+                    if (inv) {
+                      setSelectedInvoice(inv);
+                      setDetailOpen(true);
+                    }
+                  }}
+                  onMarkAsPaid={onMarkAsPaid}
+                />
               ))}
-            </TableBody>
-          </Table>
+            </div>
+            
+            {/* Desktop: Table view */}
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Číslo faktúry</TableHead>
+                    <TableHead>Dodávateľ</TableHead>
+                    <TableHead>Projekt</TableHead>
+                    <TableHead>Dátum vystavenia</TableHead>
+                    <TableHead>Splatnosť</TableHead>
+                    <TableHead className="text-right">Suma</TableHead>
+                    <TableHead>Stav platby</TableHead>
+                    <TableHead>Stav dane</TableHead>
+                    <TableHead className="text-right">Akcie</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedInvoices.map((invoice) => (
+                    <TableRow key={invoice.id}>
+                      <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{invoice.profile?.full_name ?? "—"}</div>
+                          {invoice.profile?.company_name && (
+                            <div className="text-xs text-muted-foreground">{invoice.profile.company_name}</div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div>{invoice.project?.name ?? "—"}</div>
+                          {invoice.project?.client && (
+                            <div className="text-xs text-muted-foreground">{invoice.project.client}</div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>{formatDate(invoice.issue_date)}</TableCell>
+                      <TableCell>{formatDate(invoice.due_date)}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatAmount(invoice.total_amount)}
+                      </TableCell>
+                      <TableCell>
+                        <InvoiceStatusBadge status={invoice.status} dueDate={invoice.due_date} />
+                      </TableCell>
+                      <TableCell>
+                        <TaxPaymentStatusBadge status={invoice.tax_payment_status || "pending"} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setSelectedInvoice(invoice);
+                              setDetailOpen(true);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          {invoice.status !== "paid" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => onMarkAsPaid(invoice.id)}
+                              className="gap-1"
+                            >
+                              <CheckCircle2 className="h-3 w-3" />
+                              Zaplatené
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         )}
 
         <InvoiceDetailDialog

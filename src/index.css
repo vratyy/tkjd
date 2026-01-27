@@ -125,3 +125,53 @@
     text-wrap: balance;
   }
 }
+
+/* Mobile-first responsive styles */
+@layer base {
+  /* Prevent iOS zoom on input focus */
+  @media screen and (max-width: 767px) {
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    input[type="date"],
+    input[type="time"],
+    input[type="tel"],
+    input[type="url"],
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+    
+    /* Larger touch targets on mobile */
+    button,
+    [role="button"],
+    a {
+      min-height: 44px;
+    }
+    
+    /* Better tap spacing */
+    .mobile-card-list > * + * {
+      margin-top: 0.75rem;
+    }
+  }
+}
+
+/* Hide scrollbar but keep functionality */
+@layer utilities {
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Mobile-only visibility utilities */
+  .mobile-only {
+    @apply block md:hidden;
+  }
+  .desktop-only {
+    @apply hidden md:block;
+  }
+}
