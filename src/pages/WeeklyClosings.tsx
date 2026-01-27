@@ -7,7 +7,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { MobileRecordCard } from "@/components/mobile/MobileRecordCard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, Calendar, ChevronDown, ChevronUp, FileSpreadsheet, FileText } from "lucide-react";
+import { Loader2, Send, Calendar, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Clock } from "lucide-react";
 import { format, getWeek, getYear } from "date-fns";
 import { sk } from "date-fns/locale";
 import {
@@ -15,7 +15,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { exportWeeklyRecordsToExcel } from "@/lib/excelExport";
+import { exportStundenzettelToExcel } from "@/lib/stundenzettelExport";
 import { generateInvoicePDF } from "@/lib/invoiceGenerator";
 
 interface PerformanceRecord {
@@ -28,7 +35,7 @@ interface PerformanceRecord {
   total_hours: number;
   status: string;
   note: string | null;
-  projects: { name: string } | null;
+  projects: { name: string; client: string; location: string | null } | null;
 }
 
 interface WeekGroup {
@@ -79,7 +86,7 @@ export default function WeeklyClosings() {
     // Fetch all records for the user
     const { data: records, error: recordsError } = await supabase
       .from("performance_records")
-      .select("id, date, time_from, time_to, break_start, break_end, total_hours, status, note, projects(name)")
+      .select("id, date, time_from, time_to, break_start, break_end, total_hours, status, note, projects(name, client, location)")
       .eq("user_id", user.id)
       .is("deleted_at", null)
       .order("date", { ascending: false });
@@ -220,7 +227,7 @@ export default function WeeklyClosings() {
     return hasEditableRecords && group.closingStatus !== "locked";
   };
 
-  const handleExport = (group: WeekGroup) => {
+  const handleExportLeistungsnachweis = (group: WeekGroup) => {
     // Get unique project name(s) for this week
     const projectNames = [...new Set(group.records.map((r) => r.projects?.name).filter(Boolean))];
     const projectName = projectNames.join(", ") || "Neznámy projekt";
@@ -244,6 +251,37 @@ export default function WeeklyClosings() {
     toast({
       title: "Export úspešný",
       description: `Leistungsnachweis pre KW ${group.week}/${group.year} bol stiahnutý.`,
+    });
+  };
+
+  const handleExportStundenzettel = (group: WeekGroup) => {
+    // Get project info for this week
+    const firstProject = group.records.find((r) => r.projects)?.projects;
+    const projectName = firstProject?.name || "Neznámy projekt";
+    const projectClient = firstProject?.client || "";
+    const projectLocation = firstProject?.location || null;
+
+    exportStundenzettelToExcel({
+      records: group.records.map((r) => ({
+        date: r.date,
+        time_from: r.time_from,
+        time_to: r.time_to,
+        break_start: r.break_start,
+        break_end: r.break_end,
+        total_hours: r.total_hours,
+        note: r.note,
+      })),
+      projectName,
+      projectClient,
+      projectLocation,
+      workerName: userProfile?.full_name || "Neznámy používateľ",
+      calendarWeek: group.week,
+      year: group.year,
+    });
+
+    toast({
+      title: "Export úspešný",
+      description: `Stundenzettel pre KW ${group.week}/${group.year} bol stiahnutý.`,
     });
   };
 
@@ -363,14 +401,25 @@ export default function WeeklyClosings() {
                       
                       {/* Desktop action buttons */}
                       <div className="hidden md:flex items-center gap-2 sm:gap-3">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleExport(group)}
-                        >
-                          <FileSpreadsheet className="h-4 w-4 sm:mr-2" />
-                          <span className="hidden sm:inline">Export Excel</span>
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="sm" variant="outline">
+                              <FileSpreadsheet className="h-4 w-4 sm:mr-2" />
+                              <span className="hidden sm:inline">Export Excel</span>
+                              <ChevronDown className="h-3 w-3 ml-1" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleExportStundenzettel(group)}>
+                              <Clock className="h-4 w-4 mr-2" />
+                              Stundenzettel (hodinový)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleExportLeistungsnachweis(group)}>
+                              <FileSpreadsheet className="h-4 w-4 mr-2" />
+                              Leistungsnachweis (prehľad)
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                         {canGenerateInvoice(group) && (
                           <Button
                             size="sm"
@@ -409,15 +458,25 @@ export default function WeeklyClosings() {
                     
                     {/* Mobile action buttons - stacked */}
                     <div className="flex flex-wrap gap-2 mt-3 md:hidden">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleExport(group)}
-                        className="flex-1 h-10 text-sm"
-                      >
-                        <FileSpreadsheet className="h-4 w-4 mr-2" />
-                        Excel
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="outline" className="flex-1 h-10 text-sm">
+                            <FileSpreadsheet className="h-4 w-4 mr-2" />
+                            Excel
+                            <ChevronDown className="h-3 w-3 ml-1" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          <DropdownMenuItem onClick={() => handleExportStundenzettel(group)}>
+                            <Clock className="h-4 w-4 mr-2" />
+                            Stundenzettel
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleExportLeistungsnachweis(group)}>
+                            <FileSpreadsheet className="h-4 w-4 mr-2" />
+                            Leistungsnachweis
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       {canGenerateInvoice(group) && (
                         <Button
                           size="sm"
