@@ -108,6 +108,7 @@ export default function Approvals() {
         return week === closing.calendar_week && year === closing.year;
       });
 
+      // Safe number conversion for total hours
       const totalHours = weekRecords.reduce((sum, r) => sum + (Number(r.total_hours) || 0), 0);
       
       const closingWithProfile: WeeklyClosing = {
@@ -128,7 +129,7 @@ export default function Approvals() {
 
   useEffect(() => {
     fetchData();
-  }, [user]);
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getWeek = (date: Date) => {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -356,7 +357,7 @@ export default function Approvals() {
                               </p>
                             </div>
                             <div className="text-right">
-                              <span className="font-semibold">{record.total_hours}h</span>
+                              <span className="font-semibold">{Number(record.total_hours) || 0}h</span>
                             </div>
                           </div>
                         ))}

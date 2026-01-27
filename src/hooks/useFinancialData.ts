@@ -54,22 +54,28 @@ export function useFinancialData() {
       return "pending";
     };
 
+    // Safe number conversion to prevent NaN
+    const safeNumber = (val: unknown): number => {
+      const num = Number(val);
+      return isNaN(num) ? 0 : num;
+    };
+
     // Total invoiced = ALL invoices (regardless of status)
     const totalInvoiced = {
       count: invoiceList.length,
-      amount: invoiceList.reduce((sum, inv) => sum + Number(inv.total_amount), 0),
+      amount: invoiceList.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
     };
 
     const paidInvoices = invoiceList.filter((inv) => getEffectiveStatus(inv) === "paid");
     const paid = {
       count: paidInvoices.length,
-      amount: paidInvoices.reduce((sum, inv) => sum + Number(inv.total_amount), 0),
+      amount: paidInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
     };
 
     const overdueInvoices = invoiceList.filter((inv) => getEffectiveStatus(inv) === "overdue");
     const overdue = {
       count: overdueInvoices.length,
-      amount: overdueInvoices.reduce((sum, inv) => sum + Number(inv.total_amount), 0),
+      amount: overdueInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
     };
 
     // Pending = all unpaid invoices (pending + due_soon)
@@ -79,7 +85,7 @@ export function useFinancialData() {
     });
     const pendingPayment = {
       count: pendingInvoices.length,
-      amount: pendingInvoices.reduce((sum, inv) => sum + Number(inv.total_amount), 0),
+      amount: pendingInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
     };
 
     return { totalInvoiced, pendingPayment, overdue, paid };
@@ -108,10 +114,15 @@ export function useFinancialData() {
             .from("profiles")
             .select("full_name, company_name")
             .eq("user_id", inv.user_id)
-            .single();
+            .maybeSingle();
           
           return { 
             ...inv, 
+            // Safe fallbacks for nullable fields
+            total_amount: inv.total_amount ?? 0,
+            transaction_tax_rate: inv.transaction_tax_rate ?? 0,
+            transaction_tax_amount: inv.transaction_tax_amount ?? 0,
+            advance_deduction: inv.advance_deduction ?? 0,
             profile: profile || undefined,
             project: inv.project || undefined 
           } as Invoice;

@@ -36,14 +36,19 @@ export function MobileInvoiceCard({
   onMarkAsPaid,
 }: MobileInvoiceCardProps) {
   const formatAmount = (amount: number) => {
+    const safeAmount = Number(amount) || 0;
     return new Intl.NumberFormat("sk-SK", {
       style: "currency",
       currency: "EUR",
-    }).format(amount);
+    }).format(safeAmount);
   };
 
   const formatDate = (date: string) => {
-    return format(new Date(date), "d. MMM yyyy", { locale: sk });
+    try {
+      return format(new Date(date), "d. MMM yyyy", { locale: sk });
+    } catch {
+      return "—";
+    }
   };
 
   return (
