@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,13 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Save } from "lucide-react";
+import { Loader2, Save, Info } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { format } from "date-fns";
 
 interface Project {
@@ -38,6 +44,8 @@ export default function DailyEntry() {
   const [breakStart, setBreakStart] = useState("12:00");
   const [breakEnd, setBreakEnd] = useState("12:30");
   const [note, setNote] = useState("");
+  const [manualHours, setManualHours] = useState<string>("");
+  const [isManualOverride, setIsManualOverride] = useState(false);
 
   // Calculate duration
   const calculatedHours = useMemo(() => {
@@ -58,6 +66,44 @@ export default function DailyEntry() {
     const totalMinutes = toMinutes - fromMinutes - breakMins;
     return Math.round((totalMinutes / 60) * 100) / 100;
   }, [timeFrom, timeTo, breakStart, breakEnd]);
+
+  // Auto-update manual hours when calculated hours change (unless user manually overrode)
+  useEffect(() => {
+    if (!isManualOverride && calculatedHours > 0) {
+      setManualHours(calculatedHours.toString());
+    }
+  }, [calculatedHours, isManualOverride]);
+
+  // Handle manual hours input change
+  const handleManualHoursChange = (value: string) => {
+    setManualHours(value);
+    // Mark as manual override if user types something different from calculated
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue) && numValue !== calculatedHours) {
+      setIsManualOverride(true);
+    }
+  };
+
+  // Reset manual override when time fields change
+  const handleTimeFromChange = (value: string) => {
+    setTimeFrom(value);
+    setIsManualOverride(false);
+  };
+
+  const handleTimeToChange = (value: string) => {
+    setTimeTo(value);
+    setIsManualOverride(false);
+  };
+
+  const handleBreakStartChange = (value: string) => {
+    setBreakStart(value);
+    setIsManualOverride(false);
+  };
+
+  const handleBreakEndChange = (value: string) => {
+    setBreakEnd(value);
+    setIsManualOverride(false);
+  };
 
   useEffect(() => {
     async function fetchProjects() {
@@ -82,6 +128,18 @@ export default function DailyEntry() {
     e.preventDefault();
     if (!user || !projectId) return;
 
+    // Parse the final hours value (manual input or calculated)
+    const finalHours = parseFloat(manualHours) || calculatedHours;
+    
+    if (finalHours <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Chyba",
+        description: "Odpracované hodiny musia byť väčšie ako 0.",
+      });
+      return;
+    }
+
     setSaving(true);
 
     const { error } = await supabase.from("performance_records").insert({
@@ -93,6 +151,7 @@ export default function DailyEntry() {
       break_start: breakStart || null,
       break_end: breakEnd || null,
       note: note || null,
+      total_hours: finalHours,
       status: "draft",
     });
 
@@ -110,6 +169,8 @@ export default function DailyEntry() {
       // Reset form
       setNote("");
       setProjectId("");
+      setManualHours("");
+      setIsManualOverride(false);
     }
 
     setSaving(false);
@@ -174,7 +235,7 @@ export default function DailyEntry() {
                   id="timeFrom"
                   type="time"
                   value={timeFrom}
-                  onChange={(e) => setTimeFrom(e.target.value)}
+                  onChange={(e) => handleTimeFromChange(e.target.value)}
                   required
                 />
               </div>
@@ -186,7 +247,7 @@ export default function DailyEntry() {
                   id="timeTo"
                   type="time"
                   value={timeTo}
-                  onChange={(e) => setTimeTo(e.target.value)}
+                  onChange={(e) => handleTimeToChange(e.target.value)}
                   required
                 />
               </div>
@@ -198,7 +259,7 @@ export default function DailyEntry() {
                   id="breakStart"
                   type="time"
                   value={breakStart}
-                  onChange={(e) => setBreakStart(e.target.value)}
+                  onChange={(e) => handleBreakStartChange(e.target.value)}
                 />
               </div>
 
@@ -209,18 +270,47 @@ export default function DailyEntry() {
                   id="breakEnd"
                   type="time"
                   value={breakEnd}
-                  onChange={(e) => setBreakEnd(e.target.value)}
+                  onChange={(e) => handleBreakEndChange(e.target.value)}
                 />
               </div>
 
-              {/* Calculated hours display */}
+              {/* Editable total hours with tooltip */}
               <div className="space-y-2">
-                <Label>Odpracované hodiny</Label>
-                <div className="h-10 px-3 py-2 rounded-md border border-input bg-muted flex items-center">
-                  <span className="font-semibold text-lg">
-                    {calculatedHours > 0 ? `${calculatedHours} h` : "—"}
-                  </span>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="totalHours">Odpracované hodiny</Label>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs">
+                        <p>Automaticky vypočítané. V prípade potreby upravte manuálne.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
+                <div className="relative">
+                  <Input
+                    id="totalHours"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={manualHours}
+                    onChange={(e) => handleManualHoursChange(e.target.value)}
+                    className={isManualOverride ? "border-primary ring-1 ring-primary" : ""}
+                  />
+                  {isManualOverride && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-primary font-medium">
+                      manuálne
+                    </span>
+                  )}
+                </div>
+                {isManualOverride && calculatedHours > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Vypočítané: {calculatedHours} h
+                  </p>
+                )}
               </div>
             </div>
 
