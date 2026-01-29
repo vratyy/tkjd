@@ -205,6 +205,25 @@ export default function Auth() {
               </CardContent>
             </Tabs>
           </Card>
+
+          {/* Admin Debug Footer */}
+          <div className="mt-6 p-4 border border-dashed border-yellow-500 rounded-lg bg-yellow-500/10">
+            <p className="text-xs text-yellow-600 dark:text-yellow-400 font-mono mb-2">
+              🔧 Admin Debug Footer
+            </p>
+            <p className="text-xs text-muted-foreground font-mono mb-3">
+              Connected to Supabase Project: <span className="font-bold text-foreground">{import.meta.env.VITE_SUPABASE_PROJECT_ID}</span>
+            </p>
+            <a
+              href={`https://supabase.com/dashboard/project/${import.meta.env.VITE_SUPABASE_PROJECT_ID}/auth/url-configuration`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-black text-sm font-medium rounded-md transition-colors"
+            >
+              GO TO SUPABASE AUTH SETTINGS
+              <span className="text-xs">↗</span>
+            </a>
+          </div>
         </div>
       </div>
       <Footer />
