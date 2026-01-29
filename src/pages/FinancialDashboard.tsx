@@ -9,11 +9,14 @@ import { RefreshCw } from "lucide-react";
 import { Navigate } from "react-router-dom";
 
 export default function FinancialDashboard() {
-  const { isAdmin, loading: roleLoading } = useUserRole();
+  const { isAdmin, isAccountant, loading: roleLoading } = useUserRole();
   const { invoices, metrics, loading, refetch, markAsPaid } = useFinancialData();
 
-  // Redirect non-admins
-  if (!roleLoading && !isAdmin) {
+  // Only Admin and Accountant can access financial dashboard
+  const hasAccess = isAdmin || isAccountant;
+
+  // Redirect unauthorized users
+  if (!roleLoading && !hasAccess) {
     return <Navigate to="/dashboard" replace />;
   }
 
