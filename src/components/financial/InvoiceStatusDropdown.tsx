@@ -8,38 +8,55 @@ import {
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Clock, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import { ChevronDown, Clock, CheckCircle2, AlertTriangle, Loader2, XCircle, Circle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 interface InvoiceStatusDropdownProps {
   invoiceId: string;
-  currentStatus: "pending" | "due_soon" | "overdue" | "paid";
+  currentStatus: "pending" | "due_soon" | "overdue" | "paid" | "void";
   dueDate: string;
   onStatusChange: () => void;
 }
 
-type InvoiceStatus = "pending" | "paid";
+type InvoiceStatus = "pending" | "paid" | "overdue" | "void";
 
 interface StatusOption {
   value: InvoiceStatus;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   description: string;
+  color: string;
 }
 
 const statusOptions: StatusOption[] = [
   {
     value: "pending",
     label: "Vystavená",
-    icon: Clock,
+    icon: Circle,
     description: "Faktúra čaká na platbu",
+    color: "text-muted-foreground",
   },
   {
     value: "paid",
     label: "Uhradená",
     icon: CheckCircle2,
     description: "Platba bola prijatá",
+    color: "text-green-600",
+  },
+  {
+    value: "overdue",
+    label: "Po splatnosti",
+    icon: AlertTriangle,
+    description: "Faktúra je po dátume splatnosti",
+    color: "text-destructive",
+  },
+  {
+    value: "void",
+    label: "Zrušená",
+    icon: XCircle,
+    description: "Faktúra bola zrušená",
+    color: "text-muted-foreground/60",
   },
 ];
 
@@ -52,9 +69,13 @@ export function InvoiceStatusDropdown({
   const { toast } = useToast();
   const [updating, setUpdating] = useState(false);
 
-  // Determine effective display status based on due date
-  const getEffectiveStatus = () => {
+  // Determine effective display status based on due date (only for pending invoices)
+  const getEffectiveStatus = (): InvoiceStatus | "due_soon" => {
     if (currentStatus === "paid") return "paid";
+    if (currentStatus === "void") return "void";
+    if (currentStatus === "overdue") return "overdue";
+    
+    // Auto-detect overdue for pending invoices
     const today = new Date();
     const dueDateObj = new Date(dueDate);
     const daysUntilDue = Math.ceil(
@@ -80,7 +101,7 @@ export function InvoiceStatusDropdown({
       if (newStatus === "paid") {
         updatePayload.paid_at = new Date().toISOString();
       } else {
-        // Reset paid_at when changing back to pending
+        // Reset paid_at when changing to other statuses
         updatePayload.paid_at = null;
       }
 
@@ -94,7 +115,7 @@ export function InvoiceStatusDropdown({
       const statusLabel = statusOptions.find((s) => s.value === newStatus)?.label;
       toast({
         title: "Stav aktualizovaný",
-        description: `Faktúra bola označená ako "${statusLabel}"`,
+        description: `Stav faktúry bol aktualizovaný na ${statusLabel}`,
       });
 
       // Trigger refresh of parent data
@@ -115,17 +136,21 @@ export function InvoiceStatusDropdown({
   const getStatusDisplay = () => {
     switch (effectiveStatus) {
       case "paid":
-        return { label: "Uhradená", className: "text-green-600" };
+        return { label: "Uhradená", className: "text-green-600", icon: CheckCircle2 };
       case "overdue":
-        return { label: "Po splatnosti", className: "text-destructive" };
+        return { label: "Po splatnosti", className: "text-destructive", icon: AlertTriangle };
       case "due_soon":
-        return { label: "Blíži sa splatnosť", className: "text-orange-600" };
+        return { label: "Blíži sa splatnosť", className: "text-orange-600", icon: Clock };
+      case "void":
+        return { label: "Zrušená", className: "text-muted-foreground/60 line-through", icon: XCircle };
       default:
-        return { label: "Vystavená", className: "text-muted-foreground" };
+        return { label: "Vystavená", className: "text-muted-foreground", icon: Circle };
     }
   };
 
   const statusDisplay = getStatusDisplay();
+
+  const StatusIcon = statusDisplay.icon;
 
   return (
     <DropdownMenu>
@@ -134,45 +159,52 @@ export function InvoiceStatusDropdown({
           variant="outline"
           size="sm"
           disabled={updating}
-          className="gap-2 min-w-[140px] justify-between"
+          className="gap-2 min-w-[150px] justify-between"
         >
           {updating ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <>
-              <span className={statusDisplay.className}>{statusDisplay.label}</span>
+              <span className={`flex items-center gap-2 ${statusDisplay.className}`}>
+                <StatusIcon className="h-4 w-4" />
+                {statusDisplay.label}
+              </span>
               <ChevronDown className="h-4 w-4 opacity-50" />
             </>
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-56 bg-background z-50">
         <DropdownMenuLabel>Zmeniť stav faktúry</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {statusOptions.map((option) => (
-          <DropdownMenuItem
-            key={option.value}
-            onClick={() => handleStatusChange(option.value)}
-            className="flex items-start gap-3 py-2"
-          >
-            <option.icon className="h-4 w-4 mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
-              <div className="font-medium">{option.label}</div>
-              <div className="text-xs text-muted-foreground">
-                {option.description}
+        {statusOptions.map((option) => {
+          const isCurrentStatus = option.value === currentStatus || 
+            (option.value === "overdue" && effectiveStatus === "overdue" && currentStatus === "pending");
+          
+          return (
+            <DropdownMenuItem
+              key={option.value}
+              onClick={() => handleStatusChange(option.value)}
+              className="flex items-start gap-3 py-2 cursor-pointer"
+            >
+              <option.icon className={`h-4 w-4 mt-0.5 flex-shrink-0 ${option.color}`} />
+              <div className="flex-1">
+                <div className={`font-medium ${option.color}`}>{option.label}</div>
+                <div className="text-xs text-muted-foreground">
+                  {option.description}
+                </div>
               </div>
-            </div>
-            {(option.value === "pending" && effectiveStatus !== "paid") ||
-            option.value === currentStatus ? (
-              <CheckCircle2 className="h-4 w-4 text-primary" />
-            ) : null}
-          </DropdownMenuItem>
-        ))}
+              {isCurrentStatus && (
+                <CheckCircle2 className="h-4 w-4 text-primary" />
+              )}
+            </DropdownMenuItem>
+          );
+        })}
         <DropdownMenuSeparator />
         <div className="px-2 py-1.5">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <AlertTriangle className="h-3 w-3" />
-            <span>Stav "Po splatnosti" sa určuje automaticky</span>
+            <span>Stav "Po splatnosti" sa tiež určuje automaticky</span>
           </div>
         </div>
       </DropdownMenuContent>

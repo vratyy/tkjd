@@ -512,7 +512,7 @@ export type Database = {
     Enums: {
       app_role: "monter" | "manager" | "admin" | "accountant"
       closing_status: "open" | "submitted" | "approved" | "returned" | "locked"
-      invoice_status: "pending" | "due_soon" | "overdue" | "paid"
+      invoice_status: "pending" | "due_soon" | "overdue" | "paid" | "void"
       record_status:
         | "draft"
         | "submitted"
@@ -649,7 +649,7 @@ export const Constants = {
     Enums: {
       app_role: ["monter", "manager", "admin", "accountant"],
       closing_status: ["open", "submitted", "approved", "returned", "locked"],
-      invoice_status: ["pending", "due_soon", "overdue", "paid"],
+      invoice_status: ["pending", "due_soon", "overdue", "paid", "void"],
       record_status: ["draft", "submitted", "approved", "rejected", "returned"],
       tax_payment_status: ["pending", "confirmed", "verified"],
     },
