@@ -1,10 +1,10 @@
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
-import { InvoiceStatusBadge } from "@/components/financial/InvoiceStatusBadge";
+import { InvoiceStatusDropdown } from "@/components/financial/InvoiceStatusDropdown";
 import { TaxPaymentStatusBadge } from "@/components/financial/TaxPaymentStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle2, Eye, Building2, Calendar, Banknote } from "lucide-react";
+import { Eye, Building2, Calendar, Banknote } from "lucide-react";
 
 interface MobileInvoiceCardProps {
   id: string;
@@ -18,7 +18,7 @@ interface MobileInvoiceCardProps {
   status: "pending" | "due_soon" | "overdue" | "paid";
   taxPaymentStatus?: "pending" | "confirmed" | "verified";
   onView?: (id: string) => void;
-  onMarkAsPaid?: (id: string) => void;
+  onStatusChange?: () => void;
 }
 
 export function MobileInvoiceCard({
@@ -33,7 +33,7 @@ export function MobileInvoiceCard({
   status,
   taxPaymentStatus = "pending",
   onView,
-  onMarkAsPaid,
+  onStatusChange,
 }: MobileInvoiceCardProps) {
   const formatAmount = (amount: number) => {
     const safeAmount = Number(amount) || 0;
@@ -92,9 +92,14 @@ export function MobileInvoiceCard({
             </div>
           </div>
 
-          {/* Status Badges */}
+          {/* Status Controls */}
           <div className="flex items-center gap-2 flex-wrap">
-            <InvoiceStatusBadge status={status} dueDate={dueDate} />
+            <InvoiceStatusDropdown
+              invoiceId={id}
+              currentStatus={status}
+              dueDate={dueDate}
+              onStatusChange={onStatusChange || (() => {})}
+            />
             <TaxPaymentStatusBadge status={taxPaymentStatus} />
           </div>
 
@@ -109,17 +114,6 @@ export function MobileInvoiceCard({
               >
                 <Eye className="h-4 w-4 mr-2" />
                 Detail
-              </Button>
-            )}
-            {status !== "paid" && onMarkAsPaid && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => onMarkAsPaid(id)}
-                className="flex-1 h-10 text-base"
-              >
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Zaplatené
               </Button>
             )}
           </div>

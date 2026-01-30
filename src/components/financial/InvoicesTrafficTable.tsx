@@ -9,13 +9,13 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { InvoiceStatusBadge } from "./InvoiceStatusBadge";
 import { TaxPaymentStatusBadge } from "./TaxPaymentStatusBadge";
 import { InvoiceDetailDialog } from "./InvoiceDetailDialog";
+import { InvoiceStatusDropdown } from "./InvoiceStatusDropdown";
 import { MobileInvoiceCard } from "@/components/mobile/MobileInvoiceCard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, AlertTriangle, Eye } from "lucide-react";
+import { AlertTriangle, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
 
@@ -172,7 +172,7 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
                       setDetailOpen(true);
                     }
                   }}
-                  onMarkAsPaid={onMarkAsPaid}
+                  onStatusChange={onRefresh}
                 />
               ))}
             </div>
@@ -219,35 +219,27 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
                         {formatAmount(invoice.total_amount)}
                       </TableCell>
                       <TableCell>
-                        <InvoiceStatusBadge status={invoice.status} dueDate={invoice.due_date} />
+                        <InvoiceStatusDropdown
+                          invoiceId={invoice.id}
+                          currentStatus={invoice.status}
+                          dueDate={invoice.due_date}
+                          onStatusChange={onRefresh}
+                        />
                       </TableCell>
                       <TableCell>
                         <TaxPaymentStatusBadge status={invoice.tax_payment_status || "pending"} />
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setSelectedInvoice(invoice);
-                              setDetailOpen(true);
-                            }}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          {invoice.status !== "paid" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => onMarkAsPaid(invoice.id)}
-                              className="gap-1"
-                            >
-                              <CheckCircle2 className="h-3 w-3" />
-                              Zaplatené
-                            </Button>
-                          )}
-                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setSelectedInvoice(invoice);
+                            setDetailOpen(true);
+                          }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}

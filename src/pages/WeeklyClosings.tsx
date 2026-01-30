@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { exportWeeklyRecordsToExcel } from "@/lib/excelExport";
 import { exportStundenzettelToExcel } from "@/lib/stundenzettelExport";
-import { generateInvoicePDF } from "@/lib/invoiceGenerator";
+import { useInvoiceGeneration } from "@/hooks/useInvoiceGeneration";
 
 interface PerformanceRecord {
   id: string;
@@ -69,7 +69,8 @@ export default function WeeklyClosings() {
     ico: string | null;
     dic: string | null;
   } | null>(null);
-  const [generatingInvoice, setGeneratingInvoice] = useState<string | null>(null);
+  const { generateAndSaveInvoice, generating: generatingInvoice } = useInvoiceGeneration();
+  const [generatingKey, setGeneratingKey] = useState<string | null>(null);
 
   const fetchData = async () => {
     if (!user) return;
@@ -320,13 +321,16 @@ export default function WeeklyClosings() {
     }
 
     const key = `${group.year}-${group.week}`;
-    setGeneratingInvoice(key);
+    setGeneratingKey(key);
 
-    try {
-      const projectNames = [...new Set(group.records.map((r) => r.projects?.name).filter(Boolean))];
-      const projectName = projectNames.join(", ") || "Projekt";
+    // Get project info for linking
+    const firstProjectRecord = group.records.find((r) => r.projects);
+    const projectNames = [...new Set(group.records.map((r) => r.projects?.name).filter(Boolean))];
+    const projectName = projectNames.join(", ") || "Projekt";
 
-      await generateInvoicePDF({
+    // Use the new hook that saves to DB AND generates PDF
+    const result = await generateAndSaveInvoice({
+      invoiceData: {
         supplierName: userProfile.full_name,
         supplierCompany: userProfile.company_name,
         supplierAddress: userProfile.billing_address,
@@ -344,21 +348,17 @@ export default function WeeklyClosings() {
         year: group.year,
         totalHours: group.totalHours,
         odberatelId: group.closingId,
-      });
+      },
+      projectId: null, // Project linking can be added if needed
+      weekClosingId: group.closingId,
+    });
 
-      toast({
-        title: "Faktúra vygenerovaná",
-        description: `PDF faktúra pre KW ${group.week}/${group.year} bola stiahnutá.`,
-      });
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Chyba",
-        description: error.message,
-      });
+    if (result.success) {
+      // Refresh data to show updated state
+      await fetchData();
     }
 
-    setGeneratingInvoice(null);
+    setGeneratingKey(null);
   };
 
   if (loading) {
@@ -441,9 +441,9 @@ export default function WeeklyClosings() {
                             size="sm"
                             variant="secondary"
                             onClick={() => handleGenerateInvoice(group)}
-                            disabled={generatingInvoice === key}
+                            disabled={generatingInvoice || generatingKey === key}
                           >
-                            {generatingInvoice === key ? (
+                            {generatingKey === key ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                               <>
@@ -493,19 +493,19 @@ export default function WeeklyClosings() {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      {canGenerateInvoice(group) && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => handleGenerateInvoice(group)}
-                          disabled={generatingInvoice === key}
-                          className="flex-1 h-10 text-sm"
-                        >
-                          {generatingInvoice === key ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <>
-                              <FileText className="h-4 w-4 mr-2" />
+                        {canGenerateInvoice(group) && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleGenerateInvoice(group)}
+                            disabled={generatingInvoice || generatingKey === key}
+                            className="flex-1 h-10 text-sm"
+                          >
+                            {generatingKey === key ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <FileText className="h-4 w-4 mr-2" />
                               Faktúra
                             </>
                           )}
