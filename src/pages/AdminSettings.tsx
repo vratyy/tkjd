@@ -5,16 +5,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Database, Shield, FolderPlus, FileCheck, Download } from "lucide-react";
+import { Loader2, Database, Shield, FolderPlus, FileCheck, Download, Trash2, AlertTriangle } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { addDays, format, startOfWeek, getISOWeek, getYear } from "date-fns";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function AdminSettings() {
   const { user } = useAuth();
   const { isAdmin, loading: roleLoading } = useUserRole();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [seeding, setSeeding] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const seedTestData = async () => {
     if (!user) return;
@@ -146,6 +149,74 @@ export default function AdminSettings() {
     }
   };
 
+  const resetTestData = async () => {
+    const confirmed = window.confirm(
+      "Ste si istý? Táto akcia vymaže všetky faktúry, uzávierky, výkonové záznamy a priradenia ubytovania. Táto akcia je nevratná!"
+    );
+    
+    if (!confirmed) return;
+    
+    setResetting(true);
+    try {
+      // Delete in order to respect foreign key constraints
+      // 1. First delete invoices (they reference weekly_closings)
+      const { error: invoicesError } = await supabase
+        .from("invoices")
+        .delete()
+        .not("id", "is", null); // Delete all rows
+      
+      if (invoicesError) throw invoicesError;
+
+      // 2. Delete accommodation_assignments
+      const { error: assignmentsError } = await supabase
+        .from("accommodation_assignments")
+        .delete()
+        .not("id", "is", null);
+      
+      if (assignmentsError) throw assignmentsError;
+
+      // 3. Delete performance_records
+      const { error: recordsError } = await supabase
+        .from("performance_records")
+        .delete()
+        .not("id", "is", null);
+      
+      if (recordsError) throw recordsError;
+
+      // 4. Delete weekly_closings
+      const { error: closingsError } = await supabase
+        .from("weekly_closings")
+        .delete()
+        .not("id", "is", null);
+      
+      if (closingsError) throw closingsError;
+
+      // 5. Delete advances (linked to invoices)
+      const { error: advancesError } = await supabase
+        .from("advances")
+        .delete()
+        .not("id", "is", null);
+      
+      if (advancesError) throw advancesError;
+
+      // Invalidate all queries to refresh dashboards
+      await queryClient.invalidateQueries();
+
+      toast({
+        title: "Systém bol vyčistený",
+        description: "Všetky testovacie dáta boli úspešne vymazané.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Chyba pri mazaní dát",
+        description: error.message,
+      });
+    } finally {
+      setResetting(false);
+    }
+  };
+
   if (roleLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -272,6 +343,50 @@ export default function AdminSettings() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Danger Zone */}
+      <Card className="border-2 border-destructive/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="h-5 w-5" />
+            Nebezpečná zóna
+          </CardTitle>
+          <CardDescription>
+            Tieto akcie sú nevratné. Použite ich opatrne.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <h4 className="font-medium text-destructive">Vymazať všetky testovacie dáta</h4>
+                <p className="text-sm text-muted-foreground">
+                  Vymaže všetky faktúry, uzávierky, výkonové záznamy a priradenia ubytovania.
+                  Profily, projekty a ubytovania zostanú zachované.
+                </p>
+              </div>
+              <Button 
+                variant="destructive" 
+                onClick={resetTestData} 
+                disabled={resetting}
+                className="shrink-0"
+              >
+                {resetting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Mazanie...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Vymazať všetky testovacie dáta
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
