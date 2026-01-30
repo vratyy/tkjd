@@ -27,7 +27,7 @@ interface Invoice {
   total_amount: number;
   issue_date: string;
   due_date: string;
-  status: "pending" | "due_soon" | "overdue" | "paid";
+  status: "pending" | "due_soon" | "overdue" | "paid" | "void";
   transaction_tax_rate: number;
   transaction_tax_amount: number;
   tax_payment_status: "pending" | "confirmed" | "verified";
@@ -72,13 +72,14 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
     }
   };
 
-  // Sort invoices: overdue first, then due_soon, then pending, then paid
+  // Sort invoices: overdue first, then due_soon, then pending, then paid, then void
   const sortedInvoices = [...invoices].sort((a, b) => {
-    const statusOrder = { overdue: 0, due_soon: 1, pending: 2, paid: 3 };
+    const statusOrder = { overdue: 0, due_soon: 1, pending: 2, paid: 3, void: 4 };
     const today = new Date();
     
     const getEffectiveStatus = (inv: Invoice) => {
       if (inv.status === "paid") return "paid";
+      if (inv.status === "void") return "void";
       const daysUntilDue = Math.ceil((new Date(inv.due_date).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       if (daysUntilDue < 0) return "overdue";
       if (daysUntilDue <= 3) return "due_soon";

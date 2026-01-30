@@ -1,10 +1,10 @@
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
-import { InvoiceStatusDropdown } from "@/components/financial/InvoiceStatusDropdown";
+import { MobileInvoiceStatusSheet } from "./MobileInvoiceStatusSheet";
 import { TaxPaymentStatusBadge } from "@/components/financial/TaxPaymentStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Eye, Building2, Calendar, Banknote } from "lucide-react";
+import { Eye, Building2, Calendar, Banknote, Circle, CheckCircle2, AlertTriangle, XCircle, Clock } from "lucide-react";
 
 interface MobileInvoiceCardProps {
   id: string;
@@ -15,7 +15,7 @@ interface MobileInvoiceCardProps {
   issueDate: string;
   dueDate: string;
   totalAmount: number;
-  status: "pending" | "due_soon" | "overdue" | "paid";
+  status: "pending" | "due_soon" | "overdue" | "paid" | "void";
   taxPaymentStatus?: "pending" | "confirmed" | "verified";
   onView?: (id: string) => void;
   onStatusChange?: () => void;
@@ -51,21 +51,66 @@ export function MobileInvoiceCard({
     }
   };
 
+  // Determine effective display status based on due date
+  const getEffectiveStatus = () => {
+    if (status === "paid") return "paid";
+    if (status === "void") return "void";
+    if (status === "overdue") return "overdue";
+    
+    const today = new Date();
+    const dueDateObj = new Date(dueDate);
+    const daysUntilDue = Math.ceil(
+      (dueDateObj.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (daysUntilDue < 0) return "overdue";
+    if (daysUntilDue <= 3) return "due_soon";
+    return "pending";
+  };
+
+  const effectiveStatus = getEffectiveStatus();
+
+  const getStatusDisplay = () => {
+    switch (effectiveStatus) {
+      case "paid":
+        return { label: "Uhradená", className: "text-green-600 bg-green-50 dark:bg-green-950/30", icon: CheckCircle2 };
+      case "overdue":
+        return { label: "Po splatnosti", className: "text-destructive bg-destructive/10", icon: AlertTriangle };
+      case "due_soon":
+        return { label: "Blíži sa splatnosť", className: "text-orange-600 bg-orange-50 dark:bg-orange-950/30", icon: Clock };
+      case "void":
+        return { label: "Zrušená", className: "text-muted-foreground/60 bg-muted/30 line-through", icon: XCircle };
+      default:
+        return { label: "Vystavená", className: "text-muted-foreground bg-muted/50", icon: Circle };
+    }
+  };
+
+  const statusDisplay = getStatusDisplay();
+  const StatusIcon = statusDisplay.icon;
+
   return (
     <Card className="mb-3">
       <CardContent className="p-4">
         <div className="space-y-3">
-          {/* Header: Invoice number and Amount */}
+          {/* Header: Invoice number, Action button, and Amount */}
           <div className="flex items-start justify-between gap-2">
-            <div>
+            <div className="flex-1">
               <span className="font-bold text-base">{invoiceNumber}</span>
               {supplierName && (
                 <p className="text-sm text-muted-foreground">{supplierName}</p>
               )}
             </div>
-            <span className="font-bold text-lg text-primary">
-              {formatAmount(totalAmount)}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-lg text-primary">
+                {formatAmount(totalAmount)}
+              </span>
+              <MobileInvoiceStatusSheet
+                invoiceId={id}
+                invoiceNumber={invoiceNumber}
+                currentStatus={status}
+                dueDate={dueDate}
+                onStatusChange={onStatusChange || (() => {})}
+              />
+            </div>
           </div>
 
           {/* Project/Company */}
@@ -92,20 +137,18 @@ export function MobileInvoiceCard({
             </div>
           </div>
 
-          {/* Status Controls */}
+          {/* Status Badge Row */}
           <div className="flex items-center gap-2 flex-wrap">
-            <InvoiceStatusDropdown
-              invoiceId={id}
-              currentStatus={status}
-              dueDate={dueDate}
-              onStatusChange={onStatusChange || (() => {})}
-            />
+            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium ${statusDisplay.className}`}>
+              <StatusIcon className="h-4 w-4" />
+              {statusDisplay.label}
+            </div>
             <TaxPaymentStatusBadge status={taxPaymentStatus} />
           </div>
 
           {/* Actions */}
-          <div className="flex gap-2 pt-2 border-t border-border">
-            {onView && (
+          {onView && (
+            <div className="flex gap-2 pt-2 border-t border-border">
               <Button
                 variant="outline"
                 size="sm"
@@ -115,10 +158,11 @@ export function MobileInvoiceCard({
                 <Eye className="h-4 w-4 mr-2" />
                 Detail
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
   );
 }
+

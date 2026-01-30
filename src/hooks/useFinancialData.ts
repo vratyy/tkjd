@@ -17,7 +17,7 @@ interface Invoice {
   total_amount: number;
   issue_date: string;
   due_date: string;
-  status: "pending" | "due_soon" | "overdue" | "paid";
+  status: "pending" | "due_soon" | "overdue" | "paid" | "void";
   transaction_tax_rate: number;
   transaction_tax_amount: number;
   tax_payment_status: "pending" | "confirmed" | "verified";
@@ -45,6 +45,7 @@ export function useFinancialData() {
 
     const getEffectiveStatus = (inv: Invoice) => {
       if (inv.status === "paid") return "paid";
+      if (inv.status === "void") return "void";
       const dueDate = new Date(inv.due_date);
       const daysUntilDue = Math.ceil(
         (dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
@@ -60,26 +61,29 @@ export function useFinancialData() {
       return isNaN(num) ? 0 : num;
     };
 
-    // Total invoiced = ALL invoices (regardless of status)
+    // Filter out void invoices from totals
+    const activeInvoices = invoiceList.filter((inv) => getEffectiveStatus(inv) !== "void");
+
+    // Total invoiced = ALL active invoices (excludes void)
     const totalInvoiced = {
-      count: invoiceList.length,
-      amount: invoiceList.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
+      count: activeInvoices.length,
+      amount: activeInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
     };
 
-    const paidInvoices = invoiceList.filter((inv) => getEffectiveStatus(inv) === "paid");
+    const paidInvoices = activeInvoices.filter((inv) => getEffectiveStatus(inv) === "paid");
     const paid = {
       count: paidInvoices.length,
       amount: paidInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
     };
 
-    const overdueInvoices = invoiceList.filter((inv) => getEffectiveStatus(inv) === "overdue");
+    const overdueInvoices = activeInvoices.filter((inv) => getEffectiveStatus(inv) === "overdue");
     const overdue = {
       count: overdueInvoices.length,
       amount: overdueInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
     };
 
-    // Pending = all unpaid invoices (pending + due_soon)
-    const pendingInvoices = invoiceList.filter((inv) => {
+    // Pending = all unpaid invoices (pending + due_soon, excludes void)
+    const pendingInvoices = activeInvoices.filter((inv) => {
       const status = getEffectiveStatus(inv);
       return status === "pending" || status === "due_soon";
     });
