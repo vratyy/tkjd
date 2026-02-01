@@ -65,11 +65,12 @@ export default function Auth() {
       return;
     }
 
-    if (registerPassword.length < 8) {
+    const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/;
+    if (registerPassword.length < 8 || !specialCharRegex.test(registerPassword)) {
       toast({
         variant: "destructive",
         title: "Chyba",
-        description: "Heslo musí mať aspoň 8 znakov.",
+        description: "Heslo musí mať aspoň 8 znakov a jeden špeciálny znak.",
       });
       return;
     }
@@ -177,7 +178,7 @@ export default function Auth() {
                       minLength={8}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Heslo musí obsahovať aspoň 8 znakov vrátane veľkých/malých písmen, číslic a symbolov.
+                      Heslo musí mať aspoň 8 znakov a jeden špeciálny znak.
                     </p>
                   </div>
                   <Button type="submit" className="w-full" disabled={isLoading}>
