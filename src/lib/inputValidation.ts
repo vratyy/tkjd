@@ -145,15 +145,21 @@ export const advanceSchema = z.object({
     .optional(),
 });
 
+// Password regex: at least one special character
+const PASSWORD_SPECIAL_CHAR_REGEX = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/;
+
 // Auth validation schemas
 export const loginSchema = z.object({
   email: z.string().email("Neplatný e-mail").max(255, "E-mail je príliš dlhý"),
-  password: z.string().min(6, "Heslo musí mať aspoň 6 znakov"),
+  password: z.string().min(8, "Heslo musí mať aspoň 8 znakov a jeden špeciálny znak."),
 });
 
 export const signupSchema = z.object({
   email: z.string().email("Neplatný e-mail").max(255, "E-mail je príliš dlhý"),
-  password: z.string().min(6, "Heslo musí mať aspoň 6 znakov"),
+  password: z
+    .string()
+    .min(8, "Heslo musí mať aspoň 8 znakov a jeden špeciálny znak.")
+    .regex(PASSWORD_SPECIAL_CHAR_REGEX, "Heslo musí mať aspoň 8 znakov a jeden špeciálny znak."),
   full_name: z
     .string()
     .trim()
