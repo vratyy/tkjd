@@ -92,19 +92,15 @@ export default function Auth() {
         title: "Registrácia zlyhala",
         description: error.message,
       });
+      setIsLoading(false);
     } else {
       toast({
         title: "Registrácia úspešná",
-        description: "Skontrolujte svoj e-mail a potvrďte registráciu.",
+        description: "Vitajte v TKJD APP!",
       });
-      // Reset form and switch to login
-      setRegisterEmail("");
-      setRegisterPassword("");
-      setRegisterFullName("");
-      setMode("login");
+      // Email confirmation is disabled, so redirect immediately
+      // The auth state change will handle the redirect via the Navigate component
     }
-    
-    setIsLoading(false);
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
