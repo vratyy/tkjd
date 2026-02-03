@@ -154,6 +154,22 @@
     .mobile-card-list > * + * {
       margin-top: 0.75rem;
     }
+
+    /* Native app-like typography on mobile */
+    h1 {
+      @apply text-xl;
+    }
+    h2 {
+      @apply text-lg;
+    }
+    h3 {
+      @apply text-base;
+    }
+    
+    /* Reduce excessive padding on mobile */
+    .card {
+      @apply rounded-lg;
+    }
   }
 }
 
@@ -173,5 +189,24 @@
   }
   .desktop-only {
     @apply hidden md:block;
+  }
+  
+  /* Safe area padding for iOS devices */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 1rem);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+  
+  /* Touch-friendly interactive elements */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+  
+  /* Smooth scrolling container */
+  .scroll-smooth-container {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
   }
 }
