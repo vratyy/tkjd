@@ -18,7 +18,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, FolderOpen, MapPin, Building } from "lucide-react";
+import { Loader2, Plus, FolderOpen, MapPin } from "lucide-react";
 import { Navigate } from "react-router-dom";
 
 interface Project {
@@ -216,12 +216,6 @@ export default function Projects() {
                     onCheckedChange={() => toggleActive(project)}
                   />
                 </div>
-                {isAdmin && (
-                  <CardDescription className="flex items-center gap-1">
-                    <Building className="h-3 w-3" />
-                    {project.client}
-                  </CardDescription>
-                )}
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between">
