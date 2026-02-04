@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, User, CreditCard, Euro, Building2 } from "lucide-react";
+import { Loader2, Save, User, CreditCard, Euro, Building2, Lock } from "lucide-react";
 import { SignaturePad } from "@/components/SignaturePad";
 import { Switch } from "@/components/ui/switch";
 import { getSignedSignatureUrl } from "@/lib/signatureUtils";
@@ -17,6 +18,7 @@ interface ProfileData {
   company_name: string | null;
   contract_number: string | null;
   hourly_rate: number | null;
+  fixed_wage: number | null;
   iban: string | null;
   swift_bic: string | null;
   billing_address: string | null;
@@ -29,6 +31,7 @@ interface ProfileData {
 
 export default function Profile() {
   const { user } = useAuth();
+  const { isAdmin } = useUserRole();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -38,6 +41,7 @@ export default function Profile() {
     company_name: null,
     contract_number: null,
     hourly_rate: null,
+    fixed_wage: null,
     iban: null,
     swift_bic: null,
     billing_address: null,
@@ -54,7 +58,7 @@ export default function Profile() {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("full_name, company_name, contract_number, hourly_rate, iban, swift_bic, billing_address, signature_url, is_vat_payer, vat_number, ico, dic")
+        .select("full_name, company_name, contract_number, hourly_rate, fixed_wage, iban, swift_bic, billing_address, signature_url, is_vat_payer, vat_number, ico, dic")
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -306,6 +310,35 @@ export default function Profile() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Fixed Wage - Admin only edit, readonly for users */}
+              <div className="space-y-2">
+                <Label htmlFor="fixedWage" className="flex items-center gap-1">
+                  <Lock className="h-4 w-4" />
+                  Fixná mzda (€/mesiac)
+                </Label>
+                <Input
+                  id="fixedWage"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={profile.fixed_wage || ""}
+                  onChange={(e) =>
+                    setProfile((prev) => ({
+                      ...prev,
+                      fixed_wage: e.target.value ? parseFloat(e.target.value) : null,
+                    }))
+                  }
+                  placeholder="Napr. 2500.00"
+                  disabled={!isAdmin}
+                  className={!isAdmin ? "bg-muted cursor-not-allowed" : ""}
+                />
+                {!isAdmin && (
+                  <p className="text-xs text-muted-foreground">
+                    Iba admin môže upraviť fixnú mzdu
+                  </p>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="hourlyRate" className="flex items-center gap-1">
                   <Euro className="h-4 w-4" />

@@ -23,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Users as UsersIcon, Building } from "lucide-react";
+import { Loader2, Users as UsersIcon, Building, Trash2 } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { MobileUserCard } from "@/components/mobile/MobileUserCard";
 
@@ -134,6 +134,60 @@ export default function Users() {
         description: "Používateľská rola bola úspešne zmenená.",
       });
       await fetchUsers();
+    }
+
+    setUpdating(null);
+  };
+
+  /**
+   * Hard delete a user - permanently removes all user data.
+   * Only for removing test accounts.
+   */
+  const handleHardDelete = async (userId: string, userName: string) => {
+    if (!confirm(`POZOR: Toto je trvalé vymazanie používateľa "${userName}" a všetkých jeho údajov. Pokračovať?`)) {
+      return;
+    }
+
+    setUpdating(userId);
+
+    try {
+      // Delete in order to respect foreign keys
+      // 1. Delete sanctions
+      await supabase.from("sanctions").delete().eq("user_id", userId);
+      
+      // 2. Delete advances  
+      await supabase.from("advances").delete().eq("user_id", userId);
+      
+      // 3. Delete accommodation assignments
+      await supabase.from("accommodation_assignments").delete().eq("user_id", userId);
+      
+      // 4. Delete performance records
+      await supabase.from("performance_records").delete().eq("user_id", userId);
+      
+      // 5. Delete weekly closings
+      await supabase.from("weekly_closings").delete().eq("user_id", userId);
+      
+      // 6. Delete invoices
+      await supabase.from("invoices").delete().eq("user_id", userId);
+      
+      // 7. Delete user role
+      await supabase.from("user_roles").delete().eq("user_id", userId);
+      
+      // 8. Delete profile
+      await supabase.from("profiles").delete().eq("user_id", userId);
+
+      toast({
+        title: "Používateľ vymazaný",
+        description: `Používateľ "${userName}" bol trvalo odstránený.`,
+      });
+
+      await fetchUsers();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Chyba pri mazaní",
+        description: error.message || "Nepodarilo sa vymazať používateľa.",
+      });
     }
 
     setUpdating(null);
@@ -258,29 +312,43 @@ export default function Users() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      {u.user_id !== user?.id ? (
-                        <Select
-                          value={u.role}
-                          onValueChange={(value) => handleRoleChange(u.user_id, value as AppRole)}
-                          disabled={updating === u.user_id}
-                        >
-                          <SelectTrigger className="w-[180px] ml-auto">
-                            {updating === u.user_id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <SelectValue />
-                            )}
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="monter">Montér</SelectItem>
-                            <SelectItem value="manager">Projektový manažér</SelectItem>
-                            <SelectItem value="accountant">Účtovník</SelectItem>
-                            <SelectItem value="admin">Administrátor</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">—</span>
-                      )}
+                      <div className="flex items-center justify-end gap-2">
+                        {u.user_id !== user?.id ? (
+                          <>
+                            <Select
+                              value={u.role}
+                              onValueChange={(value) => handleRoleChange(u.user_id, value as AppRole)}
+                              disabled={updating === u.user_id}
+                            >
+                              <SelectTrigger className="w-[160px]">
+                                {updating === u.user_id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <SelectValue />
+                                )}
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="monter">Montér</SelectItem>
+                                <SelectItem value="manager">Projektový manažér</SelectItem>
+                                <SelectItem value="accountant">Účtovník</SelectItem>
+                                <SelectItem value="admin">Administrátor</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => handleHardDelete(u.user_id, u.full_name)}
+                              disabled={updating === u.user_id}
+                              title="Trvalo vymazať používateľa"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

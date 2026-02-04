@@ -18,6 +18,9 @@ export interface InvoiceData {
   hourlyRate: number;
   contractNumber?: string | null;
   
+  // Worker ID - shown in BOLD RED on invoice
+  workerId?: string;
+  
   // VAT settings
   isVatPayer: boolean;
   vatNumber: string | null;
@@ -38,6 +41,9 @@ export interface InvoiceData {
   
   // Advance deduction (optional)
   advanceDeduction?: number;
+  
+  // Sanctions deduction (optional)
+  sanctionsDeduction?: number;
 }
 
 // TKJD s.r.o. company details (Odberatel / Customer)
@@ -167,13 +173,14 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   const hourlyRate = safeNumber(data.hourlyRate);
   const baseAmount = totalHours * hourlyRate;
   const advanceDeduction = safeNumber(data.advanceDeduction);
+  const sanctionsDeduction = safeNumber(data.sanctionsDeduction);
   
   let vatAmount = 0;
-  let totalAmount = baseAmount - advanceDeduction;
+  let totalAmount = baseAmount - advanceDeduction - sanctionsDeduction;
   
   if (data.isVatPayer && !data.isReverseCharge) {
     vatAmount = baseAmount * VAT_RATE;
-    totalAmount = baseAmount + vatAmount - advanceDeduction;
+    totalAmount = baseAmount + vatAmount - advanceDeduction - sanctionsDeduction;
   }
   
   // Dates - CEO requirement: due date = issue date + 21 days
@@ -195,6 +202,15 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   setFontStyle(doc, "bold");
   doc.setTextColor(40, 40, 40);
   doc.text(`FAKTURA ${invoiceNumber}`, pageWidth - margin, 22, { align: "right" });
+
+  // Worker ID in BOLD RED (critical requirement)
+  if (data.workerId) {
+    doc.setFontSize(11);
+    setFontStyle(doc, "bold");
+    doc.setTextColor(220, 38, 38); // Red color
+    doc.text(`ID: ${data.workerId}`, pageWidth - margin, 30, { align: "right" });
+    doc.setTextColor(40, 40, 40); // Reset
+  }
 
   // ============================================================================
   // ADDRESS BLOCKS (Two Columns with Grey Labels)
@@ -377,15 +393,32 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   
   const tableStartY = paymentY + paymentHeight + 10;
 
+  // Generate note field in required format: 4_woche_[Name]_[Surname]
+  const nameParts = data.supplierName.split(" ");
+  const firstName = nameParts[0] || "";
+  const lastName = nameParts.slice(1).join("_") || "";
+  const noteField = `${calendarWeek}_woche_${firstName}_${lastName}`;
+
   const tableBody: (string | number)[][] = [
     [
       "1.",
-      safeText(`Fakturujem Vam na zaklade zmluvy za vykonanu pracu za ${calendarWeek}. kalendarny tyzden.`),
+      safeText(`Fakturujem Vam na zaklade zmluvy za vykonanu pracu za ${calendarWeek}. kalendarny tyzden.\nPoznamka: ${noteField}`),
       `${totalHours.toFixed(2)} hod`,
       `${formatCurrency(hourlyRate)}`,
       `${formatCurrency(baseAmount)}`,
     ],
   ];
+
+  // Add sanctions deduction row if applicable
+  if (sanctionsDeduction > 0) {
+    tableBody.push([
+      "2.",
+      safeText("Zrazka - sankcie za nizky vykon"),
+      "1",
+      `-${formatCurrency(sanctionsDeduction)}`,
+      `-${formatCurrency(sanctionsDeduction)}`,
+    ]);
+  }
 
   autoTable(doc, {
     startY: tableStartY,

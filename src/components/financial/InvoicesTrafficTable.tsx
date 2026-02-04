@@ -15,7 +15,9 @@ import { InvoiceStatusDropdown } from "./InvoiceStatusDropdown";
 import { MobileInvoiceCard } from "@/components/mobile/MobileInvoiceCard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Eye } from "lucide-react";
+import { AlertTriangle, Eye, Lock, Unlock } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
 
@@ -34,6 +36,8 @@ interface Invoice {
   tax_confirmed_at: string | null;
   tax_verified_at: string | null;
   advance_deduction: number;
+  is_locked?: boolean;
+  locked_at?: string | null;
   profile?: {
     full_name: string;
     company_name: string | null;
@@ -54,7 +58,9 @@ interface InvoicesTrafficTableProps {
 export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefresh }: InvoicesTrafficTableProps) {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [lockingId, setLockingId] = useState<string | null>(null);
   const isMobile = useIsMobile();
+  const { toast } = useToast();
 
   const formatAmount = (amount: number) => {
     const safeAmount = Number(amount) || 0;
@@ -118,6 +124,38 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
     const daysUntilDue = Math.ceil((new Date(inv.due_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
     return daysUntilDue >= 0 && daysUntilDue <= 3;
   }).length;
+
+  const handleToggleLock = async (invoiceId: string, currentlyLocked: boolean) => {
+    setLockingId(invoiceId);
+    try {
+      const { error } = await supabase
+        .from("invoices")
+        .update({
+          is_locked: !currentlyLocked,
+          locked_at: !currentlyLocked ? new Date().toISOString() : null,
+        })
+        .eq("id", invoiceId);
+
+      if (error) throw error;
+
+      toast({
+        title: currentlyLocked ? "Faktúra odomknutá" : "Faktúra zamknutá",
+        description: currentlyLocked
+          ? "Faktúru je možné znova upravovať."
+          : "Faktúra je teraz chránená proti úpravám.",
+      });
+
+      onRefresh();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Chyba",
+        description: error.message,
+      });
+    } finally {
+      setLockingId(null);
+    }
+  };
 
   return (
     <Card>
@@ -231,16 +269,31 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
                         <TaxPaymentStatusBadge status={invoice.tax_payment_status || "pending"} />
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setSelectedInvoice(invoice);
-                            setDetailOpen(true);
-                          }}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleToggleLock(invoice.id, invoice.is_locked || false)}
+                            disabled={lockingId === invoice.id}
+                            title={invoice.is_locked ? "Odomknúť faktúru" : "Zamknúť faktúru"}
+                          >
+                            {invoice.is_locked ? (
+                              <Lock className="h-4 w-4 text-destructive" />
+                            ) : (
+                              <Unlock className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setSelectedInvoice(invoice);
+                              setDetailOpen(true);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

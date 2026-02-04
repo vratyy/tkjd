@@ -170,8 +170,11 @@ export type Database = {
           hourly_rate: number
           id: string
           invoice_number: string
+          is_locked: boolean
           is_reverse_charge: boolean
           issue_date: string
+          locked_at: string | null
+          locked_by: string | null
           paid_at: string | null
           project_id: string | null
           status: Database["public"]["Enums"]["invoice_status"]
@@ -201,8 +204,11 @@ export type Database = {
           hourly_rate?: number
           id?: string
           invoice_number: string
+          is_locked?: boolean
           is_reverse_charge?: boolean
           issue_date?: string
+          locked_at?: string | null
+          locked_by?: string | null
           paid_at?: string | null
           project_id?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
@@ -232,8 +238,11 @@ export type Database = {
           hourly_rate?: number
           id?: string
           invoice_number?: string
+          is_locked?: boolean
           is_reverse_charge?: boolean
           issue_date?: string
+          locked_at?: string | null
+          locked_by?: string | null
           paid_at?: string | null
           project_id?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
@@ -275,6 +284,8 @@ export type Database = {
         Row: {
           break_end: string | null
           break_start: string | null
+          break2_end: string | null
+          break2_start: string | null
           created_at: string
           date: string
           deleted_at: string | null
@@ -291,6 +302,8 @@ export type Database = {
         Insert: {
           break_end?: string | null
           break_start?: string | null
+          break2_end?: string | null
+          break2_start?: string | null
           created_at?: string
           date: string
           deleted_at?: string | null
@@ -307,6 +320,8 @@ export type Database = {
         Update: {
           break_end?: string | null
           break_start?: string | null
+          break2_end?: string | null
+          break2_start?: string | null
           created_at?: string
           date?: string
           deleted_at?: string | null
@@ -338,12 +353,14 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           dic: string | null
+          fixed_wage: number | null
           full_name: string
           hourly_rate: number | null
           iban: string | null
           ico: string | null
           id: string
           is_vat_payer: boolean
+          parent_user_id: string | null
           signature_url: string | null
           swift_bic: string | null
           updated_at: string
@@ -357,12 +374,14 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           dic?: string | null
+          fixed_wage?: number | null
           full_name: string
           hourly_rate?: number | null
           iban?: string | null
           ico?: string | null
           id?: string
           is_vat_payer?: boolean
+          parent_user_id?: string | null
           signature_url?: string | null
           swift_bic?: string | null
           updated_at?: string
@@ -376,12 +395,14 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           dic?: string | null
+          fixed_wage?: number | null
           full_name?: string
           hourly_rate?: number | null
           iban?: string | null
           ico?: string | null
           id?: string
           is_vat_payer?: boolean
+          parent_user_id?: string | null
           signature_url?: string | null
           swift_bic?: string | null
           updated_at?: string
@@ -422,6 +443,56 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      sanctions: {
+        Row: {
+          admin_id: string
+          amount: number | null
+          created_at: string
+          deleted_at: string | null
+          hours_deducted: number | null
+          id: string
+          invoice_id: string | null
+          reason: string
+          sanction_date: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_id: string
+          amount?: number | null
+          created_at?: string
+          deleted_at?: string | null
+          hours_deducted?: number | null
+          id?: string
+          invoice_id?: string | null
+          reason: string
+          sanction_date?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_id?: string
+          amount?: number | null
+          created_at?: string
+          deleted_at?: string | null
+          hours_deducted?: number | null
+          id?: string
+          invoice_id?: string | null
+          reason?: string
+          sanction_date?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sanctions_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
