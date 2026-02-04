@@ -162,16 +162,18 @@ export default function Projects() {
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="client">Klient</Label>
-                  <Input
-                    id="client"
-                    value={client}
-                    onChange={(e) => setClient(e.target.value)}
-                    placeholder="ABC Development s.r.o."
-                    required
-                  />
-                </div>
+                {isAdmin && (
+                  <div className="space-y-2">
+                    <Label htmlFor="client">Klient</Label>
+                    <Input
+                      id="client"
+                      value={client}
+                      onChange={(e) => setClient(e.target.value)}
+                      placeholder="ABC Development s.r.o."
+                      required
+                    />
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="location">Miesto plnenia (voliteľné)</Label>
                   <Input
@@ -214,10 +216,12 @@ export default function Projects() {
                     onCheckedChange={() => toggleActive(project)}
                   />
                 </div>
-                <CardDescription className="flex items-center gap-1">
-                  <Building className="h-3 w-3" />
-                  {project.client}
-                </CardDescription>
+                {isAdmin && (
+                  <CardDescription className="flex items-center gap-1">
+                    <Building className="h-3 w-3" />
+                    {project.client}
+                  </CardDescription>
+                )}
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between">

@@ -24,6 +24,8 @@ interface Invoice {
   tax_confirmed_at: string | null;
   tax_verified_at: string | null;
   advance_deduction: number;
+  is_locked: boolean;
+  locked_at: string | null;
   profile?: {
     full_name: string;
     company_name: string | null;
@@ -127,6 +129,8 @@ export function useFinancialData() {
             transaction_tax_rate: inv.transaction_tax_rate ?? 0,
             transaction_tax_amount: inv.transaction_tax_amount ?? 0,
             advance_deduction: inv.advance_deduction ?? 0,
+            is_locked: inv.is_locked ?? false,
+            locked_at: inv.locked_at ?? null,
             profile: profile || undefined,
             project: inv.project || undefined 
           } as Invoice;

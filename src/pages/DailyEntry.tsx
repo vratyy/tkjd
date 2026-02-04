@@ -34,11 +34,13 @@ export default function DailyEntry() {
   const [timeTo, setTimeTo] = useState("15:30");
   const [breakStart, setBreakStart] = useState("12:00");
   const [breakEnd, setBreakEnd] = useState("12:30");
+  const [break2Start, setBreak2Start] = useState("");
+  const [break2End, setBreak2End] = useState("");
   const [note, setNote] = useState("");
   const [manualHours, setManualHours] = useState<string>("");
   const [isManualOverride, setIsManualOverride] = useState(false);
 
-  // Calculate duration
+  // Calculate duration with two breaks
   const calculatedHours = useMemo(() => {
     if (!timeFrom || !timeTo) return 0;
     const [fromH, fromM] = timeFrom.split(":").map(Number);
@@ -46,16 +48,25 @@ export default function DailyEntry() {
     const fromMinutes = fromH * 60 + fromM;
     const toMinutes = toH * 60 + toM;
 
-    // Calculate break duration
-    let breakMins = 0;
+    // Calculate break 1 duration
+    let break1Mins = 0;
     if (breakStart && breakEnd) {
       const [breakStartH, breakStartM] = breakStart.split(":").map(Number);
       const [breakEndH, breakEndM] = breakEnd.split(":").map(Number);
-      breakMins = breakEndH * 60 + breakEndM - (breakStartH * 60 + breakStartM);
+      break1Mins = breakEndH * 60 + breakEndM - (breakStartH * 60 + breakStartM);
     }
-    const totalMinutes = toMinutes - fromMinutes - breakMins;
+
+    // Calculate break 2 duration
+    let break2Mins = 0;
+    if (break2Start && break2End) {
+      const [break2StartH, break2StartM] = break2Start.split(":").map(Number);
+      const [break2EndH, break2EndM] = break2End.split(":").map(Number);
+      break2Mins = break2EndH * 60 + break2EndM - (break2StartH * 60 + break2StartM);
+    }
+
+    const totalMinutes = toMinutes - fromMinutes - break1Mins - break2Mins;
     return Math.round(totalMinutes / 60 * 100) / 100;
-  }, [timeFrom, timeTo, breakStart, breakEnd]);
+  }, [timeFrom, timeTo, breakStart, breakEnd, break2Start, break2End]);
 
   // Auto-update manual hours when calculated hours change (unless user manually overrode)
   useEffect(() => {
@@ -91,6 +102,15 @@ export default function DailyEntry() {
     setBreakEnd(value);
     setIsManualOverride(false);
   };
+  const handleBreak2StartChange = (value: string) => {
+    setBreak2Start(value);
+    setIsManualOverride(false);
+  };
+  const handleBreak2EndChange = (value: string) => {
+    setBreak2End(value);
+    setIsManualOverride(false);
+  };
+  
   useEffect(() => {
     async function fetchProjects() {
       const {
@@ -131,6 +151,8 @@ export default function DailyEntry() {
       time_to: timeTo,
       break_start: breakStart || null,
       break_end: breakEnd || null,
+      break2_start: break2Start || null,
+      break2_end: break2End || null,
       note: note || null,
       total_hours: finalHours,
       status: "draft"
@@ -151,6 +173,8 @@ export default function DailyEntry() {
       setProjectId("");
       setManualHours("");
       setIsManualOverride(false);
+      setBreak2Start("");
+      setBreak2End("");
     }
     setSaving(false);
   };
@@ -206,16 +230,28 @@ export default function DailyEntry() {
                 <Input id="timeTo" type="time" value={timeTo} onChange={e => handleTimeToChange(e.target.value)} required />
               </div>
 
-              {/* Break Start */}
+              {/* Break 1 Start */}
               <div className="space-y-2">
-                <Label htmlFor="breakStart">Prestávka od</Label>
+                <Label htmlFor="breakStart">Prestávka 1 od</Label>
                 <Input id="breakStart" type="time" value={breakStart} onChange={e => handleBreakStartChange(e.target.value)} />
               </div>
 
-              {/* Break End */}
+              {/* Break 1 End */}
               <div className="space-y-2">
-                <Label htmlFor="breakEnd">Prestávka do</Label>
+                <Label htmlFor="breakEnd">Prestávka 1 do</Label>
                 <Input id="breakEnd" type="time" value={breakEnd} onChange={e => handleBreakEndChange(e.target.value)} />
+              </div>
+
+              {/* Break 2 Start */}
+              <div className="space-y-2">
+                <Label htmlFor="break2Start">Prestávka 2 od</Label>
+                <Input id="break2Start" type="time" value={break2Start} onChange={e => handleBreak2StartChange(e.target.value)} placeholder="Voliteľné" />
+              </div>
+
+              {/* Break 2 End */}
+              <div className="space-y-2">
+                <Label htmlFor="break2End">Prestávka 2 do</Label>
+                <Input id="break2End" type="time" value={break2End} onChange={e => handleBreak2EndChange(e.target.value)} placeholder="Voliteľné" />
               </div>
 
               {/* Editable total hours with tooltip */}

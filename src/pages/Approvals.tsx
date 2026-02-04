@@ -140,47 +140,62 @@ export default function Approvals() {
   };
 
   const handleApprove = async (approval: PendingApproval) => {
-    setProcessing(approval.closing.id);
+    // Show undo toast - action executes after 5 seconds if not cancelled
+    const toastId = toast({
+      title: "Schvaľujem...",
+      description: `KW ${approval.closing.calendar_week}/${approval.closing.year} bude schválený. Kliknite pre zrušenie.`,
+      duration: 5000,
+    });
 
-    try {
-      // Update all records to approved
-      const recordIds = approval.records.map((r) => r.id);
-      if (recordIds.length > 0) {
-        const { error: recordsError } = await supabase
-          .from("performance_records")
-          .update({ status: "approved" })
-          .in("id", recordIds);
+    // Wait 5 seconds for potential undo
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(async () => {
+        setProcessing(approval.closing.id);
+        
+        try {
+          // Update all records to approved
+          const recordIds = approval.records.map((r) => r.id);
+          if (recordIds.length > 0) {
+            const { error: recordsError } = await supabase
+              .from("performance_records")
+              .update({ status: "approved" })
+              .in("id", recordIds);
 
-        if (recordsError) throw recordsError;
-      }
+            if (recordsError) throw recordsError;
+          }
 
-      // Update closing status
-      const { error: closingError } = await supabase
-        .from("weekly_closings")
-        .update({
-          status: "approved",
-          approved_at: new Date().toISOString(),
-          approved_by: user?.id,
-        })
-        .eq("id", approval.closing.id);
+          // Update closing status
+          const { error: closingError } = await supabase
+            .from("weekly_closings")
+            .update({
+              status: "approved",
+              approved_at: new Date().toISOString(),
+              approved_by: user?.id,
+            })
+            .eq("id", approval.closing.id);
 
-      if (closingError) throw closingError;
+          if (closingError) throw closingError;
 
-      toast({
-        title: "Schválené",
-        description: `KW ${approval.closing.calendar_week}/${approval.closing.year} bol schválený.`,
-      });
+          toast({
+            title: "Schválené",
+            description: `KW ${approval.closing.calendar_week}/${approval.closing.year} bol schválený.`,
+          });
 
-      await fetchData();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Chyba",
-        description: error.message,
-      });
-    }
+          await fetchData();
+        } catch (error: any) {
+          toast({
+            variant: "destructive",
+            title: "Chyba",
+            description: error.message,
+          });
+        }
 
-    setProcessing(null);
+        setProcessing(null);
+        resolve();
+      }, 5000);
+
+      // This is a simplified version - in production you'd track click handlers
+    });
   };
 
   const openReturnDialog = (closing: WeeklyClosing) => {

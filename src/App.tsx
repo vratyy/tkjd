@@ -18,6 +18,8 @@ import Profile from "./pages/Profile";
 import AdminSettings from "./pages/AdminSettings";
 import FinancialDashboard from "./pages/FinancialDashboard";
 import Accommodations from "./pages/Accommodations";
+import Employees from "./pages/Employees";
+import Sanctions from "./pages/Sanctions";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,6 +46,8 @@ const App = () => (
               <Route path="/admin-settings" element={<AdminSettings />} />
               <Route path="/financial-dashboard" element={<FinancialDashboard />} />
               <Route path="/accommodations" element={<Accommodations />} />
+              <Route path="/employees" element={<Employees />} />
+              <Route path="/sanctions" element={<Sanctions />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
