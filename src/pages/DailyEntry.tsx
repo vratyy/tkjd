@@ -244,14 +244,52 @@ export default function DailyEntry() {
 
               {/* Break 2 Start */}
               <div className="space-y-2">
-                <Label htmlFor="break2Start">Prestávka 2 od</Label>
-                <Input id="break2Start" type="time" value={break2Start} onChange={e => handleBreak2StartChange(e.target.value)} placeholder="Voliteľné" />
+                <Label htmlFor="break2Start">Prestávka 2 od (voliteľné)</Label>
+                <div className="flex gap-2">
+                  <Input 
+                    id="break2Start" 
+                    type="time" 
+                    value={break2Start} 
+                    onChange={e => handleBreak2StartChange(e.target.value)} 
+                    className="flex-1"
+                  />
+                  {break2Start && (
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => { setBreak2Start(""); setBreak2End(""); setIsManualOverride(false); }}
+                      className="px-2"
+                    >
+                      ✕
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {/* Break 2 End */}
               <div className="space-y-2">
-                <Label htmlFor="break2End">Prestávka 2 do</Label>
-                <Input id="break2End" type="time" value={break2End} onChange={e => handleBreak2EndChange(e.target.value)} placeholder="Voliteľné" />
+                <Label htmlFor="break2End">Prestávka 2 do (voliteľné)</Label>
+                <div className="flex gap-2">
+                  <Input 
+                    id="break2End" 
+                    type="time" 
+                    value={break2End} 
+                    onChange={e => handleBreak2EndChange(e.target.value)} 
+                    className="flex-1"
+                  />
+                  {break2End && (
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => { setBreak2Start(""); setBreak2End(""); setIsManualOverride(false); }}
+                      className="px-2"
+                    >
+                      ✕
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {/* Editable total hours with tooltip */}
