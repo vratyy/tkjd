@@ -46,7 +46,6 @@ export default function Projects() {
 
   // Create form state
   const [name, setName] = useState("");
-  const [client, setClient] = useState("");
   const [location, setLocation] = useState("");
   const [address, setAddress] = useState("");
 
@@ -75,7 +74,7 @@ export default function Projects() {
 
     const { error } = await supabase.from("projects").insert({
       name,
-      client: client || "N/A",
+      client: "N/A",
       location: location || null,
       address: address || null,
       is_active: true,
@@ -87,7 +86,6 @@ export default function Projects() {
       toast({ title: "Projekt vytvorený", description: "Nový projekt bol úspešne pridaný." });
       setCreateDialogOpen(false);
       setName("");
-      setClient("");
       setLocation("");
       setAddress("");
       await fetchProjects();
@@ -164,15 +162,6 @@ export default function Projects() {
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Bytový dom Slnečná"
                       required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="client">Klient</Label>
-                    <Input
-                      id="client"
-                      value={client}
-                      onChange={(e) => setClient(e.target.value)}
-                      placeholder="ABC Development s.r.o."
                     />
                   </div>
                   <div className="space-y-2">

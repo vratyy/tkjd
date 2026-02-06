@@ -144,17 +144,6 @@ export function ProjectDetailDialog({
               />
             </div>
 
-            {isAdmin && (
-              <div className="space-y-2">
-                <Label htmlFor="detail-client">Klient</Label>
-                <Input
-                  id="detail-client"
-                  value={client}
-                  onChange={(e) => setClient(e.target.value)}
-                />
-              </div>
-            )}
-
             <div className="space-y-2">
               <Label htmlFor="detail-address">Adresa</Label>
               <Input
