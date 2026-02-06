@@ -18,6 +18,7 @@ import {
 import { Loader2, CheckCircle, RotateCcw, ChevronDown, ChevronUp, User, Undo2 } from "lucide-react";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
+import { isDateInWeek } from "@/lib/dateUtils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { GraceCountdown } from "@/components/GraceCountdown";
 import { isWithinGracePeriod } from "@/hooks/useGracePeriod";
@@ -123,10 +124,7 @@ export default function Approvals() {
         .eq("status", "submitted");
 
       const weekRecords = (records as PerformanceRecord[] || []).filter((r) => {
-        const recordDate = new Date(r.date);
-        const week = getWeek(recordDate);
-        const year = recordDate.getFullYear();
-        return week === closing.calendar_week && year === closing.year;
+        return isDateInWeek(r.date, closing.calendar_week, closing.year);
       });
 
       const totalHours = weekRecords.reduce((sum, r) => sum + (Number(r.total_hours) || 0), 0);
@@ -149,10 +147,7 @@ export default function Approvals() {
         .eq("status", "approved");
 
       const weekRecords = (records as PerformanceRecord[] || []).filter((r) => {
-        const recordDate = new Date(r.date);
-        const week = getWeek(recordDate);
-        const year = recordDate.getFullYear();
-        return week === closing.calendar_week && year === closing.year;
+        return isDateInWeek(r.date, closing.calendar_week, closing.year);
       });
 
       const totalHours = weekRecords.reduce((sum, r) => sum + (Number(r.total_hours) || 0), 0);
@@ -173,13 +168,7 @@ export default function Approvals() {
     fetchData();
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const getWeek = (date: Date) => {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
-  };
+  // getWeek removed — replaced by isDateInWeek from dateUtils
 
   const handleApprove = async (approval: PendingApproval) => {
     setProcessing(approval.closing.id);
