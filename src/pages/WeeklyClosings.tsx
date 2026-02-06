@@ -7,7 +7,9 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { MobileRecordCard } from "@/components/mobile/MobileRecordCard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, Calendar, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Clock } from "lucide-react";
+import { Loader2, Send, Calendar, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Clock, Undo2 } from "lucide-react";
+import { GraceCountdown } from "@/components/GraceCountdown";
+import { isWithinGracePeriod } from "@/hooks/useGracePeriod";
 import { format, getWeek, getYear } from "date-fns";
 import { sk } from "date-fns/locale";
 import {
@@ -45,6 +47,7 @@ interface WeekGroup {
   closingId?: string;
   closingStatus?: string;
   returnComment?: string | null;
+  submittedAt?: string | null;
   totalHours: number;
 }
 
@@ -56,6 +59,7 @@ export default function WeeklyClosings() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [openWeeks, setOpenWeeks] = useState<Set<string>>(new Set());
+  const [, setTick] = useState(0); // force re-render for grace period
   const [userProfile, setUserProfile] = useState<{
     full_name: string;
     company_name: string | null;
@@ -71,6 +75,12 @@ export default function WeeklyClosings() {
   } | null>(null);
   const { generateAndSaveInvoice, generating: generatingInvoice } = useInvoiceGeneration();
   const [generatingKey, setGeneratingKey] = useState<string | null>(null);
+
+  // Tick to update grace period visibility
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const fetchData = async () => {
     if (!user) return;
@@ -130,6 +140,7 @@ export default function WeeklyClosings() {
           closingId: closing?.id,
           closingStatus: closing?.status || "open",
           returnComment: (closing as any)?.return_comment,
+          submittedAt: (closing as any)?.submitted_at || null,
           totalHours: 0,
         });
       }
@@ -206,6 +217,47 @@ export default function WeeklyClosings() {
         title: "Chyba",
         description: error.message,
       });
+    }
+
+    setSubmitting(null);
+  };
+
+  const handleUnsendWeek = async (group: WeekGroup) => {
+    if (!user || !group.closingId) return;
+
+    const key = `${group.year}-${group.week}`;
+    setSubmitting(key);
+
+    try {
+      // Revert submitted records back to draft
+      const recordIds = group.records
+        .filter((r) => r.status === "submitted")
+        .map((r) => r.id);
+
+      if (recordIds.length > 0) {
+        const { error: updateError } = await supabase
+          .from("performance_records")
+          .update({ status: "draft" })
+          .in("id", recordIds);
+        if (updateError) throw updateError;
+      }
+
+      // Revert weekly closing back to open
+      const { error: closingError } = await supabase
+        .from("weekly_closings")
+        .update({ status: "open", submitted_at: null })
+        .eq("id", group.closingId);
+
+      if (closingError) throw closingError;
+
+      toast({
+        title: "Odoslanie zrušené",
+        description: `KW ${group.week}/${group.year} bol vrátený späť na úpravu.`,
+      });
+
+      await fetchData();
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Chyba", description: error.message });
     }
 
     setSubmitting(null);
@@ -413,6 +465,9 @@ export default function WeeklyClosings() {
                           </CardDescription>
                         </div>
                         <StatusBadge status={group.closingStatus as any} />
+                        {group.closingStatus === "submitted" && isWithinGracePeriod(group.submittedAt, 5) && (
+                          <GraceCountdown createdAt={group.submittedAt} durationMinutes={5} label="Možnosť zrušenia odoslania vyprší" />
+                        )}
                       </div>
                       
                       {/* Desktop action buttons */}
@@ -465,6 +520,24 @@ export default function WeeklyClosings() {
                               <>
                                 <Send className="h-4 w-4 sm:mr-2" />
                                 <span className="hidden sm:inline">Odoslať týždeň</span>
+                              </>
+                            )}
+                          </Button>
+                        )}
+                        {group.closingStatus === "submitted" && isWithinGracePeriod(group.submittedAt, 5) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleUnsendWeek(group)}
+                            disabled={submitting === key}
+                            className="border-orange-500/50 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/20"
+                          >
+                            {submitting === key ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <Undo2 className="h-4 w-4 sm:mr-2" />
+                                <span className="hidden sm:inline">Vrátiť späť</span>
                               </>
                             )}
                           </Button>
@@ -524,6 +597,24 @@ export default function WeeklyClosings() {
                             <>
                               <Send className="h-4 w-4 mr-2" />
                               Odoslať týždeň
+                            </>
+                          )}
+                        </Button>
+                      )}
+                      {group.closingStatus === "submitted" && isWithinGracePeriod(group.submittedAt, 5) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleUnsendWeek(group)}
+                          disabled={submitting === key}
+                          className="w-full h-10 text-sm border-orange-500/50 text-orange-600"
+                        >
+                          {submitting === key ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Undo2 className="h-4 w-4 mr-2" />
+                              Vrátiť späť
                             </>
                           )}
                         </Button>
