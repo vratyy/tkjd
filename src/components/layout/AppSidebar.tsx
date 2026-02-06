@@ -47,7 +47,7 @@ const mainNavItems: NavItem[] = [
 
 const managementNavItems: NavItem[] = [
   { title: "Finančný prehľad", url: "/financial-dashboard", icon: Wallet, roles: ["admin"] },
-  { title: "Zamestnanci", url: "/employees", icon: Network, roles: ["admin"] },
+  { title: "Spolupracovníci", url: "/employees", icon: Network, roles: ["admin"] },
   { title: "Sankcie", url: "/sanctions", icon: AlertTriangle, roles: ["admin"] },
   { title: "Ubytovanie", url: "/accommodations", icon: Home, roles: ["manager", "admin"] },
   { title: "Schvaľovanie", url: "/approvals", icon: CheckCircle, roles: ["manager", "admin"] },

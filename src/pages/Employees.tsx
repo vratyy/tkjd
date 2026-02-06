@@ -346,7 +346,7 @@ export default function Employees() {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-3">
             <Users className="h-7 w-7" />
-            Zamestnanci
+            Prehľad tímu
           </h1>
           <p className="text-muted-foreground">Hierarchická štruktúra a prehľad tímu</p>
         </div>
@@ -400,7 +400,7 @@ export default function Employees() {
           {filteredTree.length === 0 && (
             <div className="text-center py-12 text-muted-foreground">
               <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>Žiadni zamestnanci nenájdení.</p>
+              <p>Žiadni spolupracovníci nenájdení.</p>
             </div>
           )}
         </CardContent>
