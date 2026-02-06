@@ -332,10 +332,14 @@ export default function DailyEntry() {
     };
 
     if (editingId) {
-      // Update existing record
+      // Update existing record — reset returned/rejected status back to draft
+      const editingRecord = todayRecords.find(r => r.id === editingId);
+      const shouldResetStatus = editingRecord && (editingRecord.status === "returned" || editingRecord.status === "rejected");
+      const updateData = shouldResetStatus ? { ...recordData, status: "draft" as const } : recordData;
+
       const { error } = await supabase
         .from("performance_records")
-        .update(recordData)
+        .update(updateData)
         .eq("id", editingId);
 
       if (error) {
@@ -526,14 +530,15 @@ export default function DailyEntry() {
               Dnešné záznamy
             </CardTitle>
             <CardDescription className="text-xs md:text-sm">
-              Záznamy z dnešného dňa • úpravy sú možné 5 minút po vytvorení
+              Záznamy z dnešného dňa • úpravy sú možné 5 minút po vytvorení alebo pre vrátené záznamy
             </CardDescription>
           </CardHeader>
           <CardContent className="px-4 pb-4 md:px-6 md:pb-6 pt-0">
             <div className="space-y-3">
               {todayRecords.map((record) => {
+                const isReturned = record.status === "returned" || record.status === "rejected";
                 const inGrace = record.status === "draft" && isWithinGracePeriod(record.created_at, 5);
-                const canEdit = isAdmin || inGrace;
+                const canEdit = isAdmin || inGrace || isReturned;
                 const canDelete = isAdmin || inGrace;
 
                 return (
@@ -555,6 +560,11 @@ export default function DailyEntry() {
                         {record.time_from} - {record.time_to} • {Number(record.total_hours) || 0}h
                         {record.note && ` • ${record.note}`}
                       </p>
+                      {isReturned && (
+                        <p className="text-xs text-destructive font-medium mt-1">
+                          ⚠ Vrátené na opravu — kliknite na ceruzku pre úpravu
+                        </p>
+                      )}
                     </div>
                     {(canEdit || canDelete) && (
                       <div className="flex items-center gap-1 ml-2">
