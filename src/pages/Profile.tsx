@@ -341,6 +341,7 @@ export default function Profile() {
 
               <div className="space-y-2">
                 <Label htmlFor="hourlyRate" className="flex items-center gap-1">
+                  {!isAdmin && <Lock className="h-4 w-4" />}
                   <Euro className="h-4 w-4" />
                   Zmluvná hodinová sadzba (€)
                 </Label>
@@ -357,7 +358,14 @@ export default function Profile() {
                     }))
                   }
                   placeholder="Napr. 25.00"
+                  disabled={!isAdmin}
+                  className={!isAdmin ? "bg-muted cursor-not-allowed" : ""}
                 />
+                {!isAdmin && (
+                  <p className="text-xs text-muted-foreground">
+                    Iba admin môže upraviť hodinovú sadzbu
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
