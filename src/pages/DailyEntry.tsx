@@ -164,15 +164,30 @@ export default function DailyEntry() {
   const fetchTodayRecords = useCallback(async () => {
     if (!user) return;
     const today = format(new Date(), "yyyy-MM-dd");
-    const { data } = await supabase
-      .from("performance_records")
-      .select("id, date, time_from, time_to, break_start, break_end, break2_start, break2_end, total_hours, status, note, created_at, project_id, projects(name)")
-      .eq("user_id", user.id)
-      .eq("date", today)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false });
+    const selectCols = "id, date, time_from, time_to, break_start, break_end, break2_start, break2_end, total_hours, status, note, created_at, project_id, projects(name)";
 
-    setTodayRecords((data as TodayRecord[]) || []);
+    // Fetch today's records + any returned/rejected records (any date)
+    const [todayRes, returnedRes] = await Promise.all([
+      supabase
+        .from("performance_records")
+        .select(selectCols)
+        .eq("user_id", user.id)
+        .eq("date", today)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("performance_records")
+        .select(selectCols)
+        .eq("user_id", user.id)
+        .in("status", ["returned", "rejected"])
+        .neq("date", today) // avoid duplicates with today query
+        .is("deleted_at", null)
+        .order("date", { ascending: false }),
+    ]);
+
+    const todayData = (todayRes.data as TodayRecord[]) || [];
+    const returnedData = (returnedRes.data as TodayRecord[]) || [];
+    setTodayRecords([...todayData, ...returnedData]);
   }, [user]);
 
   useEffect(() => {
@@ -554,10 +569,10 @@ export default function DailyEntry() {
           <CardHeader className="p-4 md:p-6">
             <CardTitle className="text-base md:text-lg flex items-center gap-2">
               <Clock className="h-5 w-5" />
-              Dnešné záznamy
+              Záznamy na úpravu
             </CardTitle>
             <CardDescription className="text-xs md:text-sm">
-              Záznamy z dnešného dňa • úpravy sú možné 5 minút po vytvorení alebo pre vrátené záznamy
+              Dnešné záznamy a vrátené záznamy čakajúce na opravu
             </CardDescription>
           </CardHeader>
           <CardContent className="px-4 pb-4 md:px-6 md:pb-6 pt-0">
@@ -567,16 +582,23 @@ export default function DailyEntry() {
                 const inGrace = record.status === "draft" && isWithinGracePeriod(record.created_at, 5);
                 const canEdit = isAdmin || inGrace || isReturned;
                 const canDelete = isAdmin || inGrace;
+                const today = format(new Date(), "yyyy-MM-dd");
+                const isOldRecord = record.date !== today;
 
                 return (
                   <div
                     key={record.id}
                     className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
-                      editingId === record.id ? "bg-primary/10 border border-primary/30" : "bg-muted/50"
+                      editingId === record.id ? "bg-primary/10 border border-primary/30" : isReturned && isOldRecord ? "bg-destructive/5 border border-destructive/20" : "bg-muted/50"
                     }`}
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
+                        {isOldRecord && (
+                          <span className="text-xs font-mono text-muted-foreground">
+                            {format(new Date(record.date + "T12:00:00"), "d. MMM", { locale: sk })}
+                          </span>
+                        )}
                         <span className="font-medium text-sm">
                           {record.projects?.name || "—"}
                         </span>
