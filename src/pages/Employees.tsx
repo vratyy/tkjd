@@ -12,6 +12,7 @@ import { Loader2, Users, ChevronRight, ChevronDown, Download, Building2, Filter,
 import { Navigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { UserDetailModal } from "@/components/employees/UserDetailModal";
 
 interface Employee {
   id: string;
@@ -51,6 +52,10 @@ export default function Employees() {
   // Deactivate dialog
   const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false);
   const [employeeToDeactivate, setEmployeeToDeactivate] = useState<Employee | null>(null);
+
+  // User detail modal
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [detailEmployee, setDetailEmployee] = useState<Employee | null>(null);
 
   const fetchEmployees = async () => {
     try {
@@ -311,29 +316,36 @@ export default function Employees() {
             <div className="w-6" />
           )}
           
-          <Avatar className="h-10 w-10">
-            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-              {node.full_name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className={`font-medium truncate ${!node.is_active ? "text-muted-foreground line-through" : ""}`}>
-                {node.full_name}
-              </span>
-              <Badge className={getRoleBadgeColor(node.role || "monter")} variant="secondary">
-                {node.role}
-              </Badge>
-              {!node.is_active && (
-                <Badge variant="outline" className="text-destructive border-destructive">
-                  Neaktívny
+          <div
+            className="flex-1 min-w-0 cursor-pointer group"
+            onClick={() => {
+              setDetailEmployee(node);
+              setDetailModalOpen(true);
+            }}
+          >
+            <Avatar className="h-10 w-10 inline-flex mr-3 align-middle group-hover:ring-2 group-hover:ring-primary/40 transition-all">
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                {node.full_name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="inline-block align-middle">
+              <div className="flex items-center gap-2">
+                <span className={`font-medium truncate group-hover:text-primary transition-colors ${!node.is_active ? "text-muted-foreground line-through" : ""}`}>
+                  {node.full_name}
+                </span>
+                <Badge className={getRoleBadgeColor(node.role || "monter")} variant="secondary">
+                  {node.role}
                 </Badge>
+                {!node.is_active && (
+                  <Badge variant="outline" className="text-destructive border-destructive">
+                    Neaktívny
+                  </Badge>
+                )}
+              </div>
+              {node.company_name && (
+                <p className="text-sm text-muted-foreground truncate">{node.company_name}</p>
               )}
             </div>
-            {node.company_name && (
-              <p className="text-sm text-muted-foreground truncate">{node.company_name}</p>
-            )}
           </div>
           
           <div className="hidden md:flex items-center gap-6 text-sm">
@@ -548,6 +560,16 @@ export default function Employees() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* User Detail Modal */}
+      <UserDetailModal
+        open={detailModalOpen}
+        onOpenChange={setDetailModalOpen}
+        userId={detailEmployee?.user_id || null}
+        userName={detailEmployee?.full_name || ""}
+        userRole={detailEmployee?.role}
+        onProfileUpdated={fetchEmployees}
+      />
     </div>
   );
 }
