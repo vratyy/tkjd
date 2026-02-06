@@ -36,6 +36,7 @@ interface Project {
   address: string | null;
   is_active: boolean;
   created_at: string;
+  standard_hours: number | null;
 }
 
 interface ProjectDetailDialogProps {
@@ -63,6 +64,7 @@ export function ProjectDetailDialog({
   const [location, setLocation] = useState("");
   const [address, setAddress] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [standardHours, setStandardHours] = useState("");
 
   useEffect(() => {
     if (project) {
@@ -71,6 +73,7 @@ export function ProjectDetailDialog({
       setLocation(project.location || "");
       setAddress(project.address || "");
       setIsActive(project.is_active);
+      setStandardHours(project.standard_hours ? String(project.standard_hours) : "");
     }
   }, [project]);
 
@@ -80,6 +83,7 @@ export function ProjectDetailDialog({
     if (!name.trim()) return;
     setSaving(true);
 
+    const parsedHours = standardHours ? parseFloat(standardHours) : null;
     const { error } = await supabase
       .from("projects")
       .update({
@@ -88,6 +92,7 @@ export function ProjectDetailDialog({
         location: location || null,
         address: address || null,
         is_active: isActive,
+        standard_hours: parsedHours,
       })
       .eq("id", project.id);
 
@@ -171,6 +176,24 @@ export function ProjectDetailDialog({
                 disabled={!isAdmin}
               />
             </div>
+
+            {isAdmin && (
+              <div className="space-y-2">
+                <Label htmlFor="detail-standard-hours">Fixné hodiny za smenu (voliteľné)</Label>
+                <Input
+                  id="detail-standard-hours"
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  value={standardHours}
+                  onChange={(e) => setStandardHours(e.target.value)}
+                  placeholder="napr. 10"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Ak je nastavené, automaticky predvyplní časy v dennom zázname.
+                </p>
+              </div>
+            )}
 
             {isAdmin && (
               <div className="flex items-center justify-between">

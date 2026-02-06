@@ -30,6 +30,7 @@ interface Project {
   address: string | null;
   is_active: boolean;
   created_at: string;
+  standard_hours: number | null;
 }
 
 export default function Projects() {

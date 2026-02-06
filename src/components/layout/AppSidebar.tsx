@@ -1,6 +1,7 @@
 import { useLocation } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useApprovalCount } from "@/hooks/useApprovalCount";
 import {
   Building2,
   LayoutDashboard,
@@ -37,6 +38,7 @@ interface NavItem {
   url: string;
   icon: React.ComponentType<{ className?: string }>;
   roles?: string[];
+  badge?: number;
 }
 
 const mainNavItems: NavItem[] = [
@@ -48,15 +50,15 @@ const mainNavItems: NavItem[] = [
 ];
 
 const managementNavItems: NavItem[] = [
-  { title: "Finančný prehľad", url: "/financial-dashboard", icon: Wallet, roles: ["admin"] },
-  { title: "Spolupracovníci", url: "/employees", icon: Network, roles: ["admin"] },
-  { title: "Sankcie", url: "/sanctions", icon: AlertTriangle, roles: ["admin"] },
-  { title: "Ubytovanie", url: "/accommodations", icon: Home, roles: ["manager", "admin"] },
-  { title: "Schvaľovanie", url: "/approvals", icon: CheckCircle, roles: ["manager", "admin"] },
-  { title: "Všetky projekty", url: "/projects", icon: FolderOpen, roles: ["manager", "admin"] },
-  { title: "Všetky uzávierky", url: "/lock-weeks", icon: Lock, roles: ["admin"] },
-  { title: "Správa používateľov", url: "/users", icon: Users, roles: ["admin"] },
-  { title: "Administrácia", url: "/admin-settings", icon: Settings, roles: ["admin"] },
+  { title: "Finančný prehľad", url: "/financial-dashboard", icon: Wallet, roles: ["admin", "director"] },
+  { title: "Spolupracovníci", url: "/employees", icon: Network, roles: ["admin", "director"] },
+  { title: "Sankcie", url: "/sanctions", icon: AlertTriangle, roles: ["admin", "director"] },
+  { title: "Ubytovanie", url: "/accommodations", icon: Home, roles: ["manager", "admin", "director"] },
+  { title: "Schvaľovanie", url: "/approvals", icon: CheckCircle, roles: ["manager", "admin", "director"] },
+  { title: "Všetky projekty", url: "/projects", icon: FolderOpen, roles: ["manager", "admin", "director"] },
+  { title: "Všetky uzávierky", url: "/lock-weeks", icon: Lock, roles: ["admin", "director"] },
+  { title: "Správa používateľov", url: "/users", icon: Users, roles: ["admin", "director"] },
+  { title: "Administrácia", url: "/admin-settings", icon: Settings, roles: ["admin", "director"] },
 ];
 
 export function AppSidebar() {
@@ -64,6 +66,7 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const location = useLocation();
   const { role, loading } = useUserRole();
+  const approvalCount = useApprovalCount();
 
   const filterByRole = (items: NavItem[]) => {
     if (loading || !role) return [];
@@ -73,7 +76,13 @@ export function AppSidebar() {
     });
   };
 
-  const filteredManagementItems = filterByRole(managementNavItems);
+  const filteredManagementItems = filterByRole(managementNavItems).map((item) => {
+    // Attach approval count badge to Schvaľovanie
+    if (item.url === "/approvals") {
+      return { ...item, badge: approvalCount };
+    }
+    return item;
+  });
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -128,7 +137,12 @@ export function AppSidebar() {
                         activeClassName="bg-sidebar-accent text-sidebar-accent-foreground"
                       >
                         <item.icon className="h-4 w-4 flex-shrink-0" />
-                        <span className="truncate">{item.title}</span>
+                        <span className="truncate flex-1">{item.title}</span>
+                        {item.badge && item.badge > 0 ? (
+                          <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
+                            {item.badge > 99 ? "99+" : item.badge}
+                          </span>
+                        ) : null}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

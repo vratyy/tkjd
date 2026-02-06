@@ -29,6 +29,7 @@ const roleLabels: Record<AppRole, string> = {
   manager: "Projektový manažér",
   admin: "Administrátor",
   accountant: "Účtovník",
+  director: "Riaditeľ",
 };
 
 const roleBadgeVariants: Record<AppRole, "default" | "secondary" | "destructive" | "outline"> = {
@@ -36,9 +37,10 @@ const roleBadgeVariants: Record<AppRole, "default" | "secondary" | "destructive"
   manager: "default",
   admin: "destructive",
   accountant: "outline",
+  director: "destructive",
 };
 
-const allRoles: AppRole[] = ["monter", "manager", "accountant", "admin"];
+const allRoles: AppRole[] = ["monter", "manager", "accountant", "admin", "director"];
 
 export function MobileUserCard({
   userId,

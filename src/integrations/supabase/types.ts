@@ -456,6 +456,7 @@ export type Database = {
           is_active: boolean
           location: string | null
           name: string
+          standard_hours: number | null
           updated_at: string
         }
         Insert: {
@@ -467,6 +468,7 @@ export type Database = {
           is_active?: boolean
           location?: string | null
           name: string
+          standard_hours?: number | null
           updated_at?: string
         }
         Update: {
@@ -478,6 +480,7 @@ export type Database = {
           is_active?: boolean
           location?: string | null
           name?: string
+          standard_hours?: number | null
           updated_at?: string
         }
         Relationships: []
@@ -617,9 +620,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_admin_or_director: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      app_role: "monter" | "manager" | "admin" | "accountant"
+      app_role: "monter" | "manager" | "admin" | "accountant" | "director"
       closing_status: "open" | "submitted" | "approved" | "returned" | "locked"
       invoice_status: "pending" | "due_soon" | "overdue" | "paid" | "void"
       record_status:
@@ -756,7 +760,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["monter", "manager", "admin", "accountant"],
+      app_role: ["monter", "manager", "admin", "accountant", "director"],
       closing_status: ["open", "submitted", "approved", "returned", "locked"],
       invoice_status: ["pending", "due_soon", "overdue", "paid", "void"],
       record_status: ["draft", "submitted", "approved", "rejected", "returned"],
