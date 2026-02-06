@@ -417,8 +417,38 @@ export type Database = {
         }
         Relationships: []
       }
+      project_assignments: {
+        Row: {
+          created_at: string
+          id: string
+          project_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          project_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          project_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_assignments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
+          address: string | null
           client: string
           created_at: string
           deleted_at: string | null
@@ -429,6 +459,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          address?: string | null
           client: string
           created_at?: string
           deleted_at?: string | null
@@ -439,6 +470,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          address?: string | null
           client?: string
           created_at?: string
           deleted_at?: string | null

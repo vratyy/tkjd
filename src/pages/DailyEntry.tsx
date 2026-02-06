@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Info, Edit, Trash2, Clock } from "lucide-react";
+import { Loader2, Save, Info, Edit, Trash2, Clock, AlertTriangle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
@@ -26,6 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface Project {
   id: string;
@@ -173,17 +174,56 @@ export default function DailyEntry() {
 
   useEffect(() => {
     async function fetchProjects() {
-      const { data, error } = await supabase.from("projects").select("id, name, client").eq("is_active", true).order("name");
-      if (error) {
-        console.error("Error fetching projects:", error);
+      if (!user) return;
+
+      if (isAdmin) {
+        // Admins see all active projects
+        const { data, error } = await supabase
+          .from("projects")
+          .select("id, name, client")
+          .eq("is_active", true)
+          .is("deleted_at", null)
+          .order("name");
+        if (error) {
+          console.error("Error fetching projects:", error);
+        } else {
+          setProjects(data || []);
+        }
       } else {
-        setProjects(data || []);
+        // Monters/others: only see assigned projects
+        const { data: assignments, error: aErr } = await supabase
+          .from("project_assignments")
+          .select("project_id")
+          .eq("user_id", user.id);
+
+        if (aErr) {
+          console.error("Error fetching assignments:", aErr);
+          setProjects([]);
+        } else {
+          const assignedIds = (assignments || []).map((a) => a.project_id);
+          if (assignedIds.length === 0) {
+            setProjects([]);
+          } else {
+            const { data, error } = await supabase
+              .from("projects")
+              .select("id, name, client")
+              .eq("is_active", true)
+              .is("deleted_at", null)
+              .in("id", assignedIds)
+              .order("name");
+            if (error) {
+              console.error("Error fetching projects:", error);
+            } else {
+              setProjects(data || []);
+            }
+          }
+        }
       }
       setLoading(false);
     }
     fetchProjects();
     fetchTodayRecords();
-  }, [fetchTodayRecords]);
+  }, [fetchTodayRecords, user, isAdmin]);
 
   const resetForm = () => {
     setNote("");
@@ -319,18 +359,28 @@ export default function DailyEntry() {
               {/* Project selection */}
               <div className="space-y-2">
                 <Label htmlFor="project">Projekt</Label>
-                <Select value={projectId} onValueChange={setProjectId} required>
-                  <SelectTrigger id="project">
-                    <SelectValue placeholder="Vyberte projekt" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map(project => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {!isAdmin && projects.length === 0 ? (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Žiadne projekty</AlertTitle>
+                    <AlertDescription>
+                      Nemáte pridelený žiadny projekt, kontaktujte admina.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <Select value={projectId} onValueChange={setProjectId} required>
+                    <SelectTrigger id="project">
+                      <SelectValue placeholder="Vyberte projekt" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projects.map(project => (
+                        <SelectItem key={project.id} value={project.id}>
+                          {project.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               {/* Date */}
