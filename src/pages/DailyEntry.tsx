@@ -16,6 +16,7 @@ import { sk } from "date-fns/locale";
 import { GraceCountdown } from "@/components/GraceCountdown";
 import { isWithinGracePeriod } from "@/hooks/useGracePeriod";
 import { StatusBadge } from "@/components/StatusBadge";
+import { getISOWeekLocal, getISOWeekYear, parseLocalDate } from "@/lib/dateUtils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -308,6 +309,32 @@ export default function DailyEntry() {
     if (finalHours <= 0) {
       toast({ variant: "destructive", title: "Chyba", description: "Odpracované hodiny musia byť väčšie ako 0." });
       return;
+    }
+
+    // Check if target date belongs to a locked week
+    if (editingId) {
+      const targetDate = parseLocalDate(date);
+      const targetWeek = getISOWeekLocal(targetDate);
+      const targetYear = getISOWeekYear(targetDate);
+
+      const { data: lockedClosing } = await supabase
+        .from("weekly_closings")
+        .select("id, status")
+        .eq("user_id", user.id)
+        .eq("calendar_week", targetWeek)
+        .eq("year", targetYear)
+        .eq("status", "locked")
+        .maybeSingle();
+
+      if (lockedClosing) {
+        toast({
+          variant: "destructive",
+          title: "Uzamknutý týždeň",
+          description: `Tento týždeň (KW ${targetWeek}/${targetYear}) je už uzavretý. Záznam nie je možné presunúť.`,
+        });
+        setSaving(false);
+        return;
+      }
     }
 
     // Warn about standard hours mismatch but still allow submission
