@@ -32,6 +32,7 @@ interface Project {
   id: string;
   name: string;
   client: string;
+  standard_hours: number | null;
 }
 
 interface TodayRecord {
@@ -53,7 +54,7 @@ interface TodayRecord {
 
 export default function DailyEntry() {
   const { user } = useAuth();
-  const { isAdmin } = useUserRole();
+  const { isAdmin, isDirector } = useUserRole();
   const { toast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,6 +67,7 @@ export default function DailyEntry() {
 
   // Form state
   const [projectId, setProjectId] = useState("");
+  const [selectedStandardHours, setSelectedStandardHours] = useState<number | null>(null);
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [timeFrom, setTimeFrom] = useState("07:00");
   const [timeTo, setTimeTo] = useState("15:30");
@@ -180,7 +182,7 @@ export default function DailyEntry() {
         // Admins see all active projects
         const { data, error } = await supabase
           .from("projects")
-          .select("id, name, client")
+          .select("id, name, client, standard_hours")
           .eq("is_active", true)
           .is("deleted_at", null)
           .order("name");
@@ -206,7 +208,7 @@ export default function DailyEntry() {
           } else {
             const { data, error } = await supabase
               .from("projects")
-              .select("id, name, client")
+              .select("id, name, client, standard_hours")
               .eq("is_active", true)
               .is("deleted_at", null)
               .in("id", assignedIds)
@@ -228,6 +230,7 @@ export default function DailyEntry() {
   const resetForm = () => {
     setNote("");
     setProjectId("");
+    setSelectedStandardHours(null);
     setManualHours("");
     setIsManualOverride(false);
     setBreak2Start("");
@@ -273,6 +276,30 @@ export default function DailyEntry() {
     setDeletingId(null);
   };
 
+  /** Handle project selection — pre-fill times if standard_hours is set */
+  const handleProjectChange = (value: string) => {
+    setProjectId(value);
+    const selected = projects.find((p) => p.id === value);
+    const stdHours = selected?.standard_hours ?? null;
+    setSelectedStandardHours(stdHours);
+
+    // Pre-fill times based on standard_hours (only when not editing)
+    if (stdHours && stdHours > 0 && !editingId) {
+      const startHour = 7;
+      const startMin = 0;
+      const breakDuration = 30; // 30 min default break
+      const totalMinutes = stdHours * 60 + breakDuration;
+      const endHour = Math.floor((startHour * 60 + startMin + totalMinutes) / 60);
+      const endMin = (startHour * 60 + startMin + totalMinutes) % 60;
+
+      setTimeFrom(`${String(startHour).padStart(2, "0")}:${String(startMin).padStart(2, "0")}`);
+      setTimeTo(`${String(endHour).padStart(2, "0")}:${String(endMin).padStart(2, "0")}`);
+      setBreakStart("12:00");
+      setBreakEnd("12:30");
+      setIsManualOverride(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !projectId) return;
@@ -281,6 +308,12 @@ export default function DailyEntry() {
     if (finalHours <= 0) {
       toast({ variant: "destructive", title: "Chyba", description: "Odpracované hodiny musia byť väčšie ako 0." });
       return;
+    }
+
+    // Warn about standard hours mismatch but still allow submission
+    if (selectedStandardHours && selectedStandardHours > 0 && Math.abs(finalHours - selectedStandardHours) > 0.01) {
+      const confirmed = confirm(`Na tomto projekte je povolený len ${selectedStandardHours} hodinový úväzok. Napriek tomu chcete odoslať ${finalHours}h?`);
+      if (!confirmed) return;
     }
 
     setSaving(true);
@@ -368,7 +401,7 @@ export default function DailyEntry() {
                     </AlertDescription>
                   </Alert>
                 ) : (
-                  <Select value={projectId} onValueChange={setProjectId} required>
+                  <Select value={projectId} onValueChange={handleProjectChange} required>
                     <SelectTrigger id="project">
                       <SelectValue placeholder="Vyberte projekt" />
                     </SelectTrigger>
@@ -380,6 +413,11 @@ export default function DailyEntry() {
                       ))}
                     </SelectContent>
                   </Select>
+                )}
+                {selectedStandardHours && selectedStandardHours > 0 && (
+                  <p className="text-xs text-primary font-medium">
+                    ⏱ Fixná smena: {selectedStandardHours}h — časy boli predvyplnené
+                  </p>
                 )}
               </div>
 

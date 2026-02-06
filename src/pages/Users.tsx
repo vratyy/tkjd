@@ -39,6 +39,7 @@ const roleLabels: Record<AppRole, string> = {
   manager: "Projektový manažér",
   admin: "Administrátor",
   accountant: "Účtovník",
+  director: "Riaditeľ",
 };
 
 const roleBadgeVariants: Record<AppRole, "default" | "secondary" | "destructive" | "outline"> = {
@@ -46,11 +47,12 @@ const roleBadgeVariants: Record<AppRole, "default" | "secondary" | "destructive"
   manager: "default",
   admin: "destructive",
   accountant: "outline",
+  director: "destructive",
 };
 
 export default function Users() {
   const { user } = useAuth();
-  const { isAdmin, loading: roleLoading } = useUserRole();
+  const { isAdmin, isDirector, loading: roleLoading } = useUserRole();
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [users, setUsers] = useState<UserWithRole[]>([]);
@@ -332,18 +334,21 @@ export default function Users() {
                                 <SelectItem value="manager">Projektový manažér</SelectItem>
                                 <SelectItem value="accountant">Účtovník</SelectItem>
                                 <SelectItem value="admin">Administrátor</SelectItem>
+                                {isDirector && <SelectItem value="director">Riaditeľ</SelectItem>}
                               </SelectContent>
                             </Select>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => handleHardDelete(u.user_id, u.full_name)}
-                              disabled={updating === u.user_id}
-                              title="Trvalo vymazať používateľa"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {isDirector && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => handleHardDelete(u.user_id, u.full_name)}
+                                disabled={updating === u.user_id}
+                                title="Trvalo vymazať používateľa"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                           </>
                         ) : (
                           <span className="text-sm text-muted-foreground">—</span>
