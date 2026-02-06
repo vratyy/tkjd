@@ -1,0 +1,455 @@
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Loader2,
+  Save,
+  User,
+  Euro,
+  FileText,
+  FileSpreadsheet,
+  Download,
+  CreditCard,
+  Building2,
+} from "lucide-react";
+import { format } from "date-fns";
+import { sk } from "date-fns/locale";
+import { InvoiceStatusBadge } from "@/components/financial/InvoiceStatusBadge";
+
+interface UserProfile {
+  full_name: string;
+  company_name: string | null;
+  billing_address: string | null;
+  iban: string | null;
+  swift_bic: string | null;
+  hourly_rate: number | null;
+  fixed_wage: number | null;
+  ico: string | null;
+  dic: string | null;
+  vat_number: string | null;
+  is_vat_payer: boolean;
+  contract_number: string | null;
+}
+
+interface UserInvoice {
+  id: string;
+  invoice_number: string;
+  issue_date: string;
+  due_date: string;
+  total_hours: number;
+  total_amount: number;
+  status: string;
+  hourly_rate: number;
+  projects: { name: string } | null;
+}
+
+interface UserDetailModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  userId: string | null;
+  userName: string;
+  userRole?: string;
+  onProfileUpdated?: () => void;
+}
+
+export function UserDetailModal({
+  open,
+  onOpenChange,
+  userId,
+  userName,
+  userRole,
+  onProfileUpdated,
+}: UserDetailModalProps) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [invoices, setInvoices] = useState<UserInvoice[]>([]);
+  const [editHourlyRate, setEditHourlyRate] = useState<string>("");
+  const [editFixedWage, setEditFixedWage] = useState<string>("");
+
+  useEffect(() => {
+    if (!open || !userId) return;
+    fetchUserData();
+  }, [open, userId]);
+
+  const fetchUserData = async () => {
+    if (!userId) return;
+    setLoading(true);
+
+    try {
+      // Fetch profile and invoices in parallel
+      const [profileRes, invoicesRes] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select(
+            "full_name, company_name, billing_address, iban, swift_bic, hourly_rate, fixed_wage, ico, dic, vat_number, is_vat_payer, contract_number"
+          )
+          .eq("user_id", userId)
+          .maybeSingle(),
+        supabase
+          .from("invoices")
+          .select(
+            "id, invoice_number, issue_date, due_date, total_hours, total_amount, status, hourly_rate, projects(name)"
+          )
+          .eq("user_id", userId)
+          .is("deleted_at", null)
+          .order("issue_date", { ascending: false }),
+      ]);
+
+      if (profileRes.error) throw profileRes.error;
+      if (profileRes.data) {
+        setProfile(profileRes.data);
+        setEditHourlyRate(
+          profileRes.data.hourly_rate != null
+            ? String(profileRes.data.hourly_rate)
+            : ""
+        );
+        setEditFixedWage(
+          profileRes.data.fixed_wage != null
+            ? String(profileRes.data.fixed_wage)
+            : ""
+        );
+      }
+
+      setInvoices((invoicesRes.data as UserInvoice[]) || []);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Chyba",
+        description: error.message,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveWage = async () => {
+    if (!userId) return;
+    setSaving(true);
+
+    try {
+      const updates: Record<string, number | null> = {};
+      const newRate = editHourlyRate ? parseFloat(editHourlyRate) : null;
+      const newWage = editFixedWage ? parseFloat(editFixedWage) : null;
+
+      updates.hourly_rate = newRate;
+      updates.fixed_wage = newWage;
+
+      const { error } = await supabase
+        .from("profiles")
+        .update(updates)
+        .eq("user_id", userId);
+
+      if (error) throw error;
+
+      setProfile((prev) =>
+        prev
+          ? { ...prev, hourly_rate: newRate, fixed_wage: newWage }
+          : prev
+      );
+
+      toast({
+        title: "Uložené",
+        description: "Mzdové údaje boli aktualizované.",
+      });
+
+      onProfileUpdated?.();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Chyba",
+        description: error.message,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const initials = userName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  const getRoleBadgeColor = (role: string) => {
+    switch (role) {
+      case "admin":
+        return "bg-destructive text-destructive-foreground";
+      case "manager":
+        return "bg-primary text-primary-foreground";
+      case "accountant":
+        return "bg-secondary text-secondary-foreground";
+      default:
+        return "bg-muted text-muted-foreground";
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-3">
+            <Avatar className="h-10 w-10">
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <span>{userName}</span>
+              {userRole && (
+                <Badge
+                  className={`ml-2 ${getRoleBadgeColor(userRole)}`}
+                  variant="secondary"
+                >
+                  {userRole}
+                </Badge>
+              )}
+            </div>
+          </DialogTitle>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <Tabs defaultValue="info" className="flex-1 overflow-hidden flex flex-col">
+            <TabsList className="w-full grid grid-cols-3">
+              <TabsTrigger value="info" className="gap-1.5">
+                <User className="h-4 w-4" />
+                <span className="hidden sm:inline">Osobné údaje</span>
+                <span className="sm:hidden">Info</span>
+              </TabsTrigger>
+              <TabsTrigger value="wage" className="gap-1.5">
+                <Euro className="h-4 w-4" />
+                <span className="hidden sm:inline">Mzdové nastavenia</span>
+                <span className="sm:hidden">Mzda</span>
+              </TabsTrigger>
+              <TabsTrigger value="docs" className="gap-1.5">
+                <FileText className="h-4 w-4" />
+                <span className="hidden sm:inline">Dokumenty</span>
+                <span className="sm:hidden">Docs</span>
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Personal Info Tab */}
+            <TabsContent value="info" className="flex-1 overflow-auto mt-4">
+              <div className="space-y-4">
+                <InfoRow
+                  icon={<User className="h-4 w-4" />}
+                  label="Meno"
+                  value={profile?.full_name}
+                />
+                <InfoRow
+                  icon={<Building2 className="h-4 w-4" />}
+                  label="Firma"
+                  value={profile?.company_name}
+                />
+                <InfoRow
+                  label="Číslo zmluvy"
+                  value={profile?.contract_number}
+                />
+                <Separator />
+                <InfoRow label="IČO" value={profile?.ico} />
+                <InfoRow label="DIČ" value={profile?.dic} />
+                {profile?.is_vat_payer && (
+                  <InfoRow label="IČ DPH" value={profile?.vat_number} />
+                )}
+                <Separator />
+                <InfoRow
+                  label="Fakturačná adresa"
+                  value={profile?.billing_address}
+                />
+                <InfoRow
+                  icon={<CreditCard className="h-4 w-4" />}
+                  label="IBAN"
+                  value={profile?.iban}
+                />
+                <InfoRow label="SWIFT/BIC" value={profile?.swift_bic} />
+              </div>
+            </TabsContent>
+
+            {/* Wage Settings Tab */}
+            <TabsContent value="wage" className="flex-1 overflow-auto mt-4">
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="modal-hourly-rate" className="flex items-center gap-1.5">
+                    <Euro className="h-4 w-4" />
+                    Hodinová sadzba (€)
+                  </Label>
+                  <Input
+                    id="modal-hourly-rate"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editHourlyRate}
+                    onChange={(e) => setEditHourlyRate(e.target.value)}
+                    placeholder="Napr. 25.00"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="modal-fixed-wage" className="flex items-center gap-1.5">
+                    <Euro className="h-4 w-4" />
+                    Fixná mzda (€/mesiac)
+                  </Label>
+                  <Input
+                    id="modal-fixed-wage"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editFixedWage}
+                    onChange={(e) => setEditFixedWage(e.target.value)}
+                    placeholder="Napr. 2500.00"
+                  />
+                </div>
+
+                <div className="rounded-lg border p-4 bg-muted/30 space-y-1">
+                  <p className="text-sm font-medium">Aktuálne hodnoty</p>
+                  <p className="text-sm text-muted-foreground">
+                    Hodinová sadzba:{" "}
+                    <span className="font-medium text-foreground">
+                      {profile?.hourly_rate != null
+                        ? `${profile.hourly_rate} €`
+                        : "nenastavená"}
+                    </span>
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Fixná mzda:{" "}
+                    <span className="font-medium text-foreground">
+                      {profile?.fixed_wage != null
+                        ? `${profile.fixed_wage} €/mes.`
+                        : "nenastavená"}
+                    </span>
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleSaveWage}
+                  disabled={saving}
+                  className="w-full"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Ukladám...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Uložiť mzdové údaje
+                    </>
+                  )}
+                </Button>
+              </div>
+            </TabsContent>
+
+            {/* Documents Tab */}
+            <TabsContent value="docs" className="flex-1 overflow-hidden mt-4 flex flex-col">
+              <ScrollArea className="flex-1">
+                {invoices.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>Žiadne faktúry</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 pr-4">
+                    {invoices.map((inv) => (
+                      <div
+                        key={inv.id}
+                        className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-sm">
+                              {inv.invoice_number}
+                            </span>
+                            <InvoiceStatusBadge status={inv.status as any} dueDate={inv.due_date} />
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {format(
+                              new Date(inv.issue_date),
+                              "d. MMM yyyy",
+                              { locale: sk }
+                            )}{" "}
+                            • {inv.total_hours}h •{" "}
+                            {inv.projects?.name || "—"}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-semibold text-sm">
+                            {Number(inv.total_amount).toFixed(2)} €
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {inv.hourly_rate} €/h
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+              {invoices.length > 0 && (
+                <div className="pt-4 border-t mt-4">
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Celkom faktúr: <strong>{invoices.length}</strong> •
+                    Celková suma:{" "}
+                    <strong>
+                      {invoices
+                        .reduce(
+                          (sum, inv) => sum + Number(inv.total_amount),
+                          0
+                        )
+                        .toFixed(2)}{" "}
+                      €
+                    </strong>
+                  </p>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Simple info row for the personal info tab */
+function InfoRow({
+  icon,
+  label,
+  value,
+}: {
+  icon?: React.ReactNode;
+  label: string;
+  value: string | null | undefined;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      {icon && <div className="mt-0.5 text-muted-foreground">{icon}</div>}
+      {!icon && <div className="w-4" />}
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-sm font-medium truncate">
+          {value || <span className="text-muted-foreground italic">—</span>}
+        </p>
+      </div>
+    </div>
+  );
+}
