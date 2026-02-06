@@ -10,8 +10,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, Calendar, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Clock, Undo2 } from "lucide-react";
 import { GraceCountdown } from "@/components/GraceCountdown";
 import { isWithinGracePeriod } from "@/hooks/useGracePeriod";
-import { format, getWeek, getYear } from "date-fns";
+import { format } from "date-fns";
 import { sk } from "date-fns/locale";
+import { parseLocalDate, getISOWeekLocal, getISOWeekYear } from "@/lib/dateUtils";
 import {
   Collapsible,
   CollapsibleContent,
@@ -122,9 +123,9 @@ export default function WeeklyClosings() {
     const grouped = new Map<string, WeekGroup>();
     
     (records as PerformanceRecord[] || []).forEach((record) => {
-      const recordDate = new Date(record.date);
-      const week = getWeek(recordDate, { weekStartsOn: 1 });
-      const year = getYear(recordDate);
+      const recordDate = parseLocalDate(record.date);
+      const week = getISOWeekLocal(recordDate);
+      const year = getISOWeekYear(recordDate);
       const key = `${year}-${week}`;
 
       if (!grouped.has(key)) {
@@ -354,20 +355,16 @@ export default function WeeklyClosings() {
     }
   };
 
-  const canGenerateInvoice = (group: WeekGroup) => {
-    return (
-      (group.closingStatus === "approved" || group.closingStatus === "locked") &&
-      userProfile?.hourly_rate &&
-      userProfile.hourly_rate > 0
-    );
+  const canShowInvoiceButton = (group: WeekGroup) => {
+    return group.closingStatus === "approved" || group.closingStatus === "locked";
   };
 
   const handleGenerateInvoice = async (group: WeekGroup) => {
-    if (!userProfile || !userProfile.hourly_rate) {
+    if (!userProfile || !userProfile.hourly_rate || userProfile.hourly_rate <= 0) {
       toast({
         variant: "destructive",
-        title: "Chýbajúce údaje",
-        description: "Najprv vyplňte hodinovú sadzbu v profile.",
+        title: "Chýbajú fakturačné údaje používateľa",
+        description: "Najprv vyplňte hodinovú sadzbu a fakturačné údaje v profile.",
       });
       return;
     }
@@ -491,7 +488,7 @@ export default function WeeklyClosings() {
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                        {canGenerateInvoice(group) && (
+                        {canShowInvoiceButton(group) && (
                           <Button
                             size="sm"
                             variant="secondary"
@@ -566,7 +563,7 @@ export default function WeeklyClosings() {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                        {canGenerateInvoice(group) && (
+                        {canShowInvoiceButton(group) && (
                           <Button
                             size="sm"
                             variant="secondary"

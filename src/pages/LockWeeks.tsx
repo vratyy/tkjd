@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Lock, User, ChevronDown, ChevronUp, FileSpreadsheet, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
+import { isDateInWeek } from "@/lib/dateUtils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Navigate } from "react-router-dom";
 import { exportWeeklyRecordsToExcel } from "@/lib/excelExport";
@@ -102,10 +103,7 @@ export default function LockWeeks() {
         .is("deleted_at", null);
 
       const weekRecords = (records as PerformanceRecord[] || []).filter((r) => {
-        const recordDate = new Date(r.date);
-        const week = getWeek(recordDate);
-        const year = recordDate.getFullYear();
-        return week === closing.calendar_week && year === closing.year;
+        return isDateInWeek(r.date, closing.calendar_week, closing.year);
       });
 
       const totalHours = weekRecords.reduce((sum, r) => sum + (Number(r.total_hours) || 0), 0);
@@ -142,13 +140,7 @@ export default function LockWeeks() {
     fetchData();
   }, [user]);
 
-  const getWeek = (date: Date) => {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
-  };
+  // getWeek removed — replaced by isDateInWeek from dateUtils
 
   const handleLock = async (week: ApprovedWeek) => {
     setProcessing(week.closing.id);
@@ -213,20 +205,15 @@ export default function LockWeeks() {
     }
   };
 
-  const canGenerateInvoice = (week: ApprovedWeek) => {
-    return (
-      week.closing.profiles?.hourly_rate &&
-      week.closing.profiles.hourly_rate > 0
-    );
-  };
+  // Always allow invoice generation attempt — show toast if data missing
 
   const handleGenerateInvoice = async (week: ApprovedWeek) => {
     const profile = week.closing.profiles;
-    if (!profile || !profile.hourly_rate) {
+    if (!profile || !profile.hourly_rate || profile.hourly_rate <= 0) {
       toast({
         variant: "destructive",
-        title: "Chýbajúce údaje",
-        description: "Používateľ nemá nastavenú hodinovú sadzbu.",
+        title: "Chýbajú fakturačné údaje používateľa",
+        description: "Používateľ nemá nastavenú hodinovú sadzbu alebo chýbajú fakturačné údaje v profile.",
       });
       return;
     }
@@ -363,23 +350,21 @@ export default function LockWeeks() {
                           <FileSpreadsheet className="h-4 w-4 sm:mr-1" />
                           <span className="hidden sm:inline">Export</span>
                         </Button>
-                        {canGenerateInvoice(week) && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleGenerateInvoice(week)}
-                            disabled={generatingInvoice === week.closing.id}
-                          >
-                            {generatingInvoice === week.closing.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <>
-                                <FileText className="h-4 w-4 sm:mr-1" />
-                                <span className="hidden sm:inline">Faktúra</span>
-                              </>
-                            )}
-                          </Button>
-                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleGenerateInvoice(week)}
+                          disabled={generatingInvoice === week.closing.id}
+                        >
+                          {generatingInvoice === week.closing.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <FileText className="h-4 w-4 sm:mr-1" />
+                              <span className="hidden sm:inline">Faktúra</span>
+                            </>
+                          )}
+                        </Button>
                         <Button
                           size="sm"
                           variant="secondary"
