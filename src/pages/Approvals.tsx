@@ -15,10 +15,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, CheckCircle, RotateCcw, ChevronDown, ChevronUp, User } from "lucide-react";
+import { Loader2, CheckCircle, RotateCcw, ChevronDown, ChevronUp, User, Undo2 } from "lucide-react";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { GraceCountdown } from "@/components/GraceCountdown";
+import { isWithinGracePeriod } from "@/hooks/useGracePeriod";
 
 interface Profile {
   full_name: string;
@@ -42,6 +44,8 @@ interface WeeklyClosing {
   calendar_week: number;
   year: number;
   status: string;
+  approved_at?: string | null;
+  approved_by?: string | null;
   return_comment?: string | null;
   profiles?: Profile | null;
 }
@@ -57,18 +61,27 @@ export default function Approvals() {
   const { isAdmin, isManager } = useUserRole();
   const { toast } = useToast();
   const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([]);
+  const [recentlyApproved, setRecentlyApproved] = useState<PendingApproval[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
   const [openItems, setOpenItems] = useState<Set<string>>(new Set());
+  const [, setTick] = useState(0);
   
   // Return dialog state
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [returnComment, setReturnComment] = useState("");
   const [selectedClosing, setSelectedClosing] = useState<WeeklyClosing | null>(null);
 
+  // Tick to update grace period visibility
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   const fetchData = async () => {
     if (!user) return;
 
+    // Fetch submitted closings (pending approval)
     const { data: closings, error: closingsError } = await supabase
       .from("weekly_closings")
       .select("*")
@@ -82,19 +95,27 @@ export default function Approvals() {
       return;
     }
 
-    // Fetch profiles separately
-    const userIds = [...new Set(closings?.map(c => c.user_id) || [])];
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("user_id, full_name, company_name")
-      .in("user_id", userIds);
+    // Fetch recently approved closings (within last 5 minutes) for undo
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data: approvedClosings } = await supabase
+      .from("weekly_closings")
+      .select("*")
+      .eq("status", "approved")
+      .gte("approved_at", fiveMinutesAgo)
+      .order("approved_at", { ascending: false });
 
-    // Fetch records for each closing
-    const approvals: PendingApproval[] = [];
+    // Combine all user IDs for profile fetching
+    const allClosings = [...(closings || []), ...(approvedClosings || [])];
+    const userIds = [...new Set(allClosings.map(c => c.user_id))];
+    
+    const { data: profiles } = userIds.length > 0
+      ? await supabase.from("profiles").select("user_id, full_name, company_name").in("user_id", userIds)
+      : { data: [] };
 
+    // Build pending approvals
+    const pending: PendingApproval[] = [];
     for (const closing of closings || []) {
       const profile = profiles?.find(p => p.user_id === closing.user_id);
-      
       const { data: records } = await supabase
         .from("performance_records")
         .select("id, date, time_from, time_to, total_hours, status, note, projects(name)")
@@ -108,22 +129,43 @@ export default function Approvals() {
         return week === closing.calendar_week && year === closing.year;
       });
 
-      // Safe number conversion for total hours
       const totalHours = weekRecords.reduce((sum, r) => sum + (Number(r.total_hours) || 0), 0);
       
-      const closingWithProfile: WeeklyClosing = {
-        ...closing,
-        profiles: profile ? { full_name: profile.full_name, company_name: profile.company_name } : null
-      };
-
-      approvals.push({
-        closing: closingWithProfile,
+      pending.push({
+        closing: { ...closing, profiles: profile ? { full_name: profile.full_name, company_name: profile.company_name } : null },
         records: weekRecords,
         totalHours,
       });
     }
 
-    setPendingApprovals(approvals);
+    // Build recently approved items
+    const approved: PendingApproval[] = [];
+    for (const closing of approvedClosings || []) {
+      const profile = profiles?.find(p => p.user_id === closing.user_id);
+      const { data: records } = await supabase
+        .from("performance_records")
+        .select("id, date, time_from, time_to, total_hours, status, note, projects(name)")
+        .eq("user_id", closing.user_id)
+        .eq("status", "approved");
+
+      const weekRecords = (records as PerformanceRecord[] || []).filter((r) => {
+        const recordDate = new Date(r.date);
+        const week = getWeek(recordDate);
+        const year = recordDate.getFullYear();
+        return week === closing.calendar_week && year === closing.year;
+      });
+
+      const totalHours = weekRecords.reduce((sum, r) => sum + (Number(r.total_hours) || 0), 0);
+      
+      approved.push({
+        closing: { ...closing, profiles: profile ? { full_name: profile.full_name, company_name: profile.company_name } : null },
+        records: weekRecords,
+        totalHours,
+      });
+    }
+
+    setPendingApprovals(pending);
+    setRecentlyApproved(approved);
     setLoading(false);
   };
 
@@ -140,62 +182,81 @@ export default function Approvals() {
   };
 
   const handleApprove = async (approval: PendingApproval) => {
-    // Show undo toast - action executes after 5 seconds if not cancelled
-    const toastId = toast({
-      title: "Schvaľujem...",
-      description: `KW ${approval.closing.calendar_week}/${approval.closing.year} bude schválený. Kliknite pre zrušenie.`,
-      duration: 5000,
-    });
+    setProcessing(approval.closing.id);
+    
+    try {
+      // Update all records to approved
+      const recordIds = approval.records.map((r) => r.id);
+      if (recordIds.length > 0) {
+        const { error: recordsError } = await supabase
+          .from("performance_records")
+          .update({ status: "approved" })
+          .in("id", recordIds);
+        if (recordsError) throw recordsError;
+      }
 
-    // Wait 5 seconds for potential undo
-    await new Promise<void>((resolve) => {
-      const timeout = setTimeout(async () => {
-        setProcessing(approval.closing.id);
-        
-        try {
-          // Update all records to approved
-          const recordIds = approval.records.map((r) => r.id);
-          if (recordIds.length > 0) {
-            const { error: recordsError } = await supabase
-              .from("performance_records")
-              .update({ status: "approved" })
-              .in("id", recordIds);
+      // Update closing status
+      const { error: closingError } = await supabase
+        .from("weekly_closings")
+        .update({
+          status: "approved",
+          approved_at: new Date().toISOString(),
+          approved_by: user?.id,
+        })
+        .eq("id", approval.closing.id);
 
-            if (recordsError) throw recordsError;
-          }
+      if (closingError) throw closingError;
 
-          // Update closing status
-          const { error: closingError } = await supabase
-            .from("weekly_closings")
-            .update({
-              status: "approved",
-              approved_at: new Date().toISOString(),
-              approved_by: user?.id,
-            })
-            .eq("id", approval.closing.id);
+      toast({
+        title: "Schválené",
+        description: `KW ${approval.closing.calendar_week}/${approval.closing.year} bol schválený. Máte 5 minút na zrušenie.`,
+      });
 
-          if (closingError) throw closingError;
+      await fetchData();
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Chyba", description: error.message });
+    }
 
-          toast({
-            title: "Schválené",
-            description: `KW ${approval.closing.calendar_week}/${approval.closing.year} bol schválený.`,
-          });
+    setProcessing(null);
+  };
 
-          await fetchData();
-        } catch (error: any) {
-          toast({
-            variant: "destructive",
-            title: "Chyba",
-            description: error.message,
-          });
-        }
+  const handleUndoApproval = async (approval: PendingApproval) => {
+    setProcessing(approval.closing.id);
 
-        setProcessing(null);
-        resolve();
-      }, 5000);
+    try {
+      // Revert records from approved to submitted
+      const recordIds = approval.records.map((r) => r.id);
+      if (recordIds.length > 0) {
+        const { error: recordsError } = await supabase
+          .from("performance_records")
+          .update({ status: "submitted" })
+          .in("id", recordIds);
+        if (recordsError) throw recordsError;
+      }
 
-      // This is a simplified version - in production you'd track click handlers
-    });
+      // Revert closing from approved to submitted
+      const { error: closingError } = await supabase
+        .from("weekly_closings")
+        .update({
+          status: "submitted",
+          approved_at: null,
+          approved_by: null,
+        })
+        .eq("id", approval.closing.id);
+
+      if (closingError) throw closingError;
+
+      toast({
+        title: "Schválenie zrušené",
+        description: `KW ${approval.closing.calendar_week}/${approval.closing.year} bol vrátený na schválenie.`,
+      });
+
+      await fetchData();
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Chyba", description: error.message });
+    }
+
+    setProcessing(null);
   };
 
   const openReturnDialog = (closing: WeeklyClosing) => {
@@ -211,22 +272,18 @@ export default function Approvals() {
     setReturnDialogOpen(false);
 
     try {
-      // Find the approval
       const approval = pendingApprovals.find((a) => a.closing.id === selectedClosing.id);
       if (!approval) throw new Error("Approval not found");
 
-      // Update all records to returned
       const recordIds = approval.records.map((r) => r.id);
       if (recordIds.length > 0) {
         const { error: recordsError } = await supabase
           .from("performance_records")
           .update({ status: "returned" as any })
           .in("id", recordIds);
-
         if (recordsError) throw recordsError;
       }
 
-      // Update closing status with comment
       const { error: closingError } = await supabase
         .from("weekly_closings")
         .update({
@@ -244,11 +301,7 @@ export default function Approvals() {
 
       await fetchData();
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Chyba",
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: "Chyba", description: error.message });
     }
 
     setProcessing(null);
@@ -257,11 +310,8 @@ export default function Approvals() {
 
   const toggleItem = (id: string) => {
     const newOpen = new Set(openItems);
-    if (newOpen.has(id)) {
-      newOpen.delete(id);
-    } else {
-      newOpen.add(id);
-    }
+    if (newOpen.has(id)) newOpen.delete(id);
+    else newOpen.add(id);
     setOpenItems(newOpen);
   };
 
@@ -273,6 +323,120 @@ export default function Approvals() {
     );
   }
 
+  const renderApprovalCard = (approval: PendingApproval, isApproved = false) => {
+    const isOpen = openItems.has(approval.closing.id);
+    const inGrace = isApproved && isWithinGracePeriod(approval.closing.approved_at, 5);
+
+    return (
+      <Card key={approval.closing.id} className={isApproved ? "border-green-500/30 bg-green-50/5" : ""}>
+        <Collapsible open={isOpen} onOpenChange={() => toggleItem(approval.closing.id)}>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-4">
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="p-0 h-auto">
+                    {isOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                  </Button>
+                </CollapsibleTrigger>
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                  <User className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">
+                    {approval.closing.profiles?.full_name || "Neznámy používateľ"}
+                  </CardTitle>
+                  <CardDescription>
+                    KW {approval.closing.calendar_week}/{approval.closing.year} •{" "}
+                    {approval.records.length} záznamov •{" "}
+                    {Math.round(approval.totalHours * 10) / 10}h
+                    {approval.closing.profiles?.company_name && (
+                      <> • {approval.closing.profiles.company_name}</>
+                    )}
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <StatusBadge status={isApproved ? "approved" : "submitted"} />
+                {isApproved && inGrace && (
+                  <>
+                    <GraceCountdown createdAt={approval.closing.approved_at} durationMinutes={5} label="Možnosť zrušenia schválenia vyprší" />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleUndoApproval(approval)}
+                      disabled={processing === approval.closing.id}
+                      className="border-orange-500/50 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/20"
+                    >
+                      {processing === approval.closing.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Undo2 className="h-4 w-4 mr-1" />
+                          Zrušiť schválenie
+                        </>
+                      )}
+                    </Button>
+                  </>
+                )}
+                {!isApproved && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openReturnDialog(approval.closing)}
+                      disabled={processing === approval.closing.id}
+                    >
+                      <RotateCcw className="h-4 w-4 mr-1" />
+                      Vrátiť
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => handleApprove(approval)}
+                      disabled={processing === approval.closing.id}
+                    >
+                      {processing === approval.closing.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Schváliť
+                        </>
+                      )}
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent className="pt-0">
+              <div className="space-y-2">
+                {approval.records.map((record) => (
+                  <div key={record.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">
+                          {format(new Date(record.date), "EEEE, d. MMM", { locale: sk })}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {record.projects?.name || "—"} • {record.time_from} - {record.time_to}
+                        {record.note && ` • ${record.note}`}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-semibold">{Number(record.total_hours) || 0}h</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
+      </Card>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -280,109 +444,32 @@ export default function Approvals() {
         <p className="text-muted-foreground">Čakajúce žiadosti na schválenie</p>
       </div>
 
-      {pendingApprovals.length === 0 ? (
+      {/* Recently approved with undo */}
+      {recentlyApproved.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+            Nedávno schválené (možnosť zrušenia)
+          </h3>
+          {recentlyApproved.map((approval) => renderApprovalCard(approval, true))}
+        </div>
+      )}
+
+      {/* Pending approvals */}
+      {pendingApprovals.length === 0 && recentlyApproved.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <CheckCircle className="h-12 w-12 mx-auto mb-3 opacity-50 text-muted-foreground" />
             <p className="text-muted-foreground">Žiadne čakajúce schválenia.</p>
           </CardContent>
         </Card>
-      ) : (
+      ) : pendingApprovals.length > 0 && (
         <div className="space-y-4">
-          {pendingApprovals.map((approval) => {
-            const isOpen = openItems.has(approval.closing.id);
-
-            return (
-              <Card key={approval.closing.id}>
-                <Collapsible open={isOpen} onOpenChange={() => toggleItem(approval.closing.id)}>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <CollapsibleTrigger asChild>
-                          <Button variant="ghost" size="sm" className="p-0 h-auto">
-                            {isOpen ? (
-                              <ChevronUp className="h-5 w-5" />
-                            ) : (
-                              <ChevronDown className="h-5 w-5" />
-                            )}
-                          </Button>
-                        </CollapsibleTrigger>
-                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                          <User className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">
-                            {approval.closing.profiles?.full_name || "Neznámy používateľ"}
-                          </CardTitle>
-                          <CardDescription>
-                            KW {approval.closing.calendar_week}/{approval.closing.year} •{" "}
-                            {approval.records.length} záznamov •{" "}
-                            {Math.round(approval.totalHours * 10) / 10}h
-                            {approval.closing.profiles?.company_name && (
-                              <> • {approval.closing.profiles.company_name}</>
-                            )}
-                          </CardDescription>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <StatusBadge status="submitted" />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openReturnDialog(approval.closing)}
-                          disabled={processing === approval.closing.id}
-                        >
-                          <RotateCcw className="h-4 w-4 mr-1" />
-                          Vrátiť
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => handleApprove(approval)}
-                          disabled={processing === approval.closing.id}
-                        >
-                          {processing === approval.closing.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <>
-                              <CheckCircle className="h-4 w-4 mr-1" />
-                              Schváliť
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CollapsibleContent>
-                    <CardContent className="pt-0">
-                      <div className="space-y-2">
-                        {approval.records.map((record) => (
-                          <div
-                            key={record.id}
-                            className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">
-                                  {format(new Date(record.date), "EEEE, d. MMM", { locale: sk })}
-                                </span>
-                              </div>
-                              <p className="text-sm text-muted-foreground">
-                                {record.projects?.name || "—"} • {record.time_from} - {record.time_to}
-                                {record.note && ` • ${record.note}`}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <span className="font-semibold">{Number(record.total_hours) || 0}h</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </CollapsibleContent>
-                </Collapsible>
-              </Card>
-            );
-          })}
+          {recentlyApproved.length > 0 && (
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+              Čakajúce na schválenie
+            </h3>
+          )}
+          {pendingApprovals.map((approval) => renderApprovalCard(approval, false))}
         </div>
       )}
 
@@ -405,11 +492,7 @@ export default function Approvals() {
             <Button variant="outline" onClick={() => setReturnDialogOpen(false)}>
               Zrušiť
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleReturn}
-              disabled={!returnComment.trim()}
-            >
+            <Button variant="destructive" onClick={handleReturn} disabled={!returnComment.trim()}>
               Vrátiť
             </Button>
           </DialogFooter>
