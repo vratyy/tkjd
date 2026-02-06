@@ -36,10 +36,12 @@ interface PerformanceRecord {
   time_to: string;
   break_start: string | null;
   break_end: string | null;
+  break2_start: string | null;
+  break2_end: string | null;
   total_hours: number;
   status: string;
   note: string | null;
-  projects: { name: string } | null;
+  projects: { name: string; address: string | null; location: string | null } | null;
 }
 
 interface WeeklyClosing {
@@ -97,7 +99,7 @@ export default function LockWeeks() {
       
       const { data: records } = await supabase
         .from("performance_records")
-        .select("id, date, time_from, time_to, break_start, break_end, total_hours, status, note, projects(name)")
+        .select("id, date, time_from, time_to, break_start, break_end, break2_start, break2_end, total_hours, status, note, projects(name, address, location)")
         .eq("user_id", closing.user_id)
         .eq("status", "approved")
         .is("deleted_at", null);
@@ -176,6 +178,7 @@ export default function LockWeeks() {
     const projectName = projectNames.join(", ") || "Neznámy projekt";
 
     try {
+      const firstProject = week.records.find((r) => r.projects)?.projects;
       await exportWeeklyRecordsToExcel({
         records: week.records.map((r) => ({
           date: r.date,
@@ -183,10 +186,13 @@ export default function LockWeeks() {
           time_to: r.time_to,
           break_start: r.break_start,
           break_end: r.break_end,
+          break2_start: r.break2_start,
+          break2_end: r.break2_end,
           total_hours: r.total_hours,
           note: r.note,
         })),
         projectName,
+        projectAddress: firstProject?.address || firstProject?.location || null,
         workerName: week.closing.profiles?.full_name || "Neznámy používateľ",
         calendarWeek: week.closing.calendar_week,
         year: week.closing.year,

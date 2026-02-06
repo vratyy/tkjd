@@ -11,6 +11,8 @@ interface StundenzettelRecord {
   time_to: string;
   break_start: string | null;
   break_end: string | null;
+  break2_start?: string | null;
+  break2_end?: string | null;
   total_hours: number;
   note?: string | null;
 }
@@ -269,16 +271,24 @@ export async function exportStundenzettelToExcel(params: StundenzettelParams): P
     beginCell.alignment = { horizontal: "center", vertical: "middle" };
     beginCell.border = thinBorder;
 
-    // Pause Von (break start)
+    // Pause Von (break start) - combined format: "10:00 / 13:00"
     const pauseVonCell = ws.getCell(`C${rowNum}`);
-    pauseVonCell.value = record?.break_start ? formatTime(record.break_start) : "";
+    const pauseVonParts = [
+      record?.break_start ? formatTime(record.break_start) : "",
+      record?.break2_start ? formatTime(record.break2_start) : "",
+    ].filter(Boolean);
+    pauseVonCell.value = pauseVonParts.join(" / ");
     pauseVonCell.font = { size: 10, color: BLUE_COLOR };
     pauseVonCell.alignment = { horizontal: "center", vertical: "middle" };
     pauseVonCell.border = thinBorder;
 
-    // Pause Bis (break end)
+    // Pause Bis (break end) - combined format: "10:30 / 13:30"
     const pauseBisCell = ws.getCell(`D${rowNum}`);
-    pauseBisCell.value = record?.break_end ? formatTime(record.break_end) : "";
+    const pauseBisParts = [
+      record?.break_end ? formatTime(record.break_end) : "",
+      record?.break2_end ? formatTime(record.break2_end) : "",
+    ].filter(Boolean);
+    pauseBisCell.value = pauseBisParts.join(" / ");
     pauseBisCell.font = { size: 10, color: BLUE_COLOR };
     pauseBisCell.alignment = { horizontal: "center", vertical: "middle" };
     pauseBisCell.border = thinBorder;
@@ -554,12 +564,20 @@ export async function exportMultipleStundenzettelsToExcel(
       ws.getCell(`B${rowNum}`).alignment = { horizontal: "center", vertical: "middle" };
       ws.getCell(`B${rowNum}`).border = thinBorder;
 
-      ws.getCell(`C${rowNum}`).value = record?.break_start ? formatTime(record.break_start) : "";
+      const pauseVonParts = [
+        record?.break_start ? formatTime(record.break_start) : "",
+        record?.break2_start ? formatTime(record.break2_start) : "",
+      ].filter(Boolean);
+      ws.getCell(`C${rowNum}`).value = pauseVonParts.join(" / ");
       ws.getCell(`C${rowNum}`).font = { size: 10, color: BLUE_COLOR };
       ws.getCell(`C${rowNum}`).alignment = { horizontal: "center", vertical: "middle" };
       ws.getCell(`C${rowNum}`).border = thinBorder;
 
-      ws.getCell(`D${rowNum}`).value = record?.break_end ? formatTime(record.break_end) : "";
+      const pauseBisParts = [
+        record?.break_end ? formatTime(record.break_end) : "",
+        record?.break2_end ? formatTime(record.break2_end) : "",
+      ].filter(Boolean);
+      ws.getCell(`D${rowNum}`).value = pauseBisParts.join(" / ");
       ws.getCell(`D${rowNum}`).font = { size: 10, color: BLUE_COLOR };
       ws.getCell(`D${rowNum}`).alignment = { horizontal: "center", vertical: "middle" };
       ws.getCell(`D${rowNum}`).border = thinBorder;
