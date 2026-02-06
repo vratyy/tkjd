@@ -35,10 +35,12 @@ interface PerformanceRecord {
   time_to: string;
   break_start: string | null;
   break_end: string | null;
+  break2_start: string | null;
+  break2_end: string | null;
   total_hours: number;
   status: string;
   note: string | null;
-  projects: { name: string; client: string; location: string | null } | null;
+  projects: { name: string; client: string; location: string | null; address: string | null } | null;
 }
 
 interface WeekGroup {
@@ -98,7 +100,7 @@ export default function WeeklyClosings() {
     // Fetch all records for the user
     const { data: records, error: recordsError } = await supabase
       .from("performance_records")
-      .select("id, date, time_from, time_to, break_start, break_end, total_hours, status, note, projects(name, client, location)")
+      .select("id, date, time_from, time_to, break_start, break_end, break2_start, break2_end, total_hours, status, note, projects(name, client, location, address)")
       .eq("user_id", user.id)
       .is("deleted_at", null)
       .order("date", { ascending: false });
@@ -287,6 +289,7 @@ export default function WeeklyClosings() {
     const projectName = projectNames.join(", ") || "Neznámy projekt";
 
     try {
+      const firstProject = group.records.find((r) => r.projects)?.projects;
       await exportWeeklyRecordsToExcel({
         records: group.records.map((r) => ({
           date: r.date,
@@ -294,10 +297,13 @@ export default function WeeklyClosings() {
           time_to: r.time_to,
           break_start: r.break_start,
           break_end: r.break_end,
+          break2_start: r.break2_start,
+          break2_end: r.break2_end,
           total_hours: r.total_hours,
           note: r.note,
         })),
         projectName,
+        projectAddress: firstProject?.address || firstProject?.location || null,
         workerName: userProfile?.full_name || "Neznámy používateľ",
         calendarWeek: group.week,
         year: group.year,
@@ -331,6 +337,8 @@ export default function WeeklyClosings() {
           time_to: r.time_to,
           break_start: r.break_start,
           break_end: r.break_end,
+          break2_start: r.break2_start,
+          break2_end: r.break2_end,
           total_hours: r.total_hours,
           note: r.note,
         })),
