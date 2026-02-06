@@ -203,15 +203,6 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   doc.setTextColor(40, 40, 40);
   doc.text(`FAKTURA ${invoiceNumber}`, pageWidth - margin, 22, { align: "right" });
 
-  // Worker ID in BOLD RED (critical requirement)
-  if (data.workerId) {
-    doc.setFontSize(11);
-    setFontStyle(doc, "bold");
-    doc.setTextColor(220, 38, 38); // Red color
-    doc.text(`ID: ${data.workerId}`, pageWidth - margin, 30, { align: "right" });
-    doc.setTextColor(40, 40, 40); // Reset
-  }
-
   // ============================================================================
   // ADDRESS BLOCKS (Two Columns with Grey Labels)
   // ============================================================================
@@ -268,6 +259,19 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
     supY += 5;
   } else if (data.vatNumber) {
     doc.text(`IC DPH: ${data.vatNumber}`, margin, supY);
+    supY += 5;
+  }
+
+  // Worker ID / Contract Number in BOLD RED (critical B2B requirement)
+  if (data.workerId || data.contractNumber) {
+    supY += 2;
+    doc.setFontSize(10);
+    setFontStyle(doc, "bold");
+    doc.setTextColor(220, 38, 38); // Red color - visible in print
+    doc.text(`Cislo pracovnika: ${safeText(data.workerId || data.contractNumber || "")}`, margin, supY);
+    doc.setTextColor(50, 50, 50); // Reset
+    setFontStyle(doc, "normal");
+    doc.setFontSize(9);
     supY += 5;
   }
 
