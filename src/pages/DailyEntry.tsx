@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +52,7 @@ interface TodayRecord {
 
 export default function DailyEntry() {
   const { user } = useAuth();
+  const { isAdmin } = useUserRole();
   const { toast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -443,6 +445,8 @@ export default function DailyEntry() {
             <div className="space-y-3">
               {todayRecords.map((record) => {
                 const inGrace = record.status === "draft" && isWithinGracePeriod(record.created_at, 5);
+                const canEdit = isAdmin || inGrace;
+                const canDelete = isAdmin || inGrace;
 
                 return (
                   <div
@@ -457,32 +461,36 @@ export default function DailyEntry() {
                           {record.projects?.name || "—"}
                         </span>
                         <StatusBadge status={record.status as any} />
-                        {inGrace && <GraceCountdown createdAt={record.created_at} durationMinutes={5} />}
+                        {!isAdmin && inGrace && <GraceCountdown createdAt={record.created_at} durationMinutes={5} />}
                       </div>
                       <p className="text-sm text-muted-foreground">
                         {record.time_from} - {record.time_to} • {Number(record.total_hours) || 0}h
                         {record.note && ` • ${record.note}`}
                       </p>
                     </div>
-                    {inGrace && (
+                    {(canEdit || canDelete) && (
                       <div className="flex items-center gap-1 ml-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleEdit(record)}
-                          title="Upraviť"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => { setDeletingId(record.id); setDeleteDialogOpen(true); }}
-                          title="Zmazať"
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {canEdit && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleEdit(record)}
+                            title="Upraviť"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canDelete && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => { setDeletingId(record.id); setDeleteDialogOpen(true); }}
+                            title="Zmazať"
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
