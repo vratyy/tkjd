@@ -15,9 +15,10 @@ import { InvoiceStatusDropdown } from "./InvoiceStatusDropdown";
 import { MobileInvoiceCard } from "@/components/mobile/MobileInvoiceCard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Eye, Lock, Unlock } from "lucide-react";
+import { AlertTriangle, Eye, Lock, Unlock, BookCheck, BookX } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useUserRole } from "@/hooks/useUserRole";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
 
@@ -38,6 +39,7 @@ interface Invoice {
   advance_deduction: number;
   is_locked?: boolean;
   locked_at?: string | null;
+  is_accounted?: boolean;
   profile?: {
     full_name: string;
     company_name: string | null;
@@ -59,8 +61,10 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [lockingId, setLockingId] = useState<string | null>(null);
+  const [accountingId, setAccountingId] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const { toast } = useToast();
+  const { isAdmin } = useUserRole();
 
   const formatAmount = (amount: number) => {
     const safeAmount = Number(amount) || 0;
@@ -154,6 +158,35 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
       });
     } finally {
       setLockingId(null);
+    }
+  };
+
+  const handleToggleAccounted = async (invoiceId: string, currentlyAccounted: boolean) => {
+    setAccountingId(invoiceId);
+    try {
+      const { error } = await supabase
+        .from("invoices")
+        .update({ is_accounted: !currentlyAccounted })
+        .eq("id", invoiceId);
+
+      if (error) throw error;
+
+      toast({
+        title: currentlyAccounted ? "Faktúra vyradená zo štatistík" : "Faktúra zaevidovaná",
+        description: currentlyAccounted
+          ? "Faktúra už nebude započítaná do finančného prehľadu."
+          : "Faktúra bola zaevidovaná do finančného prehľadu.",
+      });
+
+      onRefresh();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Chyba",
+        description: error.message,
+      });
+    } finally {
+      setAccountingId(null);
     }
   };
 
@@ -270,6 +303,21 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
+                          {isAdmin && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleToggleAccounted(invoice.id, invoice.is_accounted || false)}
+                              disabled={accountingId === invoice.id}
+                              title={invoice.is_accounted ? "Vyradiť zo štatistík" : "Zaevidovať do prehľadu"}
+                            >
+                              {invoice.is_accounted ? (
+                                <BookCheck className="h-4 w-4 text-primary" />
+                              ) : (
+                                <BookX className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"

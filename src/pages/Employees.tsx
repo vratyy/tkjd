@@ -8,9 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Users, ChevronRight, ChevronDown, Download, Building2, Filter, Search, Edit2 } from "lucide-react";
+import { Loader2, Users, ChevronRight, ChevronDown, Download, Building2, Filter, Search, Edit2, UserX, UserCheck } from "lucide-react";
 import { Navigate } from "react-router-dom";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 
 interface Employee {
@@ -21,6 +21,7 @@ interface Employee {
   parent_user_id: string | null;
   fixed_wage: number | null;
   hourly_rate: number | null;
+  is_active: boolean;
   role?: string;
   invoices: {
     paid: number;
@@ -46,6 +47,10 @@ export default function Employees() {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [newParentId, setNewParentId] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  
+  // Deactivate dialog
+  const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false);
+  const [employeeToDeactivate, setEmployeeToDeactivate] = useState<Employee | null>(null);
 
   const fetchEmployees = async () => {
     try {
@@ -54,7 +59,7 @@ export default function Employees() {
       // Fetch all profiles with roles
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, user_id, full_name, company_name, parent_user_id, fixed_wage, hourly_rate")
+        .select("id, user_id, full_name, company_name, parent_user_id, fixed_wage, hourly_rate, is_active")
         .is("deleted_at", null);
         
       if (profilesError) throw profilesError;
@@ -99,6 +104,7 @@ export default function Employees() {
           parent_user_id: profile.parent_user_id,
           fixed_wage: profile.fixed_wage,
           hourly_rate: profile.hourly_rate,
+          is_active: profile.is_active ?? true,
           role: userRole?.role || "monter",
           invoices: {
             paid: paidInvoices.length,
@@ -226,6 +232,45 @@ export default function Employees() {
     }
   };
 
+  const handleDeactivateAccess = async () => {
+    if (!employeeToDeactivate) return;
+    setSaving(true);
+    
+    try {
+      const newActiveStatus = !employeeToDeactivate.is_active;
+      const { error } = await supabase
+        .from("profiles")
+        .update({ is_active: newActiveStatus })
+        .eq("user_id", employeeToDeactivate.user_id);
+        
+      if (error) throw error;
+      
+      toast({
+        title: newActiveStatus ? "Prístup obnovený" : "Prístup deaktivovaný",
+        description: newActiveStatus 
+          ? `Používateľ ${employeeToDeactivate.full_name} môže opäť pristupovať do systému.`
+          : `Používateľ ${employeeToDeactivate.full_name} už nemá prístup do systému.`,
+      });
+      
+      setDeactivateDialogOpen(false);
+      await fetchEmployees();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Chyba",
+        description: error.message,
+      });
+    } finally {
+      setSaving(false);
+      setEmployeeToDeactivate(null);
+    }
+  };
+
+  const openDeactivateDialog = (employee: Employee) => {
+    setEmployeeToDeactivate(employee);
+    setDeactivateDialogOpen(true);
+  };
+
   const handleDownloadAllInvoices = async (employee: Employee) => {
     toast({
       title: "Príprava súboru",
@@ -274,10 +319,17 @@ export default function Employees() {
           
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-medium truncate">{node.full_name}</span>
+              <span className={`font-medium truncate ${!node.is_active ? "text-muted-foreground line-through" : ""}`}>
+                {node.full_name}
+              </span>
               <Badge className={getRoleBadgeColor(node.role || "monter")} variant="secondary">
                 {node.role}
               </Badge>
+              {!node.is_active && (
+                <Badge variant="outline" className="text-destructive border-destructive">
+                  Neaktívny
+                </Badge>
+              )}
             </div>
             {node.company_name && (
               <p className="text-sm text-muted-foreground truncate">{node.company_name}</p>
@@ -300,6 +352,18 @@ export default function Employees() {
           </div>
           
           <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => openDeactivateDialog(node)}
+              title={node.is_active ? "Deaktivovať prístup" : "Obnoviť prístup"}
+            >
+              {node.is_active ? (
+                <UserX className="h-4 w-4 text-destructive" />
+              ) : (
+                <UserCheck className="h-4 w-4 text-primary" />
+              )}
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -442,6 +506,44 @@ export default function Employees() {
             <Button onClick={handleSaveParent} disabled={saving}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Uložiť
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deactivate Access Dialog */}
+      <Dialog open={deactivateDialogOpen} onOpenChange={setDeactivateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {employeeToDeactivate?.is_active ? "Deaktivovať prístup" : "Obnoviť prístup"}
+            </DialogTitle>
+            <DialogDescription>
+              {employeeToDeactivate?.is_active 
+                ? "Používateľ stratí prístup do systému, ale jeho historické údaje (faktúry, záznamy) zostanú zachované."
+                : "Používateľ získa opätovný prístup do systému."
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm">
+              {employeeToDeactivate?.is_active ? "Deaktivujete" : "Aktivujete"} prístup pre: <strong>{employeeToDeactivate?.full_name}</strong>
+            </p>
+            {employeeToDeactivate?.company_name && (
+              <p className="text-sm text-muted-foreground">{employeeToDeactivate.company_name}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeactivateDialogOpen(false)}>
+              Zrušiť
+            </Button>
+            <Button 
+              variant={employeeToDeactivate?.is_active ? "destructive" : "default"}
+              onClick={handleDeactivateAccess} 
+              disabled={saving}
+            >
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {employeeToDeactivate?.is_active ? "Deaktivovať" : "Aktivovať"}
             </Button>
           </DialogFooter>
         </DialogContent>

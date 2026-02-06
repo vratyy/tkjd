@@ -20,6 +20,7 @@ import FinancialDashboard from "./pages/FinancialDashboard";
 import Accommodations from "./pages/Accommodations";
 import Employees from "./pages/Employees";
 import Sanctions from "./pages/Sanctions";
+import CalendarPage from "./pages/Calendar";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,6 +49,7 @@ const App = () => (
               <Route path="/accommodations" element={<Accommodations />} />
               <Route path="/employees" element={<Employees />} />
               <Route path="/sanctions" element={<Sanctions />} />
+              <Route path="/calendar" element={<CalendarPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

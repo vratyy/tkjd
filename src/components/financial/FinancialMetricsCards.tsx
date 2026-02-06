@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FileText, Clock, AlertTriangle, CheckCircle2, BookCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface MetricsData {
@@ -8,6 +9,8 @@ interface MetricsData {
   pendingPayment: { count: number; amount: number };
   overdue: { count: number; amount: number };
   paid: { count: number; amount: number };
+  accountedTotal?: { count: number; amount: number };
+  accountedPaid?: { count: number; amount: number };
 }
 
 interface FinancialMetricsCardsProps {
@@ -79,24 +82,76 @@ export function FinancialMetricsCards({ data, loading }: FinancialMetricsCardsPr
     );
   }
 
+  const accountedMetrics = [
+    {
+      title: "Zaevidované faktúry",
+      icon: BookCheck,
+      count: data?.accountedTotal?.count ?? 0,
+      amount: data?.accountedTotal?.amount ?? 0,
+      className: "border-l-4 border-l-primary",
+      iconClassName: "text-primary",
+    },
+    {
+      title: "Zaplatené (evidované)",
+      icon: CheckCircle2,
+      count: data?.accountedPaid?.count ?? 0,
+      amount: data?.accountedPaid?.amount ?? 0,
+      className: "border-l-4 border-l-green-500",
+      iconClassName: "text-green-500",
+    },
+  ];
+
   return (
-    <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-      {metrics.map((metric) => (
-        <Card key={metric.title} className={cn(metric.className)}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
-            <CardTitle className="text-xs md:text-sm font-medium truncate pr-2">{metric.title}</CardTitle>
-            <metric.icon className={cn("h-4 w-4 flex-shrink-0", metric.iconClassName)} />
-          </CardHeader>
-          <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
-            <div className={cn("text-lg md:text-2xl font-bold", metric.valueClassName)}>
-              {formatAmount(metric.amount)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {metric.count} {metric.count === 1 ? "faktúra" : metric.count < 5 ? "faktúry" : "faktúr"}
-            </p>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+    <Tabs defaultValue="all" className="w-full">
+      <TabsList className="mb-4">
+        <TabsTrigger value="all">Všetky faktúry</TabsTrigger>
+        <TabsTrigger value="accounted">Zaevidované</TabsTrigger>
+      </TabsList>
+      
+      <TabsContent value="all">
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+          {metrics.map((metric) => (
+            <Card key={metric.title} className={cn(metric.className)}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
+                <CardTitle className="text-xs md:text-sm font-medium truncate pr-2">{metric.title}</CardTitle>
+                <metric.icon className={cn("h-4 w-4 flex-shrink-0", metric.iconClassName)} />
+              </CardHeader>
+              <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
+                <div className={cn("text-lg md:text-2xl font-bold", metric.valueClassName)}>
+                  {formatAmount(metric.amount)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {metric.count} {metric.count === 1 ? "faktúra" : metric.count < 5 ? "faktúry" : "faktúr"}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </TabsContent>
+      
+      <TabsContent value="accounted">
+        <div className="grid gap-3 grid-cols-2">
+          {accountedMetrics.map((metric) => (
+            <Card key={metric.title} className={cn(metric.className)}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
+                <CardTitle className="text-xs md:text-sm font-medium truncate pr-2">{metric.title}</CardTitle>
+                <metric.icon className={cn("h-4 w-4 flex-shrink-0", metric.iconClassName)} />
+              </CardHeader>
+              <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
+                <div className="text-lg md:text-2xl font-bold">
+                  {formatAmount(metric.amount)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {metric.count} {metric.count === 1 ? "faktúra" : metric.count < 5 ? "faktúry" : "faktúr"}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground mt-3">
+          * Tieto štatistiky zahŕňajú iba faktúry, ktoré boli manuálne zaevidované do prehľadu administrátorom.
+        </p>
+      </TabsContent>
+    </Tabs>
   );
 }

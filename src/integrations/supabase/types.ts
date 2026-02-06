@@ -170,6 +170,7 @@ export type Database = {
           hourly_rate: number
           id: string
           invoice_number: string
+          is_accounted: boolean
           is_locked: boolean
           is_reverse_charge: boolean
           issue_date: string
@@ -204,6 +205,7 @@ export type Database = {
           hourly_rate?: number
           id?: string
           invoice_number: string
+          is_accounted?: boolean
           is_locked?: boolean
           is_reverse_charge?: boolean
           issue_date?: string
@@ -238,6 +240,7 @@ export type Database = {
           hourly_rate?: number
           id?: string
           invoice_number?: string
+          is_accounted?: boolean
           is_locked?: boolean
           is_reverse_charge?: boolean
           issue_date?: string
@@ -359,6 +362,7 @@ export type Database = {
           iban: string | null
           ico: string | null
           id: string
+          is_active: boolean
           is_vat_payer: boolean
           parent_user_id: string | null
           signature_url: string | null
@@ -380,6 +384,7 @@ export type Database = {
           iban?: string | null
           ico?: string | null
           id?: string
+          is_active?: boolean
           is_vat_payer?: boolean
           parent_user_id?: string | null
           signature_url?: string | null
@@ -401,6 +406,7 @@ export type Database = {
           iban?: string | null
           ico?: string | null
           id?: string
+          is_active?: boolean
           is_vat_payer?: boolean
           parent_user_id?: string | null
           signature_url?: string | null
