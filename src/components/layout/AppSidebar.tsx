@@ -6,7 +6,8 @@ import {
   LayoutDashboard,
   ClipboardList,
   FolderOpen,
-  Calendar,
+  CalendarDays,
+  FileText,
   CheckCircle,
   Lock,
   Users,
@@ -41,7 +42,8 @@ interface NavItem {
 const mainNavItems: NavItem[] = [
   { title: "Prehľad", url: "/dashboard", icon: LayoutDashboard },
   { title: "Môj Výkaz", url: "/daily-entry", icon: ClipboardList },
-  { title: "Faktúry", url: "/weekly-closings", icon: Calendar },
+  { title: "Kalendár", url: "/calendar", icon: CalendarDays },
+  { title: "Faktúry", url: "/weekly-closings", icon: FileText },
   { title: "Profil", url: "/profile", icon: UserCircle },
 ];
 

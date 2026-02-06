@@ -7,6 +7,9 @@ interface MetricsData {
   pendingPayment: { count: number; amount: number };
   overdue: { count: number; amount: number };
   paid: { count: number; amount: number };
+  // Accounted metrics (only is_accounted = true)
+  accountedTotal: { count: number; amount: number };
+  accountedPaid: { count: number; amount: number };
 }
 
 interface Invoice {
@@ -26,6 +29,7 @@ interface Invoice {
   advance_deduction: number;
   is_locked: boolean;
   locked_at: string | null;
+  is_accounted: boolean;
   profile?: {
     full_name: string;
     company_name: string | null;
@@ -94,7 +98,20 @@ export function useFinancialData() {
       amount: pendingInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
     };
 
-    return { totalInvoiced, pendingPayment, overdue, paid };
+    // Accounted metrics - only invoices with is_accounted = true
+    const accountedInvoices = activeInvoices.filter((inv) => inv.is_accounted === true);
+    const accountedTotal = {
+      count: accountedInvoices.length,
+      amount: accountedInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
+    };
+    
+    const accountedPaidInvoices = accountedInvoices.filter((inv) => getEffectiveStatus(inv) === "paid");
+    const accountedPaid = {
+      count: accountedPaidInvoices.length,
+      amount: accountedPaidInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
+    };
+
+    return { totalInvoiced, pendingPayment, overdue, paid, accountedTotal, accountedPaid };
   }, []);
 
   const fetchInvoices = useCallback(async () => {
@@ -131,6 +148,7 @@ export function useFinancialData() {
             advance_deduction: inv.advance_deduction ?? 0,
             is_locked: inv.is_locked ?? false,
             locked_at: inv.locked_at ?? null,
+            is_accounted: inv.is_accounted ?? false,
             profile: profile || undefined,
             project: inv.project || undefined 
           } as Invoice;
