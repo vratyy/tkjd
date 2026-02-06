@@ -8,8 +8,6 @@ import { MobileRecordCard } from "@/components/mobile/MobileRecordCard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, Calendar, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Clock, Undo2 } from "lucide-react";
-import { GraceCountdown } from "@/components/GraceCountdown";
-import { isWithinGracePeriod } from "@/hooks/useGracePeriod";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
 import { parseLocalDate, getISOWeekLocal, getISOWeekYear } from "@/lib/dateUtils";
@@ -470,8 +468,8 @@ export default function WeeklyClosings() {
                           </CardDescription>
                         </div>
                         <StatusBadge status={group.closingStatus as any} />
-                        {group.closingStatus === "submitted" && isWithinGracePeriod(group.submittedAt, 5) && (
-                          <GraceCountdown createdAt={group.submittedAt} durationMinutes={5} label="Možnosť zrušenia odoslania vyprší" />
+                        {group.closingStatus === "submitted" && (
+                          <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">Čaká na schválenie</span>
                         )}
                       </div>
                       
@@ -529,7 +527,7 @@ export default function WeeklyClosings() {
                             )}
                           </Button>
                         )}
-                        {group.closingStatus === "submitted" && isWithinGracePeriod(group.submittedAt, 5) && (
+                        {group.closingStatus === "submitted" && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -542,7 +540,7 @@ export default function WeeklyClosings() {
                             ) : (
                               <>
                                 <Undo2 className="h-4 w-4 sm:mr-2" />
-                                <span className="hidden sm:inline">Vrátiť späť</span>
+                                <span className="hidden sm:inline">Stiahnuť na úpravu</span>
                               </>
                             )}
                           </Button>
@@ -606,7 +604,7 @@ export default function WeeklyClosings() {
                           )}
                         </Button>
                       )}
-                      {group.closingStatus === "submitted" && isWithinGracePeriod(group.submittedAt, 5) && (
+                      {group.closingStatus === "submitted" && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -619,7 +617,7 @@ export default function WeeklyClosings() {
                           ) : (
                             <>
                               <Undo2 className="h-4 w-4 mr-2" />
-                              Vrátiť späť
+                              Stiahnuť na úpravu
                             </>
                           )}
                         </Button>
