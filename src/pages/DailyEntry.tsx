@@ -122,9 +122,37 @@ export default function DailyEntry() {
 
   const handleTimeFromChange = (value: string) => { setTimeFrom(value); setIsManualOverride(false); };
   const handleTimeToChange = (value: string) => { setTimeTo(value); setIsManualOverride(false); };
-  const handleBreakStartChange = (value: string) => { setBreakStart(value); setIsManualOverride(false); };
+
+  /** Auto-suggest +30 min for break end when break start is entered */
+  const addMinutes = (time: string, mins: number): string => {
+    const [h, m] = time.split(":").map(Number);
+    const total = h * 60 + m + mins;
+    const newH = Math.floor(total / 60) % 24;
+    const newM = total % 60;
+    return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
+  };
+
+  const handleBreakStartChange = (value: string) => {
+    setBreakStart(value);
+    // Auto-suggest end = start + 30 min (user can still change it)
+    if (value && !breakEnd) {
+      setBreakEnd(addMinutes(value, 30));
+    } else if (value) {
+      // If end already set but user changed start, suggest new end
+      setBreakEnd(addMinutes(value, 30));
+    }
+    setIsManualOverride(false);
+  };
   const handleBreakEndChange = (value: string) => { setBreakEnd(value); setIsManualOverride(false); };
-  const handleBreak2StartChange = (value: string) => { setBreak2Start(value); setIsManualOverride(false); };
+
+  const handleBreak2StartChange = (value: string) => {
+    setBreak2Start(value);
+    // Auto-suggest end = start + 30 min (user can still change it)
+    if (value) {
+      setBreak2End(addMinutes(value, 30));
+    }
+    setIsManualOverride(false);
+  };
   const handleBreak2EndChange = (value: string) => { setBreak2End(value); setIsManualOverride(false); };
 
   const fetchTodayRecords = useCallback(async () => {
@@ -311,29 +339,29 @@ export default function DailyEntry() {
 
               {/* Time From */}
               <div className="space-y-2">
-                <Label htmlFor="timeFrom">Von (začiatok)</Label>
+                <Label htmlFor="timeFrom">Začiatok práce</Label>
                 <Input id="timeFrom" type="time" value={timeFrom} onChange={e => handleTimeFromChange(e.target.value)} required />
               </div>
 
               {/* Time To */}
               <div className="space-y-2">
-                <Label htmlFor="timeTo">Bis (koniec)</Label>
+                <Label htmlFor="timeTo">Koniec práce</Label>
                 <Input id="timeTo" type="time" value={timeTo} onChange={e => handleTimeToChange(e.target.value)} required />
               </div>
 
               {/* Break 1 */}
               <div className="space-y-2">
-                <Label htmlFor="breakStart">Prestávka 1 od</Label>
+                <Label htmlFor="breakStart">1. prestávka – od</Label>
                 <Input id="breakStart" type="time" value={breakStart} onChange={e => handleBreakStartChange(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="breakEnd">Prestávka 1 do</Label>
+                <Label htmlFor="breakEnd">1. prestávka – do</Label>
                 <Input id="breakEnd" type="time" value={breakEnd} onChange={e => handleBreakEndChange(e.target.value)} />
               </div>
 
               {/* Break 2 */}
               <div className="space-y-2">
-                <Label htmlFor="break2Start">Prestávka 2 od (voliteľné)</Label>
+                <Label htmlFor="break2Start">2. prestávka – od</Label>
                 <div className="flex gap-2">
                   <Input id="break2Start" type="time" value={break2Start} onChange={e => handleBreak2StartChange(e.target.value)} className="flex-1" />
                   {break2Start && (
@@ -342,7 +370,7 @@ export default function DailyEntry() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="break2End">Prestávka 2 do (voliteľné)</Label>
+                <Label htmlFor="break2End">2. prestávka – do</Label>
                 <div className="flex gap-2">
                   <Input id="break2End" type="time" value={break2End} onChange={e => handleBreak2EndChange(e.target.value)} className="flex-1" />
                   {break2End && (
