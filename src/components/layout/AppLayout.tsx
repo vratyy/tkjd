@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { LogOut, Menu, Loader2, Building2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { AnnouncementModal } from "@/components/announcements/AnnouncementModal";
 
 export function AppLayout() {
   const { user, loading, signOut } = useAuth();
@@ -32,6 +33,7 @@ export function AppLayout() {
 
   return (
     <SidebarProvider>
+      <AnnouncementModal />
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">

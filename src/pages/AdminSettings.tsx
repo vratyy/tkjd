@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Database, Shield, FolderPlus, FileCheck, Download, Trash2, AlertTriangle } from "lucide-react";
+import { CreateAnnouncementCard } from "@/components/announcements/CreateAnnouncementCard";
 import { Navigate } from "react-router-dom";
 import { addDays, format, startOfWeek, getISOWeek, getYear } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
@@ -343,6 +344,10 @@ export default function AdminSettings() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Announcement System */}
+      <CreateAnnouncementCard />
+
 
       {/* Danger Zone */}
       <Card className="border-2 border-destructive/50">
