@@ -11,12 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import { TaxPaymentStatusBadge } from "./TaxPaymentStatusBadge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Calculator, CheckCircle2, ShieldCheck } from "lucide-react";
+import { Calculator, CheckCircle2, ShieldCheck, BookCheck, BookX } from "lucide-react";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
 
@@ -33,6 +34,7 @@ interface Invoice {
   tax_confirmed_at: string | null;
   tax_verified_at: string | null;
   advance_deduction: number;
+  is_accounted?: boolean;
   profile?: {
     full_name: string;
     company_name: string | null;
@@ -176,6 +178,35 @@ export function InvoiceDetailDialog({
 
   const isOwnInvoice = user?.id === invoice.user_id;
 
+  const handleToggleAccounted = async () => {
+    setUpdating(true);
+    try {
+      const { error } = await supabase
+        .from("invoices")
+        .update({ is_accounted: !invoice.is_accounted })
+        .eq("id", invoice.id);
+
+      if (error) throw error;
+
+      toast({
+        title: invoice.is_accounted ? "Faktúra vyradená zo štatistík" : "Faktúra zaevidovaná",
+        description: invoice.is_accounted
+          ? "Faktúra už nebude započítaná do finančného prehľadu."
+          : "Faktúra bola zaevidovaná do finančného prehľadu.",
+      });
+      onUpdate();
+    } catch (error) {
+      console.error("Error toggling accounted status:", error);
+      toast({
+        title: "Chyba",
+        description: "Nepodarilo sa zmeniť stav evidencie",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
@@ -273,9 +304,54 @@ export function InvoiceDetailDialog({
               </p>
             )}
           </div>
+          <Separator />
+
+          {/* Accounting Status */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-base font-medium">Evidencia v prehľade</Label>
+              {invoice.is_accounted ? (
+                <Badge variant="default" className="bg-green-600 hover:bg-green-700 gap-1">
+                  <BookCheck className="h-3 w-3" />
+                  Zaevidované
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-muted-foreground gap-1">
+                  <BookX className="h-3 w-3" />
+                  Nezaevidované
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {invoice.is_accounted
+                ? "Táto faktúra je započítaná do finančného prehľadu."
+                : "Táto faktúra nie je započítaná do finančného prehľadu."}
+            </p>
+          </div>
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
+          {/* Admin can toggle accounting status */}
+          {isAdmin && (
+            <Button
+              onClick={handleToggleAccounted}
+              disabled={updating}
+              variant={invoice.is_accounted ? "outline" : "default"}
+              className="gap-2"
+            >
+              {invoice.is_accounted ? (
+                <>
+                  <BookX className="h-4 w-4" />
+                  Odeevidovať
+                </>
+              ) : (
+                <>
+                  <BookCheck className="h-4 w-4" />
+                  Zaevidovať do prehľadu
+                </>
+              )}
+            </Button>
+          )}
           {/* Subcontractor can confirm payment */}
           {isOwnInvoice && invoice.tax_payment_status === "pending" && (
             <Button
