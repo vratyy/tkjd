@@ -11,6 +11,16 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Users, ChevronRight, ChevronDown, Download, Building2, Filter, Search, Edit2, UserX, UserCheck } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { UserDetailModal } from "@/components/employees/UserDetailModal";
 
@@ -523,43 +533,32 @@ export default function Employees() {
         </DialogContent>
       </Dialog>
 
-      {/* Deactivate Access Dialog */}
-      <Dialog open={deactivateDialogOpen} onOpenChange={setDeactivateDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {employeeToDeactivate?.is_active ? "Deaktivovať prístup" : "Obnoviť prístup"}
-            </DialogTitle>
-            <DialogDescription>
-              {employeeToDeactivate?.is_active 
-                ? "Používateľ stratí prístup do systému, ale jeho historické údaje (faktúry, záznamy) zostanú zachované."
-                : "Používateľ získa opätovný prístup do systému."
-              }
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm">
-              {employeeToDeactivate?.is_active ? "Deaktivujete" : "Aktivujete"} prístup pre: <strong>{employeeToDeactivate?.full_name}</strong>
-            </p>
-            {employeeToDeactivate?.company_name && (
-              <p className="text-sm text-muted-foreground">{employeeToDeactivate.company_name}</p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeactivateDialogOpen(false)}>
-              Zrušiť
-            </Button>
-            <Button 
-              variant={employeeToDeactivate?.is_active ? "destructive" : "default"}
-              onClick={handleDeactivateAccess} 
+      {/* Deactivate/Activate Access - AlertDialog */}
+      <AlertDialog open={deactivateDialogOpen} onOpenChange={setDeactivateDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {employeeToDeactivate?.is_active ? "Deaktivácia používateľa" : "Aktivácia používateľa"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {employeeToDeactivate?.is_active
+                ? `Naozaj chcete odobrať prístup používateľovi ${employeeToDeactivate?.full_name}? Táto akcia mu znemožní prihlásenie, ale jeho dáta ostanú v systéme.`
+                : `Naozaj chcete obnoviť prístup používateľovi ${employeeToDeactivate?.full_name}? Používateľ sa bude môcť opäť prihlásiť do systému.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving}>Zrušiť</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeactivateAccess}
               disabled={saving}
+              className={employeeToDeactivate?.is_active ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
             >
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {employeeToDeactivate?.is_active ? "Deaktivovať" : "Aktivovať"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              {employeeToDeactivate?.is_active ? "Potvrdiť" : "Aktivovať"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* User Detail Modal */}
       <UserDetailModal
