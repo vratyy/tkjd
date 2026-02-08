@@ -352,7 +352,7 @@ export async function exportWeeklyRecordsToExcel(params: ExportParams): Promise<
       fitToWidth: 1,
       fitToHeight: 0,
       margins: {
-        left: 0.4, right: 0.4,
+        left: 0.25, right: 0.25,
         top: 0.4, bottom: 0.4,
         header: 0.2, footer: 0.2,
       },
@@ -407,16 +407,16 @@ export async function exportMultipleWeeksToExcel(
     const sheetName = `KW${weekData.calendarWeek}_${weekData.workerName.slice(0, 15)}`.slice(0, 31);
     const ws = workbook.addWorksheet(sheetName, {
       pageSetup: {
-        paperSize: 9,
-        orientation: "portrait",
-        fitToPage: true,
-        fitToWidth: 1,
-        fitToHeight: 0,
-        margins: {
-          left: 0.4, right: 0.4,
-          top: 0.4, bottom: 0.4,
-          header: 0.2, footer: 0.2,
-        },
+      paperSize: 9,
+      orientation: "portrait",
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      margins: {
+        left: 0.25, right: 0.25,
+        top: 0.4, bottom: 0.4,
+        header: 0.2, footer: 0.2,
+      },
       },
     });
 
