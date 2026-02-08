@@ -22,7 +22,6 @@ import { isDateInWeek } from "@/lib/dateUtils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { GraceCountdown } from "@/components/GraceCountdown";
 import { isWithinGracePeriod } from "@/hooks/useGracePeriod";
-import { ProjectExportSection } from "@/components/approvals/ProjectExportSection";
 
 interface Profile {
   full_name: string;
@@ -433,9 +432,6 @@ export default function Approvals() {
         <h2 className="text-2xl font-bold text-foreground">Schvaľovanie</h2>
         <p className="text-muted-foreground">Čakajúce žiadosti na schválenie</p>
       </div>
-
-      {/* Consolidated Project Export */}
-      <ProjectExportSection />
 
       {/* Recently approved with undo */}
       {recentlyApproved.length > 0 && (
