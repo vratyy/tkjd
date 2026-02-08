@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,10 +8,11 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { MobileRecordCard } from "@/components/mobile/MobileRecordCard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, Calendar, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Clock, Undo2 } from "lucide-react";
+import { Loader2, Send, Calendar, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Clock, Undo2, Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
 import { parseLocalDate, getISOWeekLocal, getISOWeekYear } from "@/lib/dateUtils";
+import { useNavigate } from "react-router-dom";
 import {
   Collapsible,
   CollapsibleContent,
@@ -22,6 +24,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { exportWeeklyRecordsToExcel } from "@/lib/excelExport";
 import { exportStundenzettelToExcel } from "@/lib/stundenzettelExport";
 import { useInvoiceGeneration } from "@/hooks/useInvoiceGeneration";
@@ -54,13 +66,16 @@ interface WeekGroup {
 
 export default function WeeklyClosings() {
   const { user } = useAuth();
+  const { role, isAdmin } = useUserRole();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [weekGroups, setWeekGroups] = useState<WeekGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [openWeeks, setOpenWeeks] = useState<Set<string>>(new Set());
-  // Removed grace period tick — no longer needed
+  const [deleteRecordId, setDeleteRecordId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [userProfile, setUserProfile] = useState<{
     full_name: string;
     company_name: string | null;
@@ -78,6 +93,44 @@ export default function WeeklyClosings() {
   const [generatingKey, setGeneratingKey] = useState<string | null>(null);
 
   // Grace period tick removed
+
+  // Determine if record actions (edit/delete) should be shown for a record in a given week
+  const canEditDeleteRecord = (record: PerformanceRecord, closingStatus?: string) => {
+    const isOwner = true; // This page only shows the current user's records
+    const weekNotApproved = closingStatus !== "approved" && closingStatus !== "locked";
+    return (isOwner && weekNotApproved) || isAdmin;
+  };
+
+  const handleDeleteRecord = async () => {
+    if (!deleteRecordId) return;
+    setDeleting(true);
+    try {
+      const { error } = await supabase
+        .from("performance_records")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", deleteRecordId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Záznam vymazaný",
+        description: "Záznam bol úspešne odstránený.",
+      });
+      setDeleteRecordId(null);
+      await fetchData();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Chyba",
+        description: error.message,
+      });
+    }
+    setDeleting(false);
+  };
+
+  const handleEditRecord = (recordId: string, recordDate: string) => {
+    navigate(`/daily-entry?date=${recordDate}`);
+  };
 
   const fetchData = async () => {
     if (!user) return;
@@ -643,34 +696,62 @@ export default function WeeklyClosings() {
                             totalHours={record.total_hours}
                             status={record.status}
                             note={record.note}
+                            showActions={canEditDeleteRecord(record, group.closingStatus)}
+                            onEdit={() => handleEditRecord(record.id, record.date)}
+                            onDelete={(id) => setDeleteRecordId(id)}
                           />
                         ))}
                       </div>
                       
                       {/* Desktop: List view */}
                       <div className="hidden md:block space-y-2">
-                        {group.records.map((record) => (
-                          <div
-                            key={record.id}
-                            className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">
-                                  {format(new Date(record.date), "EEEE, d. MMM", { locale: sk })}
-                                </span>
-                                <StatusBadge status={record.status as any} />
+                        {group.records.map((record) => {
+                          const showActions = canEditDeleteRecord(record, group.closingStatus);
+                          return (
+                            <div
+                              key={record.id}
+                              className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">
+                                    {format(new Date(record.date), "EEEE, d. MMM", { locale: sk })}
+                                  </span>
+                                  <StatusBadge status={record.status as any} />
+                                </div>
+                                <p className="text-sm text-muted-foreground">
+                                  {record.projects?.name || "—"} • {record.time_from} - {record.time_to}
+                                  {record.note && ` • ${record.note}`}
+                                </p>
                               </div>
-                              <p className="text-sm text-muted-foreground">
-                                {record.projects?.name || "—"} • {record.time_from} - {record.time_to}
-                                {record.note && ` • ${record.note}`}
-                              </p>
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold">{record.total_hours}h</span>
+                                {showActions && (
+                                  <>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      onClick={() => handleEditRecord(record.id, record.date)}
+                                      title="Upraviť"
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-destructive hover:text-destructive"
+                                      onClick={() => setDeleteRecordId(record.id)}
+                                      title="Vymazať"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <span className="font-semibold">{record.total_hours}h</span>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </CardContent>
                   </CollapsibleContent>
@@ -680,6 +761,29 @@ export default function WeeklyClosings() {
           })}
         </div>
       )}
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteRecordId} onOpenChange={(open) => !open && setDeleteRecordId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Naozaj vymazať?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tento záznam bude trvalo odstránený. Túto akciu nie je možné vrátiť späť.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Zrušiť</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteRecord}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Vymazať
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
