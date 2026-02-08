@@ -104,7 +104,7 @@ export default function Approvals() {
     const userIds = [...new Set(allClosings.map(c => c.user_id))];
     
     const { data: profiles } = userIds.length > 0
-      ? await supabase.from("profiles").select("user_id, full_name, company_name").in("user_id", userIds)
+      ? await supabase.rpc("get_team_profiles_safe", { target_user_ids: userIds })
       : { data: [] };
 
     // Build pending approvals
