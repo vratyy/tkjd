@@ -14,6 +14,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Navigate } from "react-router-dom";
 import { exportWeeklyRecordsToExcel } from "@/lib/excelExport";
 import { generateInvoicePDF } from "@/lib/invoiceGenerator";
+import { ProjectExportSection } from "@/components/approvals/ProjectExportSection";
 
 interface Profile {
   full_name: string;
@@ -301,6 +302,9 @@ export default function LockWeeks() {
         <h2 className="text-2xl font-bold text-foreground">Uzamknutie týždňov</h2>
         <p className="text-muted-foreground">Finálne uzamknutie schválených týždňov</p>
       </div>
+
+      {/* Consolidated Project Export */}
+      <ProjectExportSection />
 
       {approvedWeeks.length === 0 ? (
         <Card>
