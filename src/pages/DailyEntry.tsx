@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,6 +55,7 @@ interface TodayRecord {
 export default function DailyEntry() {
   const { user } = useAuth();
   const { isAdmin, isDirector } = useUserRole();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +69,7 @@ export default function DailyEntry() {
   // Form state
   const [projectId, setProjectId] = useState("");
   const [selectedStandardHours, setSelectedStandardHours] = useState<number | null>(null);
-  const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [date, setDate] = useState(searchParams.get("date") || format(new Date(), "yyyy-MM-dd"));
   const [timeFrom, setTimeFrom] = useState("07:00");
   const [timeTo, setTimeTo] = useState("15:30");
   const [breakStart, setBreakStart] = useState("12:00");
