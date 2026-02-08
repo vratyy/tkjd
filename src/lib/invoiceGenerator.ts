@@ -111,8 +111,8 @@ function generatePayBySquareData(
   // Variable Symbol = strictly numeric part of invoice number
   const variableSymbol = extractNumericVS(invoiceNumber);
   
-  // Message for recipient: [KW] woche [First Name] [Last Name]
-  const message = `${calendarWeek} woche ${safeText(supplierName)}`;
+  // Message for recipient: KW [Week_Number] [Worker_Full_Name]
+  const message = `KW ${calendarWeek} ${safeText(supplierName)}`;
   
   // PAY by square format (SEPA with VS and proper message)
   return `SPD*1.0*ACC:${cleanIban}*AM:${amountStr}*CC:EUR*X-VS:${variableSymbol}*MSG:${message}*RN:TKJD s.r.o.`;
