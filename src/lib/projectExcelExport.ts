@@ -1,6 +1,5 @@
 import ExcelJS from "exceljs";
 import { format, addDays } from "date-fns";
-import { de } from "date-fns/locale";
 import tkjdLogoUrl from "@/assets/tkjd-logo.png";
 
 interface ProjectExportRecord {
@@ -30,8 +29,10 @@ export interface ProjectExportParams {
   workers: ProjectWorkerSheet[];
 }
 
-// German day names (Monday to Saturday)
-const germanDays = ["Montag", "Dienstag", "Mitwoch", "Donnerstag", "Freitag", "Samstag"];
+// Slovak day abbreviations
+const dayAbbreviations: Record<number, string> = {
+  1: "Po", 2: "Ut", 3: "St", 4: "Št", 5: "Pi", 6: "So", 0: "Ne",
+};
 
 function getWeekDateRange(week: number, year: number): { start: Date; end: Date } {
   const firstDayOfYear = new Date(year, 0, 1);
@@ -39,21 +40,20 @@ function getWeekDateRange(week: number, year: number): { start: Date; end: Date 
   const daysToMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 0 : 8 - dayOfWeek;
   const firstMonday = addDays(firstDayOfYear, daysToMonday);
   const start = addDays(firstMonday, (week - 1) * 7);
-  const end = addDays(start, 4); // Friday
+  const end = addDays(start, 6);
   return { start, end };
 }
 
-function formatTime(time: string | null | undefined): string {
-  if (!time) return "";
-  return time.slice(0, 5);
+function formatBreakRange(start: string | null, end: string | null): string {
+  if (!start || !end) return "";
+  return `${start.slice(0, 5)}-${end.slice(0, 5)}`;
 }
 
 // Colors
-const BLUE_COLOR = { argb: "FF1A56DB" };
-const RED_COLOR = { argb: "FFFF0000" };
 const BLACK_COLOR = { argb: "FF000000" };
 const WHITE_COLOR = { argb: "FFFFFFFF" };
-const HEADER_BG = { argb: "FFE0E0E0" };
+const HEADER_BG = { argb: "FFE8E8E8" };
+const ACCENT_COLOR = { argb: "FF1A56DB" };
 
 const thinBorder: Partial<ExcelJS.Borders> = {
   top: { style: "thin", color: BLACK_COLOR },
@@ -76,268 +76,275 @@ async function fetchImageAsBase64(url: string): Promise<string> {
   });
 }
 
-function applyStundenzettelSheet(
+function applyLeistungsnachweisSheet(
   ws: ExcelJS.Worksheet,
   workerName: string,
   records: ProjectExportRecord[],
   projectName: string,
   projectClient: string,
   projectLocation: string | null | undefined,
+  projectAddress: string | null | undefined,
   calendarWeek: number,
   year: number,
   logoImageId: number | null,
 ) {
   const { start, end } = getWeekDateRange(calendarWeek, year);
 
-  // Column widths
+  // ============ COLUMN WIDTHS (8 columns) ============
   ws.columns = [
-    { key: "A", width: 40 },
-    { key: "B", width: 14 },
-    { key: "C", width: 18 },
-    { key: "D", width: 18 },
-    { key: "E", width: 14 },
-    { key: "F", width: 22 },
+    { key: "A", width: 14 },  // Dátum
+    { key: "B", width: 6 },   // Deň
+    { key: "C", width: 10 },  // Začiatok
+    { key: "D", width: 10 },  // Koniec
+    { key: "E", width: 14 },  // 1. Prestávka
+    { key: "F", width: 14 },  // 2. Prestávka
+    { key: "G", width: 10 },  // Spolu Hod.
+    { key: "H", width: 42 },  // Popis práce
   ];
 
-  // Row 1: Title
-  ws.getCell("A1").value = "STUNDENZETTEL";
-  ws.getCell("A1").font = { bold: true, size: 18 };
-  ws.getCell("A1").alignment = { horizontal: "left", vertical: "middle" };
-  ws.getRow(1).height = 28;
+  // ============ ROW 1: Company + KW ============
+  ws.mergeCells("A1:D1");
+  const companyCell = ws.getCell("A1");
+  companyCell.value = "TKJD s.r.o.";
+  companyCell.font = { bold: true, size: 16 };
+  companyCell.alignment = { horizontal: "left", vertical: "middle" };
 
-  // Row 2: Subtitle
-  ws.getCell("A2").value = "HODINOVÝ VÝKAZ";
-  ws.getCell("A2").font = { bold: true, size: 14 };
-  ws.getCell("A2").alignment = { horizontal: "left", vertical: "middle" };
-  ws.getRow(2).height = 22;
+  ws.mergeCells("F1:H1");
+  const kwCell = ws.getCell("F1");
+  kwCell.value = `KW ${calendarWeek} / ${year}`;
+  kwCell.font = { bold: true, size: 14, color: ACCENT_COLOR };
+  kwCell.alignment = { horizontal: "right", vertical: "middle" };
+  ws.getRow(1).height = 26;
 
-  // Spacer rows 3-5
-  for (let i = 3; i <= 5; i++) ws.getRow(i).height = 15;
+  // ============ ROW 2: Title + Date Range ============
+  ws.mergeCells("A2:D2");
+  const titleCell = ws.getCell("A2");
+  titleCell.value = "LEISTUNGSNACHWEIS / VÝKAZ VÝKONU";
+  titleCell.font = { bold: true, size: 11 };
+  titleCell.alignment = { horizontal: "left", vertical: "middle" };
 
-  // Company info (right aligned)
-  const companyInfo = ["TKJD, s.r.o.", "Žalobín 114", "094 03, Žalobín", "Slowakei", "tkjdtorokj@gmail.com"];
-  companyInfo.forEach((text, idx) => {
-    const cell = ws.getCell(`F${6 + idx}`);
-    cell.value = text;
-    cell.font = { size: 10 };
-    cell.alignment = { horizontal: "right", vertical: "middle" };
-    ws.getRow(6 + idx).height = 15;
-  });
+  ws.mergeCells("F2:H2");
+  const dateRangeCell = ws.getCell("F2");
+  dateRangeCell.value = `${format(start, "dd.MM.yyyy")} – ${format(end, "dd.MM.yyyy")}`;
+  dateRangeCell.font = { size: 10 };
+  dateRangeCell.alignment = { horizontal: "right", vertical: "middle" };
+  ws.getRow(2).height = 20;
 
-  ws.getRow(11).height = 10;
+  // ============ ROW 3: Spacer ============
+  ws.getRow(3).height = 8;
 
-  // Row 12: Client
-  ws.mergeCells("A12:C12");
-  ws.getCell("A12").value = "AUFTRAGGEBER / NEMECKÝ ZADÁVATEĽ:";
-  ws.getCell("A12").font = { bold: true, size: 10 };
-  ws.getCell("A12").alignment = { horizontal: "left", vertical: "middle" };
-  ws.mergeCells("D12:F12");
-  ws.getCell("D12").value = projectClient || projectName;
-  ws.getCell("D12").font = { bold: true, size: 10 };
-  ws.getCell("D12").alignment = { horizontal: "left", vertical: "middle" };
-  ws.getRow(12).height = 20;
+  // ============ ROW 4: Project Name ============
+  ws.getCell("A4").value = "Projekt:";
+  ws.getCell("A4").font = { size: 10 };
+  ws.getCell("A4").alignment = { horizontal: "left", vertical: "middle" };
+  ws.mergeCells("B4:E4");
+  ws.getCell("B4").value = projectName;
+  ws.getCell("B4").font = { bold: true, size: 10 };
+  ws.getCell("B4").alignment = { horizontal: "left", vertical: "middle" };
+  ws.getRow(4).height = 18;
 
-  // Row 13: Worker
-  ws.mergeCells("A13:C13");
-  ws.getCell("A13").value = "NAME DES ARBEITERS / MENO PRACOVNÍKA";
-  ws.getCell("A13").font = { bold: true, size: 10 };
-  ws.getCell("A13").alignment = { horizontal: "left", vertical: "middle" };
-  ws.mergeCells("D13:F13");
-  ws.getCell("D13").value = workerName;
-  ws.getCell("D13").font = { bold: true, size: 10, color: BLUE_COLOR };
-  ws.getCell("D13").alignment = { horizontal: "left", vertical: "middle" };
-  ws.getRow(13).height = 20;
+  // ============ ROW 5: Address ============
+  ws.getCell("A5").value = "Adresa:";
+  ws.getCell("A5").font = { size: 10 };
+  ws.getCell("A5").alignment = { horizontal: "left", vertical: "middle" };
+  ws.mergeCells("B5:E5");
+  ws.getCell("B5").value = projectAddress || projectLocation || "";
+  ws.getCell("B5").font = { size: 10 };
+  ws.getCell("B5").alignment = { horizontal: "left", vertical: "middle" };
+  ws.getRow(5).height = 18;
 
-  // Row 14: Location
-  ws.mergeCells("A14:C14");
-  ws.getCell("A14").value = "ORT / MIESTO:";
-  ws.getCell("A14").font = { bold: true, size: 10 };
-  ws.getCell("A14").alignment = { horizontal: "left", vertical: "middle" };
-  ws.mergeCells("D14:F14");
-  ws.getCell("D14").value = projectLocation || projectName;
-  ws.getCell("D14").font = { size: 10, color: RED_COLOR };
-  ws.getCell("D14").alignment = { horizontal: "left", vertical: "middle" };
-  ws.getRow(14).height = 20;
+  // ============ ROW 6: Worker Name ============
+  ws.getCell("A6").value = "Pracovník:";
+  ws.getCell("A6").font = { size: 10 };
+  ws.getCell("A6").alignment = { horizontal: "left", vertical: "middle" };
+  ws.mergeCells("B6:E6");
+  ws.getCell("B6").value = workerName;
+  ws.getCell("B6").font = { bold: true, size: 11 };
+  ws.getCell("B6").alignment = { horizontal: "left", vertical: "middle" };
+  ws.getRow(6).height = 20;
 
-  // Row 15: Period
-  const dateRangeStr = `${calendarWeek} Woche (${format(start, "dd.MM.yyyy")} - ${format(end, "dd.MM.yyyy")})`;
-  ws.mergeCells("A15:C15");
-  ws.getCell("A15").value = "ZEITRAUM / OBDOBIE:";
-  ws.getCell("A15").font = { bold: true, size: 10 };
-  ws.getCell("A15").alignment = { horizontal: "left", vertical: "middle" };
-  ws.mergeCells("D15:F15");
-  ws.getCell("D15").value = dateRangeStr;
-  ws.getCell("D15").font = { bold: true, size: 12, color: BLUE_COLOR };
-  ws.getCell("D15").alignment = { horizontal: "left", vertical: "middle" };
-  ws.getRow(15).height = 22;
+  // ============ ROW 7: Spacer ============
+  ws.getRow(7).height = 6;
 
-  // Row 16: Table Headers
-  const headerRow = ws.getRow(16);
-  headerRow.height = 55;
+  // ============ ROW 8: Table Headers ============
+  const headerRow = ws.getRow(8);
+  headerRow.height = 30;
+
   const headers = [
-    { col: "A", text: "TAG / Deň" },
-    { col: "B", text: "BEGINN\nZAČIATOK" },
-    { col: "C", text: "PAUSE VON\nPRESTÁVKA OD" },
-    { col: "D", text: "PAUSE BIS\nPRESTÁVKA DO" },
-    { col: "E", text: "ENDE\nKONIEC" },
-    { col: "F", text: "SUMME DER\nABGELEISTETE STUNDEN\nPOČET\nODPRACOVANÝCH HODÍN" },
+    "Dátum",
+    "Deň",
+    "Začiatok",
+    "Koniec",
+    "1. Prestávka",
+    "2. Prestávka",
+    "Spolu Hod.",
+    "Popis práce",
   ];
-  headers.forEach(({ col, text }) => {
-    const cell = ws.getCell(`${col}16`);
+
+  headers.forEach((text, index) => {
+    const cell = headerRow.getCell(index + 1);
     cell.value = text;
     cell.font = { bold: true, size: 9 };
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    cell.border = thinBorder;
+    cell.alignment = {
+      horizontal: index === 7 ? "left" : "center",
+      vertical: "middle",
+      wrapText: true,
+    };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: HEADER_BG };
-  });
-
-  // Row 17: Empty data row
-  ws.getRow(17).height = 15;
-  ["A", "B", "C", "D", "E", "F"].forEach((col) => {
-    const cell = ws.getCell(`${col}17`);
-    cell.value = "";
     cell.border = thinBorder;
-    cell.alignment = { horizontal: "center", vertical: "middle" };
   });
 
-  // Data rows 18-23: Monday to Saturday
-  const recordsByDay = new Map<string, ProjectExportRecord>();
-  records.forEach((record) => {
-    const recordDate = new Date(record.date + "T12:00:00");
-    const dayName = format(recordDate, "EEEE", { locale: de });
-    const normalizedDay = dayName.charAt(0).toUpperCase() + dayName.slice(1);
-    recordsByDay.set(normalizedDay, record);
-  });
+  // ============ DATA ROWS ============
+  const sortedRecords = [...records].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
 
+  let currentRow = 9;
   let totalHours = 0;
-  const dataStartRow = 18;
 
-  germanDays.forEach((day, index) => {
-    const rowNum = dataStartRow + index;
-    const record = recordsByDay.get(day);
-    const hours = record ? (Number(record.total_hours) || 0) : 0;
+  sortedRecords.forEach((record) => {
+    const recordDate = new Date(record.date + "T12:00:00");
+    const dayIdx = recordDate.getDay();
+    const dayAbbr = dayAbbreviations[dayIdx] || "?";
+    const formattedDate = format(recordDate, "dd.MM.yyyy");
+    const hours = Number(record.total_hours) || 0;
     totalHours += hours;
 
-    ws.getRow(rowNum).height = 22;
+    const row = ws.getRow(currentRow);
+    row.height = 20;
 
-    ws.getCell(`A${rowNum}`).value = day;
-    ws.getCell(`A${rowNum}`).font = { bold: true, size: 10 };
-    ws.getCell(`A${rowNum}`).alignment = { horizontal: "left", vertical: "middle" };
-    ws.getCell(`A${rowNum}`).border = thinBorder;
+    // Col A: Dátum
+    const dateCell = row.getCell(1);
+    dateCell.value = formattedDate;
+    dateCell.font = { size: 10 };
+    dateCell.alignment = { horizontal: "center", vertical: "middle" };
+    dateCell.border = thinBorder;
 
-    ws.getCell(`B${rowNum}`).value = record ? formatTime(record.time_from) : "";
-    ws.getCell(`B${rowNum}`).font = { size: 10, color: BLUE_COLOR };
-    ws.getCell(`B${rowNum}`).alignment = { horizontal: "center", vertical: "middle" };
-    ws.getCell(`B${rowNum}`).border = thinBorder;
+    // Col B: Deň
+    const dayCell = row.getCell(2);
+    dayCell.value = dayAbbr;
+    dayCell.font = { size: 10 };
+    dayCell.alignment = { horizontal: "center", vertical: "middle" };
+    dayCell.border = thinBorder;
 
-    const pauseVonParts = [
-      record?.break_start ? formatTime(record.break_start) : "",
-      record?.break2_start ? formatTime(record.break2_start) : "",
-    ].filter(Boolean);
-    ws.getCell(`C${rowNum}`).value = pauseVonParts.join(" / ");
-    ws.getCell(`C${rowNum}`).font = { size: 10, color: BLUE_COLOR };
-    ws.getCell(`C${rowNum}`).alignment = { horizontal: "center", vertical: "middle" };
-    ws.getCell(`C${rowNum}`).border = thinBorder;
+    // Col C: Začiatok
+    const startCell = row.getCell(3);
+    startCell.value = record.time_from?.slice(0, 5) ?? "";
+    startCell.font = { size: 10 };
+    startCell.alignment = { horizontal: "center", vertical: "middle" };
+    startCell.border = thinBorder;
 
-    const pauseBisParts = [
-      record?.break_end ? formatTime(record.break_end) : "",
-      record?.break2_end ? formatTime(record.break2_end) : "",
-    ].filter(Boolean);
-    ws.getCell(`D${rowNum}`).value = pauseBisParts.join(" / ");
-    ws.getCell(`D${rowNum}`).font = { size: 10, color: BLUE_COLOR };
-    ws.getCell(`D${rowNum}`).alignment = { horizontal: "center", vertical: "middle" };
-    ws.getCell(`D${rowNum}`).border = thinBorder;
+    // Col D: Koniec
+    const endCell = row.getCell(4);
+    endCell.value = record.time_to?.slice(0, 5) ?? "";
+    endCell.font = { size: 10 };
+    endCell.alignment = { horizontal: "center", vertical: "middle" };
+    endCell.border = thinBorder;
 
-    ws.getCell(`E${rowNum}`).value = record ? formatTime(record.time_to) : "";
-    ws.getCell(`E${rowNum}`).font = { size: 10, color: BLUE_COLOR };
-    ws.getCell(`E${rowNum}`).alignment = { horizontal: "center", vertical: "middle" };
-    ws.getCell(`E${rowNum}`).border = thinBorder;
+    // Col E: 1. Prestávka
+    const break1Cell = row.getCell(5);
+    break1Cell.value = formatBreakRange(record.break_start, record.break_end);
+    break1Cell.font = { size: 10 };
+    break1Cell.alignment = { horizontal: "center", vertical: "middle" };
+    break1Cell.border = thinBorder;
 
-    ws.getCell(`F${rowNum}`).value = hours > 0 ? hours : "";
-    ws.getCell(`F${rowNum}`).font = { size: 10, color: BLUE_COLOR };
-    ws.getCell(`F${rowNum}`).alignment = { horizontal: "center", vertical: "middle" };
-    ws.getCell(`F${rowNum}`).border = thinBorder;
+    // Col F: 2. Prestávka
+    const break2Cell = row.getCell(6);
+    break2Cell.value = formatBreakRange(record.break2_start, record.break2_end);
+    break2Cell.font = { size: 10 };
+    break2Cell.alignment = { horizontal: "center", vertical: "middle" };
+    break2Cell.border = thinBorder;
+
+    // Col G: Spolu Hod.
+    const hoursCell = row.getCell(7);
+    hoursCell.value = hours > 0 ? hours.toFixed(2) : "";
+    hoursCell.font = { bold: true, size: 10 };
+    hoursCell.alignment = { horizontal: "center", vertical: "middle" };
+    hoursCell.border = thinBorder;
+
+    // Col H: Popis práce
+    const noteCell = row.getCell(8);
+    noteCell.value = record.note || "";
+    noteCell.font = { size: 9 };
+    noteCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+    noteCell.border = thinBorder;
+
+    currentRow++;
   });
 
-  // Total row
-  const totalRowNum = dataStartRow + germanDays.length;
-  ws.getRow(totalRowNum).height = 24;
-  ws.mergeCells(`A${totalRowNum}:E${totalRowNum}`);
-  ws.getCell(`A${totalRowNum}`).value = "Insgesamt in der Woche / Spolu za týždeň:";
-  ws.getCell(`A${totalRowNum}`).font = { bold: true, size: 10 };
-  ws.getCell(`A${totalRowNum}`).alignment = { horizontal: "left", vertical: "middle" };
-  ws.getCell(`A${totalRowNum}`).border = thinBorder;
+  // ============ TOTAL ROW ============
+  const totalRowNum = currentRow;
+  const totalRow = ws.getRow(totalRowNum);
+  totalRow.height = 24;
 
-  ws.getCell(`F${totalRowNum}`).value = totalHours;
-  ws.getCell(`F${totalRowNum}`).font = { bold: true, size: 11, color: WHITE_COLOR };
-  ws.getCell(`F${totalRowNum}`).alignment = { horizontal: "center", vertical: "middle" };
-  ws.getCell(`F${totalRowNum}`).fill = { type: "pattern", pattern: "solid", fgColor: BLACK_COLOR };
-  ws.getCell(`F${totalRowNum}`).border = thinBorder;
+  ws.mergeCells(`A${totalRowNum}:F${totalRowNum}`);
+  const totalLabelCell = ws.getCell(`A${totalRowNum}`);
+  totalLabelCell.value = "SPOLU / GESAMT:";
+  totalLabelCell.font = { bold: true, size: 11 };
+  totalLabelCell.alignment = { horizontal: "right", vertical: "middle" };
+  totalLabelCell.border = thinBorder;
 
-  // Spacer rows
-  for (let i = 25; i <= 32; i++) ws.getRow(i).height = 15;
+  const totalSumCell = ws.getCell(`G${totalRowNum}`);
+  totalSumCell.value = totalHours.toFixed(2) + " h";
+  totalSumCell.font = { bold: true, size: 11, color: WHITE_COLOR };
+  totalSumCell.alignment = { horizontal: "center", vertical: "middle" };
+  totalSumCell.fill = { type: "pattern", pattern: "solid", fgColor: BLACK_COLOR };
+  totalSumCell.border = thinBorder;
 
-  // Signature rows
-  ws.getCell("A33").value = "Podpis montéra / Unterschrift Monteur:";
-  ws.getCell("A33").font = { size: 9 };
-  ws.getCell("A33").alignment = { horizontal: "left", vertical: "bottom" };
-  ws.getRow(33).height = 15;
+  const totalNoteCell = ws.getCell(`H${totalRowNum}`);
+  totalNoteCell.value = "";
+  totalNoteCell.border = thinBorder;
 
-  ws.getCell("E33").value = "UNTERSCHRIFT DES BAULEITERS";
-  ws.getCell("E33").font = { size: 9 };
-  ws.getCell("E33").alignment = { horizontal: "center", vertical: "middle" };
+  currentRow += 3;
 
-  ws.getCell("E34").value = "PODPIS VEDÚCEHO STAVBY";
-  ws.getCell("E34").font = { size: 9 };
-  ws.getCell("E34").alignment = { horizontal: "center", vertical: "middle" };
-  ws.getRow(34).height = 15;
+  // ============ SIGNATURE SECTION ============
+  ws.mergeCells(`A${currentRow}:D${currentRow}`);
+  ws.getCell(`A${currentRow}`).value = "Podpis montéra / Unterschrift Monteur:";
+  ws.getCell(`A${currentRow}`).font = { size: 10 };
+  ws.getCell(`A${currentRow}`).alignment = { horizontal: "left", vertical: "bottom" };
 
-  // Signature lines
-  ws.mergeCells("A35:B35");
-  ws.getCell("A35").value = "_________________________________";
-  ws.getCell("A35").alignment = { horizontal: "center", vertical: "middle" };
+  ws.mergeCells(`F${currentRow}:H${currentRow}`);
+  ws.getCell(`F${currentRow}`).value = "Podpis stavbyvedúceho / Bauleiter:";
+  ws.getCell(`F${currentRow}`).font = { size: 10 };
+  ws.getCell(`F${currentRow}`).alignment = { horizontal: "left", vertical: "bottom" };
 
-  ws.mergeCells("E35:F35");
-  ws.getCell("E35").value = "_________________________________";
-  ws.getCell("E35").alignment = { horizontal: "center", vertical: "middle" };
-  ws.getRow(35).height = 15;
+  currentRow += 3;
 
-  // Date labels
-  ws.mergeCells("A36:B36");
-  ws.getCell("A36").value = "Dátum / Datum: ___________";
-  ws.getCell("A36").font = { italic: true, size: 9 };
-  ws.getCell("A36").alignment = { horizontal: "center", vertical: "middle" };
+  ws.mergeCells(`A${currentRow}:D${currentRow}`);
+  ws.getCell(`A${currentRow}`).value = "_________________________________";
+  ws.getCell(`A${currentRow}`).alignment = { horizontal: "center", vertical: "middle" };
 
-  ws.mergeCells("E36:F36");
-  ws.getCell("E36").value = "Dátum / Datum: ___________";
-  ws.getCell("E36").font = { italic: true, size: 9 };
-  ws.getCell("E36").alignment = { horizontal: "center", vertical: "middle" };
-  ws.getRow(36).height = 15;
+  ws.mergeCells(`F${currentRow}:H${currentRow}`);
+  ws.getCell(`F${currentRow}`).value = "_________________________________";
+  ws.getCell(`F${currentRow}`).alignment = { horizontal: "center", vertical: "middle" };
 
-  ws.getRow(37).height = 15;
+  currentRow++;
 
-  // Footer
-  ws.mergeCells("A38:F38");
-  ws.getCell("A38").value = "Vyplnený a potvrdený formulár zasielajte každý piatok/sobotu na emailovú adresu: tkjdtorokj@gmail.com";
-  ws.getCell("A38").font = { size: 8, italic: true };
-  ws.getCell("A38").alignment = { horizontal: "left", vertical: "middle" };
-  ws.getRow(38).height = 18;
+  ws.mergeCells(`A${currentRow}:D${currentRow}`);
+  ws.getCell(`A${currentRow}`).value = "Dátum / Datum: _______________";
+  ws.getCell(`A${currentRow}`).font = { italic: true, size: 9 };
+  ws.getCell(`A${currentRow}`).alignment = { horizontal: "center", vertical: "middle" };
 
-  // Embed logo in top-left (A1:B3 area)
+  ws.mergeCells(`F${currentRow}:H${currentRow}`);
+  ws.getCell(`F${currentRow}`).value = "Dátum / Datum: _______________";
+  ws.getCell(`F${currentRow}`).font = { italic: true, size: 9 };
+  ws.getCell(`F${currentRow}`).alignment = { horizontal: "center", vertical: "middle" };
+
+  // ============ LOGO ============
   if (logoImageId !== null) {
     ws.addImage(logoImageId, {
-      tl: { col: 0, row: 0 },
-      ext: { width: 90, height: 90 },
+      tl: { col: 6.5, row: 0 },
+      ext: { width: 80, height: 80 },
     });
   }
 }
 
 /**
- * Export a consolidated Excel file with one Stundenzettel tab per worker
+ * Export a consolidated Excel file with one Leistungsnachweis tab per worker
  * for a specific project and calendar week.
  */
 export async function exportProjectConsolidatedExcel(params: ProjectExportParams): Promise<void> {
-  const { projectName, projectClient, projectLocation, calendarWeek, year, workers } = params;
+  const { projectName, projectClient, projectLocation, projectAddress, calendarWeek, year, workers } = params;
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "TKJD s.r.o.";
@@ -353,7 +360,6 @@ export async function exportProjectConsolidatedExcel(params: ProjectExportParams
   }
 
   for (const worker of workers) {
-    // Sheet name: worker name (max 31 chars for Excel)
     const sheetName = worker.workerName.slice(0, 31).replace(/[\\/*?[\]:]/g, "_");
     const ws = workbook.addWorksheet(sheetName, {
       pageSetup: {
@@ -370,13 +376,14 @@ export async function exportProjectConsolidatedExcel(params: ProjectExportParams
       },
     });
 
-    applyStundenzettelSheet(
+    applyLeistungsnachweisSheet(
       ws,
       worker.workerName,
       worker.records,
       projectName,
       projectClient,
       projectLocation,
+      projectAddress,
       calendarWeek,
       year,
       logoImageId,
