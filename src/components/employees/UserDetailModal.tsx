@@ -7,6 +7,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,6 +91,8 @@ export function UserDetailModal({
   const [invoices, setInvoices] = useState<UserInvoice[]>([]);
   const [editHourlyRate, setEditHourlyRate] = useState<string>("");
   const [editFixedWage, setEditFixedWage] = useState<string>("");
+  const [wageConfirmOpen, setWageConfirmOpen] = useState(false);
+  const [originalHourlyRate, setOriginalHourlyRate] = useState<string>("");
 
   useEffect(() => {
     if (!open || !userId) return;
@@ -114,11 +126,11 @@ export function UserDetailModal({
       if (profileRes.error) throw profileRes.error;
       if (profileRes.data) {
         setProfile(profileRes.data);
-        setEditHourlyRate(
-          profileRes.data.hourly_rate != null
-            ? String(profileRes.data.hourly_rate)
-            : ""
-        );
+        const rateStr = profileRes.data.hourly_rate != null
+          ? String(profileRes.data.hourly_rate)
+          : "";
+        setEditHourlyRate(rateStr);
+        setOriginalHourlyRate(rateStr);
         setEditFixedWage(
           profileRes.data.fixed_wage != null
             ? String(profileRes.data.fixed_wage)
@@ -138,7 +150,27 @@ export function UserDetailModal({
     }
   };
 
-  const handleSaveWage = async () => {
+  // Intercept save: if hourly rate changed, show confirmation first
+  const handleSaveWageClick = () => {
+    const rateChanged = editHourlyRate !== originalHourlyRate;
+    if (rateChanged) {
+      setWageConfirmOpen(true);
+    } else {
+      executeSaveWage();
+    }
+  };
+
+  const handleCancelWageChange = () => {
+    setWageConfirmOpen(false);
+    setEditHourlyRate(originalHourlyRate);
+  };
+
+  const handleConfirmWageChange = () => {
+    setWageConfirmOpen(false);
+    executeSaveWage();
+  };
+
+  const executeSaveWage = async () => {
     if (!userId) return;
     setSaving(true);
 
@@ -157,6 +189,8 @@ export function UserDetailModal({
 
       if (error) throw error;
 
+      const rateStr = newRate != null ? String(newRate) : "";
+      setOriginalHourlyRate(rateStr);
       setProfile((prev) =>
         prev
           ? { ...prev, hourly_rate: newRate, fixed_wage: newWage }
@@ -201,6 +235,7 @@ export function UserDetailModal({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
@@ -341,7 +376,7 @@ export function UserDetailModal({
                 </div>
 
                 <Button
-                  onClick={handleSaveWage}
+                  onClick={handleSaveWageClick}
                   disabled={saving}
                   className="w-full"
                 >
@@ -427,6 +462,47 @@ export function UserDetailModal({
         )}
       </DialogContent>
     </Dialog>
+
+    {/* Wage Change Confirmation Dialog */}
+    <AlertDialog open={wageConfirmOpen} onOpenChange={setWageConfirmOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Zmena hodinovej sadzby</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-3">
+              <p>
+                Naozaj chcete zmeniť sadzbu pre používateľa <strong>{userName}</strong>?
+              </p>
+              <div className="rounded-lg border p-3 bg-muted/30 space-y-1 text-sm">
+                <p>
+                  Pôvodná sadzba:{" "}
+                  <strong>{originalHourlyRate ? `${originalHourlyRate} €` : "nenastavená"}</strong>
+                </p>
+                <p>
+                  Nová sadzba:{" "}
+                  <strong>{editHourlyRate ? `${editHourlyRate} €` : "nenastavená"}</strong>
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                ⚠ Táto zmena ovplyvní všetky budúce výpočty.
+              </p>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={handleCancelWageChange}>
+            Zrušiť
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleConfirmWageChange}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Potvrdiť
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
 
