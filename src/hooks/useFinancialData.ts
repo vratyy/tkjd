@@ -10,6 +10,8 @@ interface MetricsData {
   // Accounted metrics (only is_accounted = true)
   accountedTotal: { count: number; amount: number };
   accountedPaid: { count: number; amount: number };
+  accountedPending: { count: number; amount: number };
+  accountedOverdue: { count: number; amount: number };
 }
 
 interface Invoice {
@@ -111,7 +113,22 @@ export function useFinancialData() {
       amount: accountedPaidInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
     };
 
-    return { totalInvoiced, pendingPayment, overdue, paid, accountedTotal, accountedPaid };
+    const accountedPendingInvoices = accountedInvoices.filter((inv) => {
+      const status = getEffectiveStatus(inv);
+      return status === "pending" || status === "due_soon";
+    });
+    const accountedPending = {
+      count: accountedPendingInvoices.length,
+      amount: accountedPendingInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
+    };
+
+    const accountedOverdueInvoices = accountedInvoices.filter((inv) => getEffectiveStatus(inv) === "overdue");
+    const accountedOverdue = {
+      count: accountedOverdueInvoices.length,
+      amount: accountedOverdueInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
+    };
+
+    return { totalInvoiced, pendingPayment, overdue, paid, accountedTotal, accountedPaid, accountedPending, accountedOverdue };
   }, []);
 
   const fetchInvoices = useCallback(async () => {
