@@ -135,11 +135,9 @@ export function ProjectExportSection() {
       // Get unique user IDs
       const userIds = [...new Set(weekRecords.map((r) => r.user_id))];
 
-      // Fetch profiles for these users
+      // Fetch profiles for these users (using secure RPC that excludes financial data)
       const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name")
-        .in("user_id", userIds);
+        .rpc("get_team_profiles_safe", { target_user_ids: userIds });
 
       // Group records by user
       const workerMap = new Map<string, ProjectWorkerSheet>();

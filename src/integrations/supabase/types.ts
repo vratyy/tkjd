@@ -668,6 +668,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_team_profiles_safe: {
+        Args: { target_user_ids?: string[] }
+        Returns: {
+          company_name: string
+          full_name: string
+          id: string
+          is_active: boolean
+          user_id: string
+        }[]
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
