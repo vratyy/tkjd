@@ -20,8 +20,7 @@ import { format } from "date-fns";
 import { sk } from "date-fns/locale";
 import { isDateInWeek } from "@/lib/dateUtils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { GraceCountdown } from "@/components/GraceCountdown";
-import { isWithinGracePeriod } from "@/hooks/useGracePeriod";
+// Grace period removed — admins have unlimited undo access
 
 interface Profile {
   full_name: string;
@@ -66,18 +65,14 @@ export default function Approvals() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
   const [openItems, setOpenItems] = useState<Set<string>>(new Set());
-  const [, setTick] = useState(0);
+  // Removed grace period tick — no longer needed
   
   // Return dialog state
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [returnComment, setReturnComment] = useState("");
   const [selectedClosing, setSelectedClosing] = useState<WeeklyClosing | null>(null);
 
-  // Tick to update grace period visibility
-  useEffect(() => {
-    const interval = setInterval(() => setTick(t => t + 1), 10000);
-    return () => clearInterval(interval);
-  }, []);
+  // Grace period tick removed — admins have unlimited undo
 
   const fetchData = async () => {
     if (!user) return;
@@ -96,14 +91,13 @@ export default function Approvals() {
       return;
     }
 
-    // Fetch recently approved closings (within last 5 minutes) for undo
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    // Fetch ALL approved closings (admins have unlimited undo access)
     const { data: approvedClosings } = await supabase
       .from("weekly_closings")
       .select("*")
       .eq("status", "approved")
-      .gte("approved_at", fiveMinutesAgo)
-      .order("approved_at", { ascending: false });
+      .order("approved_at", { ascending: false })
+      .limit(20);
 
     // Combine all user IDs for profile fetching
     const allClosings = [...(closings || []), ...(approvedClosings || [])];
@@ -314,7 +308,7 @@ export default function Approvals() {
 
   const renderApprovalCard = (approval: PendingApproval, isApproved = false) => {
     const isOpen = openItems.has(approval.closing.id);
-    const inGrace = isApproved && isWithinGracePeriod(approval.closing.approved_at, 5);
+    const canUndo = isApproved; // Admins always have unlimited undo access
 
     return (
       <Card key={approval.closing.id} className={isApproved ? "border-green-500/30 bg-green-50/5" : ""}>
@@ -346,9 +340,7 @@ export default function Approvals() {
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <StatusBadge status={isApproved ? "approved" : "submitted"} />
-                {isApproved && inGrace && (
-                  <>
-                    <GraceCountdown createdAt={approval.closing.approved_at} durationMinutes={5} label="Možnosť zrušenia schválenia vyprší" />
+                {isApproved && canUndo && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -365,7 +357,6 @@ export default function Approvals() {
                         </>
                       )}
                     </Button>
-                  </>
                 )}
                 {!isApproved && (
                   <>
@@ -437,7 +428,7 @@ export default function Approvals() {
       {recentlyApproved.length > 0 && (
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-            Nedávno schválené (možnosť zrušenia)
+            Schválené (možnosť zrušenia)
           </h3>
           {recentlyApproved.map((approval) => renderApprovalCard(approval, true))}
         </div>

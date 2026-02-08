@@ -13,8 +13,6 @@ import { Loader2, Save, Info, Edit, Trash2, Clock, AlertTriangle } from "lucide-
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
-import { GraceCountdown } from "@/components/GraceCountdown";
-import { isWithinGracePeriod } from "@/hooks/useGracePeriod";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getISOWeekLocal, getISOWeekYear, parseLocalDate } from "@/lib/dateUtils";
 import {
@@ -64,7 +62,7 @@ export default function DailyEntry() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [, setTick] = useState(0); // Force re-render for grace period updates
+  // Grace period state removed
 
   // Form state
   const [projectId, setProjectId] = useState("");
@@ -80,11 +78,8 @@ export default function DailyEntry() {
   const [manualHours, setManualHours] = useState<string>("");
   const [isManualOverride, setIsManualOverride] = useState(false);
 
-  // Tick every 10 seconds to update grace period visibility
-  useEffect(() => {
-    const interval = setInterval(() => setTick(t => t + 1), 10000);
-    return () => clearInterval(interval);
-  }, []);
+  // No longer needed — grace period removed
+  // Kept for potential future use with other timed UI updates
 
   // Calculate duration with two breaks
   const calculatedHours = useMemo(() => {
@@ -579,9 +574,10 @@ export default function DailyEntry() {
             <div className="space-y-3">
               {todayRecords.map((record) => {
                 const isReturned = record.status === "returned" || record.status === "rejected";
-                const inGrace = record.status === "draft" && isWithinGracePeriod(record.created_at, 5);
-                const canEdit = isAdmin || inGrace || isReturned;
-                const canDelete = isAdmin || inGrace;
+                const isApprovedOrLocked = record.status === "approved" || record.status === "locked";
+                // Admin/Director: always can edit/delete. Monter: only if NOT approved/locked.
+                const canEdit = isAdmin || isDirector || !isApprovedOrLocked;
+                const canDelete = isAdmin || isDirector || !isApprovedOrLocked;
                 const today = format(new Date(), "yyyy-MM-dd");
                 const isOldRecord = record.date !== today;
 
@@ -603,7 +599,6 @@ export default function DailyEntry() {
                           {record.projects?.name || "—"}
                         </span>
                         <StatusBadge status={record.status as any} />
-                        {!isAdmin && inGrace && <GraceCountdown createdAt={record.created_at} durationMinutes={5} />}
                       </div>
                       <p className="text-sm text-muted-foreground">
                         {record.time_from} - {record.time_to} • {Number(record.total_hours) || 0}h

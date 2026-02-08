@@ -60,7 +60,7 @@ export default function WeeklyClosings() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [openWeeks, setOpenWeeks] = useState<Set<string>>(new Set());
-  const [, setTick] = useState(0); // force re-render for grace period
+  // Removed grace period tick — no longer needed
   const [userProfile, setUserProfile] = useState<{
     full_name: string;
     company_name: string | null;
@@ -77,11 +77,7 @@ export default function WeeklyClosings() {
   const { generateAndSaveInvoice, generating: generatingInvoice } = useInvoiceGeneration();
   const [generatingKey, setGeneratingKey] = useState<string | null>(null);
 
-  // Tick to update grace period visibility
-  useEffect(() => {
-    const interval = setInterval(() => setTick(t => t + 1), 10000);
-    return () => clearInterval(interval);
-  }, []);
+  // Grace period tick removed
 
   const fetchData = async () => {
     if (!user) return;
