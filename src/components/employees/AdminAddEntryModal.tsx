@@ -4,7 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { format, getISOWeek, getYear } from "date-fns";
 import { sk } from "date-fns/locale";
-import { CalendarIcon, Loader2, Plus } from "lucide-react";
+import { CalendarIcon, Loader2, Plus, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { z } from "zod";
 
@@ -35,7 +35,9 @@ import {
 const entrySchema = z.object({
   date: z.date({ required_error: "Dátum je povinný" }),
   projectId: z.string().min(1, "Projekt je povinný"),
-  hours: z.number().min(0.5, "Minimum 0.5 hodiny").max(24, "Maximum 24 hodín"),
+  timeFrom: z.string().min(1, "Začiatok je povinný"),
+  timeTo: z.string().min(1, "Koniec je povinný"),
+  breakMinutes: z.number().min(0).max(480).optional(),
   note: z.string().max(500, "Max 500 znakov").optional(),
 });
 
@@ -44,12 +46,24 @@ interface Project {
   name: string;
 }
 
+export interface EditEntryData {
+  id: string;
+  date: string;
+  projectId: string;
+  timeFrom: string;
+  timeTo: string;
+  breakStart: string | null;
+  breakEnd: string | null;
+  note: string | null;
+}
+
 interface AdminAddEntryModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   targetUserId: string;
   targetUserName: string;
   onEntryAdded?: () => void;
+  editData?: EditEntryData | null;
 }
 
 export function AdminAddEntryModal({
@@ -58,6 +72,7 @@ export function AdminAddEntryModal({
   targetUserId,
   targetUserName,
   onEntryAdded,
+  editData,
 }: AdminAddEntryModalProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -65,22 +80,43 @@ export function AdminAddEntryModal({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const isEditMode = !!editData;
+
   // Form state
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [projectId, setProjectId] = useState("");
-  const [hours, setHours] = useState("10");
+  const [timeFrom, setTimeFrom] = useState("07:00");
+  const [timeTo, setTimeTo] = useState("17:00");
+  const [breakMinutes, setBreakMinutes] = useState("0");
   const [note, setNote] = useState("");
 
   useEffect(() => {
     if (open) {
       fetchProjects();
-      // Reset form
-      setDate(undefined);
-      setProjectId("");
-      setHours("10");
-      setNote("");
+      if (editData) {
+        setDate(new Date(editData.date));
+        setProjectId(editData.projectId);
+        setTimeFrom(editData.timeFrom);
+        setTimeTo(editData.timeTo);
+        // Calculate break minutes from break_start/break_end
+        if (editData.breakStart && editData.breakEnd) {
+          const [bsH, bsM] = editData.breakStart.split(":").map(Number);
+          const [beH, beM] = editData.breakEnd.split(":").map(Number);
+          setBreakMinutes(String((beH * 60 + beM) - (bsH * 60 + bsM)));
+        } else {
+          setBreakMinutes("0");
+        }
+        setNote(editData.note || "");
+      } else {
+        setDate(undefined);
+        setProjectId("");
+        setTimeFrom("07:00");
+        setTimeTo("17:00");
+        setBreakMinutes("0");
+        setNote("");
+      }
     }
-  }, [open]);
+  }, [open, editData]);
 
   const fetchProjects = async () => {
     setLoading(true);
@@ -95,11 +131,12 @@ export function AdminAddEntryModal({
   };
 
   const handleSubmit = async () => {
-    // Validate
     const parsed = entrySchema.safeParse({
       date,
       projectId,
-      hours: parseFloat(hours),
+      timeFrom,
+      timeTo,
+      breakMinutes: parseFloat(breakMinutes) || 0,
       note: note.trim() || undefined,
     });
 
@@ -118,57 +155,72 @@ export function AdminAddEntryModal({
     setSaving(true);
     try {
       const selectedDate = parsed.data.date;
-      const totalHours = parsed.data.hours;
+      const breakMins = parsed.data.breakMinutes || 0;
 
-      // Calculate time_from and time_to from hours (start at 07:00)
-      const endHour = 7 + Math.floor(totalHours);
-      const endMinutes = Math.round((totalHours % 1) * 60);
-      const timeFrom = "07:00";
-      const timeTo = `${String(endHour).padStart(2, "0")}:${String(endMinutes).padStart(2, "0")}`;
+      // Calculate break_start/break_end from break minutes (place break at midpoint)
+      let breakStart: string | null = null;
+      let breakEnd: string | null = null;
+      if (breakMins > 0) {
+        breakStart = "12:00";
+        const endMins = 12 * 60 + breakMins;
+        breakEnd = `${String(Math.floor(endMins / 60)).padStart(2, "0")}:${String(endMins % 60).padStart(2, "0")}`;
+      }
 
-      // Insert performance record
-      const { error: insertError } = await supabase
-        .from("performance_records")
-        .insert({
-          user_id: targetUserId,
-          project_id: parsed.data.projectId,
-          date: format(selectedDate, "yyyy-MM-dd"),
-          time_from: timeFrom,
-          time_to: timeTo,
-          status: "approved",
-          note: parsed.data.note || null,
-        });
+      const recordData = {
+        user_id: targetUserId,
+        project_id: parsed.data.projectId,
+        date: format(selectedDate, "yyyy-MM-dd"),
+        time_from: parsed.data.timeFrom,
+        time_to: parsed.data.timeTo,
+        break_start: breakStart,
+        break_end: breakEnd,
+        status: "approved" as const,
+        note: parsed.data.note || null,
+      };
 
-      if (insertError) throw insertError;
+      if (isEditMode && editData) {
+        const { error } = await supabase
+          .from("performance_records")
+          .update(recordData)
+          .eq("id", editData.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("performance_records")
+          .insert(recordData);
+        if (error) throw error;
 
-      // Ensure weekly closing exists for this week
-      const calendarWeek = getISOWeek(selectedDate);
-      const year = getYear(selectedDate);
+        // Ensure weekly closing exists for this week
+        const calendarWeek = getISOWeek(selectedDate);
+        const year = getYear(selectedDate);
 
-      const { data: existingClosing } = await supabase
-        .from("weekly_closings")
-        .select("id")
-        .eq("user_id", targetUserId)
-        .eq("calendar_week", calendarWeek)
-        .eq("year", year)
-        .is("deleted_at", null)
-        .maybeSingle();
+        const { data: existingClosing } = await supabase
+          .from("weekly_closings")
+          .select("id")
+          .eq("user_id", targetUserId)
+          .eq("calendar_week", calendarWeek)
+          .eq("year", year)
+          .is("deleted_at", null)
+          .maybeSingle();
 
-      if (!existingClosing) {
-        await supabase.from("weekly_closings").insert({
-          user_id: targetUserId,
-          calendar_week: calendarWeek,
-          year: year,
-          status: "approved",
-          submitted_at: new Date().toISOString(),
-          approved_at: new Date().toISOString(),
-          approved_by: user.id,
-        });
+        if (!existingClosing) {
+          await supabase.from("weekly_closings").insert({
+            user_id: targetUserId,
+            calendar_week: calendarWeek,
+            year: year,
+            status: "approved",
+            submitted_at: new Date().toISOString(),
+            approved_at: new Date().toISOString(),
+            approved_by: user.id,
+          });
+        }
       }
 
       toast({
-        title: "Záznam pridaný",
-        description: `${totalHours}h pre ${targetUserName} dňa ${format(selectedDate, "d.M.yyyy")}.`,
+        title: isEditMode ? "Záznam aktualizovaný" : "Záznam pridaný",
+        description: isEditMode
+          ? `Záznam pre ${targetUserName} bol upravený.`
+          : `Záznam pre ${targetUserName} dňa ${format(selectedDate, "d.M.yyyy")}.`,
       });
 
       onEntryAdded?.();
@@ -189,8 +241,8 @@ export function AdminAddEntryModal({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Plus className="h-5 w-5" />
-            Pridať odpracovaný deň
+            {isEditMode ? <Save className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+            {isEditMode ? "Upraviť záznam" : "Pridať odpracovaný deň"}
           </DialogTitle>
         </DialogHeader>
 
@@ -258,18 +310,40 @@ export function AdminAddEntryModal({
             )}
           </div>
 
-          {/* Hours */}
+          {/* Time From / To */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="entry-time-from">Začiatok práce</Label>
+              <Input
+                id="entry-time-from"
+                type="time"
+                value={timeFrom}
+                onChange={(e) => setTimeFrom(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="entry-time-to">Koniec práce</Label>
+              <Input
+                id="entry-time-to"
+                type="time"
+                value={timeTo}
+                onChange={(e) => setTimeTo(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Break minutes */}
           <div className="space-y-1.5">
-            <Label htmlFor="entry-hours">Hodiny</Label>
+            <Label htmlFor="entry-break">Prestávka (minúty)</Label>
             <Input
-              id="entry-hours"
+              id="entry-break"
               type="number"
-              step="0.5"
-              min="0.5"
-              max="24"
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
-              placeholder="10"
+              step="5"
+              min="0"
+              max="480"
+              value={breakMinutes}
+              onChange={(e) => setBreakMinutes(e.target.value)}
+              placeholder="0"
             />
           </div>
 
@@ -289,13 +363,18 @@ export function AdminAddEntryModal({
           {/* Submit */}
           <Button
             onClick={handleSubmit}
-            disabled={saving || !date || !projectId}
+            disabled={saving || !date || !projectId || !timeFrom || !timeTo}
             className="w-full"
           >
             {saving ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Ukladám...
+              </>
+            ) : isEditMode ? (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                Uložiť zmeny
               </>
             ) : (
               <>
