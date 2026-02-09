@@ -110,7 +110,7 @@ function generatePayBySquareData(
   const message = `KW ${calendarWeek} ${safeText(supplierName)}`;
   
   // PAY by square format (SEPA with VS and proper message)
-  return `SPD*1.0*ACC:${cleanIban}*AM:${amountStr}*CC:EUR*X-VS:${variableSymbol}*MSG:${message}*RN:TKJD s.r.o.`;
+  return `SPD*1.0*ACC:${cleanIban}*AM:${amountStr}*CC:EUR*X-VS:${variableSymbol}*MSG:${message}*RN:${safeText(supplierName)}`;
 }
 
 async function loadImageAsBase64(url: string): Promise<string | null> {
