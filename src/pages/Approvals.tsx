@@ -153,8 +153,23 @@ export default function Approvals() {
       });
     }
 
-    setPendingApprovals(pending);
-    setRecentlyApproved(approved);
+    // Sort pending: by week desc, then surname asc
+    const getSurname = (name: string) => {
+      const parts = name.trim().split(/\s+/);
+      return parts.length > 1 ? parts[parts.length - 1] : parts[0];
+    };
+    const sortApprovals = (items: PendingApproval[]) => {
+      return [...items].sort((a, b) => {
+        if (a.closing.year !== b.closing.year) return b.closing.year - a.closing.year;
+        if (a.closing.calendar_week !== b.closing.calendar_week) return b.closing.calendar_week - a.closing.calendar_week;
+        const surnameA = getSurname(a.closing.profiles?.full_name || "");
+        const surnameB = getSurname(b.closing.profiles?.full_name || "");
+        return surnameA.localeCompare(surnameB, "sk");
+      });
+    };
+
+    setPendingApprovals(sortApprovals(pending));
+    setRecentlyApproved(sortApprovals(approved));
     setLoading(false);
   };
 
@@ -430,7 +445,28 @@ export default function Approvals() {
           <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
             Schválené (možnosť zrušenia)
           </h3>
-          {recentlyApproved.map((approval) => renderApprovalCard(approval, true))}
+          {(() => {
+            let lastWeekKey = "";
+            return recentlyApproved.map((approval) => {
+              const weekKey = `${approval.closing.year}-${approval.closing.calendar_week}`;
+              const showHeader = weekKey !== lastWeekKey;
+              lastWeekKey = weekKey;
+              return (
+                <div key={approval.closing.id}>
+                  {showHeader && (
+                    <div className="flex items-center gap-3 pt-2 first:pt-0">
+                      <div className="h-px flex-1 bg-border" />
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2">
+                        Týždeň {approval.closing.calendar_week} / {approval.closing.year}
+                      </span>
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
+                  )}
+                  {renderApprovalCard(approval, true)}
+                </div>
+              );
+            });
+          })()}
         </div>
       )}
 
@@ -449,7 +485,28 @@ export default function Approvals() {
               Čakajúce na schválenie
             </h3>
           )}
-          {pendingApprovals.map((approval) => renderApprovalCard(approval, false))}
+          {(() => {
+            let lastWeekKey = "";
+            return pendingApprovals.map((approval) => {
+              const weekKey = `${approval.closing.year}-${approval.closing.calendar_week}`;
+              const showHeader = weekKey !== lastWeekKey;
+              lastWeekKey = weekKey;
+              return (
+                <div key={approval.closing.id}>
+                  {showHeader && (
+                    <div className="flex items-center gap-3 pt-2 first:pt-0">
+                      <div className="h-px flex-1 bg-border" />
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2">
+                        Týždeň {approval.closing.calendar_week} / {approval.closing.year}
+                      </span>
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
+                  )}
+                  {renderApprovalCard(approval, false)}
+                </div>
+              );
+            });
+          })()}
         </div>
       )}
 
