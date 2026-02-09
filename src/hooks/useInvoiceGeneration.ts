@@ -30,12 +30,14 @@ export function useInvoiceGeneration() {
    * Queries DB for the latest number in the current year and increments.
    */
   const generateInvoiceNumber = async (): Promise<string> => {
+    if (!user) throw new Error("User not authenticated");
     const year = new Date().getFullYear();
     const prefix = String(year);
 
     const { data } = await supabase
       .from("invoices")
       .select("invoice_number")
+      .eq("user_id", user.id)
       .like("invoice_number", `${prefix}%`)
       .is("deleted_at", null)
       .order("invoice_number", { ascending: false })
