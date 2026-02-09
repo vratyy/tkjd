@@ -130,7 +130,7 @@ export function useInvoiceGeneration() {
       // 2. THEN: Generate and download the PDF
       await generateInvoicePDF({
         ...invoiceData,
-        // Use the generated invoice number for consistency
+        invoiceNumber: invoiceNumber,
         odberatelId: newInvoice.id,
       });
 
