@@ -166,9 +166,14 @@ export default function Employees() {
       }
     });
 
-    // Sort
+    // Helper: extract surname (last word) from full_name
+    const getSurname = (name: string) => {
+      const parts = name.trim().split(/\s+/);
+      return parts.length > 1 ? parts[parts.length - 1] : parts[0];
+    };
+
     const sortFn = (a: Employee, b: Employee) => {
-      if (sortBy === "name") return a.full_name.localeCompare(b.full_name);
+      if (sortBy === "name") return getSurname(a.full_name).localeCompare(getSurname(b.full_name), "sk");
       if (sortBy === "salary") return (b.fixed_wage || b.hourly_rate || 0) - (a.fixed_wage || a.hourly_rate || 0);
       return 0;
     };
@@ -457,7 +462,7 @@ export default function Employees() {
                   <SelectValue placeholder="Zoradiť" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="name">Podľa mena</SelectItem>
+                  <SelectItem value="name">Podľa priezviska</SelectItem>
                   <SelectItem value="salary">Podľa mzdy</SelectItem>
                   <SelectItem value="project">Podľa projektu</SelectItem>
                 </SelectContent>
