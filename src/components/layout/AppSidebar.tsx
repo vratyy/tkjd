@@ -18,6 +18,8 @@ import {
   Home,
   Network,
   AlertTriangle,
+  UserCog,
+  PieChart,
 } from "lucide-react";
 import {
   Sidebar,
@@ -50,14 +52,14 @@ const mainNavItems: NavItem[] = [
 ];
 
 const managementNavItems: NavItem[] = [
-  { title: "Finančný prehľad", url: "/financial-dashboard", icon: Wallet, roles: ["admin", "director"] },
+  { title: "Finančný prehľad", url: "/financial-dashboard", icon: PieChart, roles: ["admin", "director"] },
   { title: "Spolupracovníci", url: "/employees", icon: Network, roles: ["admin", "director"] },
-  { title: "Sankcie", url: "/sanctions", icon: AlertTriangle, roles: ["admin", "director"] },
-  { title: "Ubytovanie", url: "/accommodations", icon: Home, roles: ["manager", "admin", "director"] },
   { title: "Schvaľovanie", url: "/approvals", icon: CheckCircle, roles: ["manager", "admin", "director"] },
-  { title: "Všetky projekty", url: "/projects", icon: FolderOpen, roles: ["manager", "admin", "director"] },
   { title: "Všetky uzávierky", url: "/lock-weeks", icon: Lock, roles: ["admin", "director"] },
-  { title: "Správa používateľov", url: "/users", icon: Users, roles: ["admin", "director"] },
+  { title: "Správa používateľov", url: "/users", icon: UserCog, roles: ["admin", "director"] },
+  { title: "Všetky projekty", url: "/projects", icon: FolderOpen, roles: ["manager", "admin", "director"] },
+  { title: "Ubytovanie", url: "/accommodations", icon: Home, roles: ["manager", "admin", "director"] },
+  { title: "Sankcie", url: "/sanctions", icon: AlertTriangle, roles: ["admin", "director"] },
   { title: "Administrácia", url: "/admin-settings", icon: Settings, roles: ["admin", "director"] },
 ];
 
