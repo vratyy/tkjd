@@ -15,12 +15,13 @@ import { InvoiceStatusDropdown } from "./InvoiceStatusDropdown";
 import { MobileInvoiceCard } from "@/components/mobile/MobileInvoiceCard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Eye, Lock, Unlock, BookCheck, BookX } from "lucide-react";
+import { AlertTriangle, Eye, Lock, Unlock, BookCheck, BookX, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/useUserRole";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
+import { generateInvoicePDF } from "@/lib/invoiceGenerator";
 
 interface Invoice {
   id: string;
@@ -62,6 +63,7 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
   const [detailOpen, setDetailOpen] = useState(false);
   const [lockingId, setLockingId] = useState<string | null>(null);
   const [accountingId, setAccountingId] = useState<string | null>(null);
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const { isAdmin } = useUserRole();
@@ -187,6 +189,69 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
       });
     } finally {
       setAccountingId(null);
+    }
+  };
+
+  const handleRegeneratePDF = async (invoice: Invoice) => {
+    setRegeneratingId(invoice.id);
+    try {
+      // Fetch full profile data for the invoice owner
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", invoice.user_id)
+        .maybeSingle();
+
+      if (profileError || !profile) throw new Error("Nepodarilo sa načítať profil dodávateľa");
+
+      // Fetch full invoice data with week_closing for calendar week
+      const { data: fullInvoice, error: invError } = await supabase
+        .from("invoices")
+        .select("*, weekly_closings(calendar_week, year)")
+        .eq("id", invoice.id)
+        .single();
+
+      if (invError || !fullInvoice) throw new Error("Nepodarilo sa načítať faktúru");
+
+      const calendarWeek = (fullInvoice as any).weekly_closings?.calendar_week || 0;
+      const year = (fullInvoice as any).weekly_closings?.year || new Date().getFullYear();
+
+      await generateInvoicePDF({
+        invoiceNumber: fullInvoice.invoice_number,
+        supplierName: profile.full_name,
+        supplierCompany: profile.company_name,
+        supplierAddress: profile.billing_address,
+        supplierIco: profile.ico,
+        supplierDic: profile.dic,
+        supplierIban: profile.iban,
+        supplierSwiftBic: profile.swift_bic,
+        signatureUrl: profile.signature_url,
+        hourlyRate: fullInvoice.hourly_rate,
+        contractNumber: profile.contract_number,
+        workerId: profile.contract_number,
+        isVatPayer: profile.is_vat_payer ?? false,
+        vatNumber: profile.vat_number,
+        isReverseCharge: fullInvoice.is_reverse_charge ?? false,
+        projectName: invoice.project?.name || "Projekt",
+        calendarWeek,
+        year,
+        totalHours: fullInvoice.total_hours,
+        advanceDeduction: fullInvoice.advance_deduction ?? 0,
+      });
+
+      toast({
+        title: "PDF regenerované",
+        description: `Faktúra ${invoice.invoice_number} bola znovu vygenerovaná s aktuálnymi údajmi.`,
+      });
+    } catch (error: any) {
+      console.error("Error regenerating PDF:", error);
+      toast({
+        variant: "destructive",
+        title: "Chyba pri regenerovaní PDF",
+        description: error.message,
+      });
+    } finally {
+      setRegeneratingId(null);
     }
   };
 
@@ -316,6 +381,17 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
                               ) : (
                                 <BookX className="h-4 w-4 text-muted-foreground" />
                               )}
+                            </Button>
+                          )}
+                          {isAdmin && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleRegeneratePDF(invoice)}
+                              disabled={regeneratingId === invoice.id}
+                              title="Regenerovať PDF"
+                            >
+                              <RefreshCw className={`h-4 w-4 ${regeneratingId === invoice.id ? "animate-spin" : ""}`} />
                             </Button>
                           )}
                           <Button

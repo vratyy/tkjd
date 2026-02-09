@@ -39,6 +39,9 @@ export interface InvoiceData {
   // For unique invoice number
   odberatelId?: string;
   
+  // The actual invoice number from DB (e.g. "2026001")
+  invoiceNumber?: string;
+  
   // Advance deduction (optional)
   advanceDeduction?: number;
   
@@ -146,7 +149,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   // Register fonts (uses Helvetica - crash-proof)
   registerPdfFonts(doc);
   
-  const invoiceNumber = generateFallbackInvoiceNumber();
+  const invoiceNumber = data.invoiceNumber || generateFallbackInvoiceNumber();
   
   // Determine the correct Calendar Week from service dates or use provided value
   let calendarWeek = data.calendarWeek;
