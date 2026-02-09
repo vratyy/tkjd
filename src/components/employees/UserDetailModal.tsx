@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserRole } from "@/hooks/useUserRole";
+import { AdminAddEntryModal } from "./AdminAddEntryModal";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -31,7 +33,7 @@ import {
   User,
   Euro,
   FileText,
-  FileSpreadsheet,
+  Plus,
   Download,
   CreditCard,
   Building2,
@@ -85,6 +87,8 @@ export function UserDetailModal({
   onProfileUpdated,
 }: UserDetailModalProps) {
   const { toast } = useToast();
+  const { role } = useUserRole();
+  const isPrivileged = role === "admin" || role === "director";
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -93,6 +97,7 @@ export function UserDetailModal({
   const [editFixedWage, setEditFixedWage] = useState<string>("");
   const [wageConfirmOpen, setWageConfirmOpen] = useState(false);
   const [originalHourlyRate, setOriginalHourlyRate] = useState<string>("");
+  const [addEntryOpen, setAddEntryOpen] = useState(false);
 
   useEffect(() => {
     if (!open || !userId) return;
@@ -239,24 +244,37 @@ export function UserDetailModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
-            <Avatar className="h-10 w-10">
-              <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <span>{userName}</span>
-              {userRole && (
-                <Badge
-                  className={`ml-2 ${getRoleBadgeColor(userRole)}`}
-                  variant="secondary"
-                >
-                  {userRole}
-                </Badge>
-              )}
-            </div>
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-3">
+              <Avatar className="h-10 w-10">
+                <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <span>{userName}</span>
+                {userRole && (
+                  <Badge
+                    className={`ml-2 ${getRoleBadgeColor(userRole)}`}
+                    variant="secondary"
+                  >
+                    {userRole}
+                  </Badge>
+                )}
+              </div>
+            </DialogTitle>
+            {isPrivileged && userId && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setAddEntryOpen(true)}
+                className="gap-1.5 shrink-0"
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Pridať deň</span>
+              </Button>
+            )}
+          </div>
         </DialogHeader>
 
         {loading ? (
@@ -502,6 +520,16 @@ export function UserDetailModal({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    {userId && (
+      <AdminAddEntryModal
+        open={addEntryOpen}
+        onOpenChange={setAddEntryOpen}
+        targetUserId={userId}
+        targetUserName={userName}
+        onEntryAdded={onProfileUpdated}
+      />
+    )}
     </>
   );
 }
