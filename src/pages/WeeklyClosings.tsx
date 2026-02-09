@@ -9,6 +9,7 @@ import { MobileRecordCard } from "@/components/mobile/MobileRecordCard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, Calendar, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Clock, Undo2, Pencil, Trash2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
 import { parseLocalDate, getISOWeekLocal, getISOWeekYear } from "@/lib/dateUtils";
@@ -414,6 +415,13 @@ export default function WeeklyClosings() {
     return group.closingStatus === "approved" || group.closingStatus === "locked";
   };
 
+  const getInvoiceDisabledReason = (): string | null => {
+    if (!userProfile?.hourly_rate || userProfile.hourly_rate <= 0) return "Doplňte si hodinovú sadzbu v profile.";
+    if (!userProfile?.iban) return "Doplňte si IBAN v profile.";
+    if (!userProfile?.billing_address) return "Doplňte si fakturačnú adresu v profile.";
+    return null;
+  };
+
   const handleGenerateInvoice = async (group: WeekGroup) => {
     if (!userProfile || !userProfile.hourly_rate || userProfile.hourly_rate <= 0) {
       toast({
@@ -543,23 +551,34 @@ export default function WeeklyClosings() {
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                        {canShowInvoiceButton(group) && (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => handleGenerateInvoice(group)}
-                            disabled={generatingInvoice || generatingKey === key}
-                          >
-                            {generatingKey === key ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <>
-                                <FileText className="h-4 w-4 sm:mr-2" />
-                                <span className="hidden sm:inline">Faktúra PDF</span>
-                              </>
-                            )}
-                          </Button>
-                        )}
+                        {canShowInvoiceButton(group) && (() => {
+                          const disabledReason = getInvoiceDisabledReason();
+                          const btn = (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => !disabledReason && handleGenerateInvoice(group)}
+                              disabled={!!disabledReason || generatingInvoice || generatingKey === key}
+                            >
+                              {generatingKey === key ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <FileText className="h-4 w-4 sm:mr-2" />
+                                  <span className="hidden sm:inline">Faktúra PDF</span>
+                                </>
+                              )}
+                            </Button>
+                          );
+                          return disabledReason ? (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>{btn}</TooltipTrigger>
+                                <TooltipContent><p>{disabledReason}</p></TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ) : btn;
+                        })()}
                         {canSubmit(group) && (
                           <Button
                             size="sm"
@@ -618,24 +637,35 @@ export default function WeeklyClosings() {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                        {canShowInvoiceButton(group) && (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => handleGenerateInvoice(group)}
-                            disabled={generatingInvoice || generatingKey === key}
-                            className="flex-1 h-10 text-sm"
-                          >
-                            {generatingKey === key ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <>
-                                <FileText className="h-4 w-4 mr-2" />
-                              Faktúra
-                            </>
-                          )}
-                        </Button>
-                      )}
+                        {canShowInvoiceButton(group) && (() => {
+                          const disabledReason = getInvoiceDisabledReason();
+                          const btn = (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => !disabledReason && handleGenerateInvoice(group)}
+                              disabled={!!disabledReason || generatingInvoice || generatingKey === key}
+                              className="flex-1 h-10 text-sm"
+                            >
+                              {generatingKey === key ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <FileText className="h-4 w-4 mr-2" />
+                                  Faktúra
+                                </>
+                              )}
+                            </Button>
+                          );
+                          return disabledReason ? (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>{btn}</TooltipTrigger>
+                                <TooltipContent><p>{disabledReason}</p></TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ) : btn;
+                        })()}
                       {canSubmit(group) && (
                         <Button
                           size="sm"
