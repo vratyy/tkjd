@@ -15,7 +15,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, CheckCircle, RotateCcw, ChevronDown, ChevronUp, User, Undo2 } from "lucide-react";
+import { Loader2, CheckCircle, RotateCcw, ChevronDown, ChevronUp, User, Undo2, PartyPopper } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
 import { isDateInWeek } from "@/lib/dateUtils";
@@ -432,83 +434,85 @@ export default function Approvals() {
     );
   };
 
+  const renderGroupedList = (items: PendingApproval[], isApproved: boolean) => {
+    let lastWeekKey = "";
+    return items.map((approval) => {
+      const weekKey = `${approval.closing.year}-${approval.closing.calendar_week}`;
+      const showHeader = weekKey !== lastWeekKey;
+      lastWeekKey = weekKey;
+      return (
+        <div key={approval.closing.id}>
+          {showHeader && (
+            <div className="flex items-center gap-3 pt-2 first:pt-0">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2">
+                Týždeň {approval.closing.calendar_week} / {approval.closing.year}
+              </span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+          )}
+          {renderApprovalCard(approval, isApproved)}
+        </div>
+      );
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-foreground">Schvaľovanie</h2>
-        <p className="text-muted-foreground">Čakajúce žiadosti na schválenie</p>
+        <p className="text-muted-foreground">Správa a schvaľovanie týždňových uzávierok</p>
       </div>
 
-      {/* Recently approved with undo */}
-      {recentlyApproved.length > 0 && (
-        <div className="space-y-4">
-          <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-            Schválené (možnosť zrušenia)
-          </h3>
-          {(() => {
-            let lastWeekKey = "";
-            return recentlyApproved.map((approval) => {
-              const weekKey = `${approval.closing.year}-${approval.closing.calendar_week}`;
-              const showHeader = weekKey !== lastWeekKey;
-              lastWeekKey = weekKey;
-              return (
-                <div key={approval.closing.id}>
-                  {showHeader && (
-                    <div className="flex items-center gap-3 pt-2 first:pt-0">
-                      <div className="h-px flex-1 bg-border" />
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2">
-                        Týždeň {approval.closing.calendar_week} / {approval.closing.year}
-                      </span>
-                      <div className="h-px flex-1 bg-border" />
-                    </div>
-                  )}
-                  {renderApprovalCard(approval, true)}
-                </div>
-              );
-            });
-          })()}
-        </div>
-      )}
+      <Tabs defaultValue="pending">
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="pending" className="flex items-center gap-2">
+            Na schválenie
+            {pendingApprovals.length > 0 && (
+              <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-[10px] font-bold">
+                {pendingApprovals.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="history" className="flex items-center gap-2">
+            História
+            {recentlyApproved.length > 0 && (
+              <span className="text-xs text-muted-foreground">({recentlyApproved.length})</span>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Pending approvals */}
-      {pendingApprovals.length === 0 && recentlyApproved.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <CheckCircle className="h-12 w-12 mx-auto mb-3 opacity-50 text-muted-foreground" />
-            <p className="text-muted-foreground">Žiadne čakajúce schválenia.</p>
-          </CardContent>
-        </Card>
-      ) : pendingApprovals.length > 0 && (
-        <div className="space-y-4">
-          {recentlyApproved.length > 0 && (
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-              Čakajúce na schválenie
-            </h3>
+        <TabsContent value="pending" className="mt-4">
+          {pendingApprovals.length === 0 ? (
+            <Card>
+              <CardContent className="py-16 text-center">
+                <PartyPopper className="h-14 w-14 mx-auto mb-4 text-primary opacity-70" />
+                <p className="text-lg font-medium text-foreground mb-1">Všetko je vybavené! 🎉</p>
+                <p className="text-sm text-muted-foreground">Žiadne čakajúce schválenia.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {renderGroupedList(pendingApprovals, false)}
+            </div>
           )}
-          {(() => {
-            let lastWeekKey = "";
-            return pendingApprovals.map((approval) => {
-              const weekKey = `${approval.closing.year}-${approval.closing.calendar_week}`;
-              const showHeader = weekKey !== lastWeekKey;
-              lastWeekKey = weekKey;
-              return (
-                <div key={approval.closing.id}>
-                  {showHeader && (
-                    <div className="flex items-center gap-3 pt-2 first:pt-0">
-                      <div className="h-px flex-1 bg-border" />
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2">
-                        Týždeň {approval.closing.calendar_week} / {approval.closing.year}
-                      </span>
-                      <div className="h-px flex-1 bg-border" />
-                    </div>
-                  )}
-                  {renderApprovalCard(approval, false)}
-                </div>
-              );
-            });
-          })()}
-        </div>
-      )}
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-4">
+          {recentlyApproved.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <CheckCircle className="h-12 w-12 mx-auto mb-3 opacity-50 text-muted-foreground" />
+                <p className="text-muted-foreground">Žiadna história schválení.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {renderGroupedList(recentlyApproved, true)}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* Return Dialog */}
       <Dialog open={returnDialogOpen} onOpenChange={setReturnDialogOpen}>
