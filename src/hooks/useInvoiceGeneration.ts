@@ -26,15 +26,31 @@ export function useInvoiceGeneration() {
   };
 
   /**
-   * Generate invoice number in format: YYYYMMXXX
-   * Uses timestamp + random to ensure uniqueness
+   * Generate invoice number in format: YYYYNNN (e.g. 2026001, 2026002)
+   * Queries DB for the latest number in the current year and increments.
    */
-  const generateInvoiceNumber = (): string => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const random = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
-    return `${year}${month}${random}`;
+  const generateInvoiceNumber = async (): Promise<string> => {
+    const year = new Date().getFullYear();
+    const prefix = String(year);
+
+    const { data } = await supabase
+      .from("invoices")
+      .select("invoice_number")
+      .like("invoice_number", `${prefix}%`)
+      .is("deleted_at", null)
+      .order("invoice_number", { ascending: false })
+      .limit(1);
+
+    let nextSeq = 1;
+    if (data && data.length > 0) {
+      const lastNum = data[0].invoice_number;
+      const seqPart = parseInt(lastNum.slice(prefix.length), 10);
+      if (!isNaN(seqPart)) {
+        nextSeq = seqPart + 1;
+      }
+    }
+
+    return `${prefix}${String(nextSeq).padStart(3, "0")}`;
   };
 
   /**
@@ -77,7 +93,7 @@ export function useInvoiceGeneration() {
       const issueDate = new Date();
       const deliveryDate = issueDate;
       const dueDate = addDays(issueDate, 21);
-      const invoiceNumber = generateInvoiceNumber();
+      const invoiceNumber = await generateInvoiceNumber();
 
       // 1. FIRST: Insert invoice record into database
       const { data: newInvoice, error: insertError } = await supabase
