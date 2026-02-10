@@ -412,6 +412,7 @@ export type Database = {
           billing_address: string | null
           company_name: string | null
           contract_number: string | null
+          country: string | null
           created_at: string
           deleted_at: string | null
           dic: string | null
@@ -434,6 +435,7 @@ export type Database = {
           billing_address?: string | null
           company_name?: string | null
           contract_number?: string | null
+          country?: string | null
           created_at?: string
           deleted_at?: string | null
           dic?: string | null
@@ -456,6 +458,7 @@ export type Database = {
           billing_address?: string | null
           company_name?: string | null
           contract_number?: string | null
+          country?: string | null
           created_at?: string
           deleted_at?: string | null
           dic?: string | null
