@@ -14,6 +14,7 @@ export interface InvoiceData {
   supplierDic?: string | null;
   supplierIban: string | null;
   supplierSwiftBic: string | null;
+  supplierCountry?: string | null;
   signatureUrl: string | null;
   hourlyRate: number;
   contractNumber?: string | null;
@@ -247,7 +248,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   }
   
   // Country line (immediately after address)
-  doc.text("Slovenska republika", margin, supY);
+  doc.text(safeText(data.supplierCountry || "Slovenská republika"), margin, supY);
   supY += 5;
   
   supY += 2;
