@@ -57,8 +57,8 @@ export interface InvoiceData {
 // TKJD s.r.o. company details (Odberatel / Customer)
 const CUSTOMER = {
   name: "TKJD, s. r. o.",
-  street: "114 094 03 Zalobin",
-  country: "Slovenska republika",
+  street: "Žalobín 114, 094 03 Žalobín",
+  country: "Slovenská Republika",
   ico: "47417528",
   dic: "2023943845",
   icDph: "SK2023943845",
@@ -192,7 +192,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
     : issueDate;
   const dueDate = data.historicalDueDate
     ? new Date(data.historicalDueDate + "T12:00:00")
-    : addDays(issueDate, 14);
+    : addDays(issueDate, 21);
 
   // Layout constants
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -268,13 +268,18 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
     supY += 5;
   }
 
+  // Country line (append after address block)
+  doc.setTextColor(50, 50, 50);
+  doc.text("Slovenska republika", margin, supY);
+  supY += 5;
+
   // Worker ID / Contract Number in BOLD RED (critical B2B requirement)
   if (data.workerId || data.contractNumber) {
     supY += 2;
     doc.setFontSize(10);
     setFontStyle(doc, "bold");
     doc.setTextColor(220, 38, 38); // Red color - visible in print
-    doc.text(`Cislo pracovnika: ${safeText(data.workerId || data.contractNumber || "")}`, margin, supY);
+    doc.text(`Cislo zmluvy: ${safeText(data.workerId || data.contractNumber || "")}`, margin, supY);
     doc.setTextColor(50, 50, 50); // Reset
     setFontStyle(doc, "normal");
     doc.setFontSize(9);

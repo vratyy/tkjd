@@ -286,7 +286,7 @@ export default function LockWeeks() {
       const mondayAfterWeek = addDays(weekStart, (week.closing.calendar_week) * 7);
       const historicalIssueDate = format(mondayAfterWeek, "yyyy-MM-dd");
       const historicalDeliveryDate = lastWorkDay || historicalIssueDate;
-      const historicalDueDate = format(addDays(mondayAfterWeek, 14), "yyyy-MM-dd");
+      const historicalDueDate = format(addDays(mondayAfterWeek, 21), "yyyy-MM-dd");
 
       await generateInvoicePDF({
         supplierName: profile.full_name,
