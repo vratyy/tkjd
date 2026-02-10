@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Loader2, CheckCircle, RotateCcw, ChevronDown, ChevronUp, User, Undo2, PartyPopper } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -315,6 +316,34 @@ export default function Approvals() {
     setOpenItems(newOpen);
   };
 
+  // Group approvals by week key for accordion view
+  const groupByWeek = (items: PendingApproval[]) => {
+    const groups = new Map<string, { key: string; cw: number; year: number; items: PendingApproval[]; count: number; totalHours: number; dateRange: string }>();
+    items.forEach((a) => {
+      const key = `${a.closing.year}-${String(a.closing.calendar_week).padStart(2, "0")}`;
+      if (!groups.has(key)) {
+        const jan4 = new Date(a.closing.year, 0, 4);
+        const dow = jan4.getDay() || 7;
+        const firstMon = new Date(jan4);
+        firstMon.setDate(jan4.getDate() - dow + 1);
+        const wStart = new Date(firstMon);
+        wStart.setDate(firstMon.getDate() + (a.closing.calendar_week - 1) * 7);
+        const wEnd = new Date(wStart);
+        wEnd.setDate(wStart.getDate() + 6);
+        const dateRange = `${format(wStart, "d. MMM", { locale: sk })} - ${format(wEnd, "d. MMM yyyy", { locale: sk })}`;
+        groups.set(key, { key, cw: a.closing.calendar_week, year: a.closing.year, items: [], count: 0, totalHours: 0, dateRange });
+      }
+      const g = groups.get(key)!;
+      g.items.push(a);
+      g.count += a.records.length;
+      g.totalHours += a.totalHours;
+    });
+    return Array.from(groups.values()).sort((a, b) => b.key.localeCompare(a.key));
+  };
+
+  const pendingGroups = useMemo(() => groupByWeek(pendingApprovals), [pendingApprovals]);
+  const historyGroups = useMemo(() => groupByWeek(recentlyApproved), [recentlyApproved]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -434,28 +463,44 @@ export default function Approvals() {
     );
   };
 
-  const renderGroupedList = (items: PendingApproval[], isApproved: boolean) => {
-    let lastWeekKey = "";
-    return items.map((approval) => {
-      const weekKey = `${approval.closing.year}-${approval.closing.calendar_week}`;
-      const showHeader = weekKey !== lastWeekKey;
-      lastWeekKey = weekKey;
-      return (
-        <div key={approval.closing.id}>
-          {showHeader && (
-            <div className="flex items-center gap-3 pt-2 first:pt-0">
-              <div className="h-px flex-1 bg-border" />
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2">
-                Týždeň {approval.closing.calendar_week} / {approval.closing.year}
-              </span>
-              <div className="h-px flex-1 bg-border" />
-            </div>
-          )}
-          {renderApprovalCard(approval, isApproved)}
-        </div>
-      );
-    });
-  };
+  // Pending: expand oldest week (last in sorted array); History: expand newest (first)
+  const pendingDefault = pendingGroups.length > 0 ? [pendingGroups[pendingGroups.length - 1].key] : [];
+  const historyDefault = historyGroups.length > 0 ? [historyGroups[0].key] : [];
+
+  const renderWeekAccordion = (
+    groups: ReturnType<typeof groupByWeek>,
+    defaultValue: string[],
+    isApproved: boolean,
+    pendingLabel?: boolean
+  ) => (
+    <div className="overflow-y-auto max-h-[65vh] pr-2">
+      <Accordion type="multiple" defaultValue={defaultValue} className="space-y-2">
+        {groups.map((group) => (
+          <AccordionItem key={group.key} value={group.key} className="border rounded-lg px-2">
+            <AccordionTrigger className="hover:no-underline py-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-left w-full pr-4">
+                <span className="font-bold text-base">KW {group.cw}</span>
+                <span className="text-sm text-muted-foreground">({group.dateRange})</span>
+                <span className="text-sm text-muted-foreground ml-auto hidden sm:inline">
+                  {pendingLabel
+                    ? `${group.items.length} na čakaní`
+                    : `${group.items.length} ${group.items.length === 1 ? "záznam" : group.items.length < 5 ? "záznamy" : "záznamov"}`}
+                </span>
+                <span className="font-semibold text-sm">
+                  {Math.round(group.totalHours * 10) / 10}h
+                </span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pb-3">
+              <div className="space-y-3">
+                {group.items.map((approval) => renderApprovalCard(approval, isApproved))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        ))}
+      </Accordion>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -492,9 +537,7 @@ export default function Approvals() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-4">
-              {renderGroupedList(pendingApprovals, false)}
-            </div>
+            renderWeekAccordion(pendingGroups, pendingDefault, false, true)
           )}
         </TabsContent>
 
@@ -507,9 +550,7 @@ export default function Approvals() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-4">
-              {renderGroupedList(recentlyApproved, true)}
-            </div>
+            renderWeekAccordion(historyGroups, historyDefault, true)
           )}
         </TabsContent>
       </Tabs>
