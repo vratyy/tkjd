@@ -359,15 +359,15 @@ export default function LockWeeks() {
 
             return (
               <AccordionItem key={key} value={key} className="border-b-0 mb-3">
-                <AccordionTrigger className="hover:no-underline rounded-lg bg-muted/50 px-4 py-3 [&[data-state=open]]:bg-muted">
-                  <div className="flex items-center justify-between w-full pr-2">
-                    <div className="flex items-center gap-3">
-                      <span className="font-semibold text-base">
-                        KW {bucket.week} <span className="text-muted-foreground font-normal text-sm">({dateRange})</span>
+                <AccordionTrigger className="hover:no-underline rounded-lg bg-muted/50 px-3 py-3 md:px-4 [&[data-state=open]]:bg-muted">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 gap-1 sm:gap-0">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <span className="font-semibold text-sm sm:text-base">
+                        KW {bucket.week} <span className="text-muted-foreground font-normal text-xs sm:text-sm">({dateRange})</span>
                       </span>
                       <StatusBadge status="approved" />
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
                       <span>{bucket.items.length} {bucket.items.length === 1 ? "osoba" : "osôb"}</span>
                       <span>{Math.round(bucket.totalHours * 10) / 10}h</span>
                       <span className="font-semibold text-foreground">
@@ -377,7 +377,8 @@ export default function LockWeeks() {
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="pt-2 pb-0">
-                  <Card>
+                  {/* Desktop: Table view */}
+                  <Card className="hidden md:block">
                     <div className="overflow-auto">
                       <Table>
                         <TableHeader>
@@ -456,6 +457,74 @@ export default function LockWeeks() {
                       </Table>
                     </div>
                   </Card>
+
+                  {/* Mobile: Card view */}
+                  <div className="md:hidden space-y-2">
+                    {bucket.items.map((item) => {
+                      const rate = item.closing.profiles?.hourly_rate || 0;
+                      const amount = item.totalHours * rate;
+
+                      return (
+                        <Card key={item.closing.id} className="p-3">
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <p className="font-medium text-sm">{item.closing.profiles?.full_name || "Neznámy"}</p>
+                              {item.closing.profiles?.company_name && (
+                                <p className="text-xs text-muted-foreground">{item.closing.profiles.company_name}</p>
+                              )}
+                            </div>
+                            <span className="font-semibold text-sm">
+                              €{amount.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground font-mono">
+                              {Math.round(item.totalHours * 10) / 10}h × €{rate}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0"
+                                onClick={() => handleExport(item)}
+                                title="Export Excel"
+                              >
+                                <FileSpreadsheet className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0"
+                                onClick={() => handleGenerateInvoice(item)}
+                                disabled={generatingInvoice === item.closing.id}
+                                title="Generovať faktúru"
+                              >
+                                {generatingInvoice === item.closing.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <FileText className="h-4 w-4" />
+                                )}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="h-8 w-8 p-0"
+                                onClick={() => handleLock(item)}
+                                disabled={processing === item.closing.id}
+                                title="Uzamknúť"
+                              >
+                                {processing === item.closing.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Lock className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
                 </AccordionContent>
               </AccordionItem>
             );

@@ -21,15 +21,15 @@ export default function FinancialDashboard() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Finančný prehľad</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Finančný prehľad</h1>
+          <p className="text-sm text-muted-foreground">
             Prehľad všetkých faktúr, záloh a ich stavu platby
           </p>
         </div>
-        <Button variant="outline" onClick={refetch} disabled={loading}>
+        <Button variant="outline" onClick={refetch} disabled={loading} className="self-start sm:self-auto">
           <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           Obnoviť
         </Button>
