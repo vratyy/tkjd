@@ -246,6 +246,10 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
     });
   }
   
+  // Country line (immediately after address)
+  doc.text("Slovenska republika", margin, supY);
+  supY += 5;
+  
   supY += 2;
   
   // ICO, DIC
@@ -262,16 +266,12 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
   if (!data.isVatPayer) {
     doc.setTextColor(100, 100, 100);
     doc.text("Nie je platitel DPH.", margin, supY);
+    doc.setTextColor(50, 50, 50);
     supY += 5;
   } else if (data.vatNumber) {
     doc.text(`IC DPH: ${data.vatNumber}`, margin, supY);
     supY += 5;
   }
-
-  // Country line (append after address block)
-  doc.setTextColor(50, 50, 50);
-  doc.text("Slovenska republika", margin, supY);
-  supY += 5;
 
   // Worker ID / Contract Number in BOLD RED (critical B2B requirement)
   if (data.workerId || data.contractNumber) {
