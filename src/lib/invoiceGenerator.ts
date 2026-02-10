@@ -99,6 +99,13 @@ function extractNumericVS(invoiceNumber: string): string {
 /**
  * Generate proper PAY by square QR data with Variable Symbol and correct message
  */
+/**
+ * Remove diacritics/accents from a string (e.g. 'Štofík' -> 'Stofik')
+ */
+function removeDiacritics(str: string): string {
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 function generatePayBySquareData(
   iban: string,
   amount: number,
@@ -112,8 +119,11 @@ function generatePayBySquareData(
   // Variable Symbol = strictly numeric part of invoice number
   const variableSymbol = extractNumericVS(invoiceNumber);
   
-  // Message for recipient: KW [Week_Number] [Worker_Full_Name]
-  const message = `KW ${calendarWeek} ${safeText(supplierName)}`;
+  // Message: [Week]_woche_[FirstName]_[LastName] with diacritics removed
+  const nameParts = supplierName.trim().split(/\s+/);
+  const firstName = removeDiacritics(nameParts[0] || "");
+  const lastName = removeDiacritics(nameParts.slice(1).join("_") || "");
+  const message = `${calendarWeek}_woche_${firstName}_${lastName}`;
   
   // PAY by square format (SEPA with VS and proper message)
   return `SPD*1.0*ACC:${cleanIban}*AM:${amountStr}*CC:EUR*X-VS:${variableSymbol}*MSG:${message}*RN:${safeText(supplierName)}`;
