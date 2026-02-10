@@ -14,13 +14,14 @@ interface MetricsData {
   accountedOverdue: { count: number; amount: number };
 }
 
-interface Invoice {
+export interface Invoice {
   id: string;
   invoice_number: string;
   user_id: string;
   project_id: string | null;
   total_amount: number;
   issue_date: string;
+  delivery_date: string;
   due_date: string;
   status: "pending" | "due_soon" | "overdue" | "paid" | "void";
   transaction_tax_rate: number;
@@ -32,6 +33,8 @@ interface Invoice {
   is_locked: boolean;
   locked_at: string | null;
   is_accounted: boolean;
+  calendar_week?: number;
+  year?: number;
   profile?: {
     full_name: string;
     company_name: string | null;
@@ -140,7 +143,8 @@ export function useFinancialData() {
         .from("invoices")
         .select(`
           *,
-          project:projects(name, client)
+          project:projects(name, client),
+          weekly_closings(calendar_week, year)
         `)
         .is("deleted_at", null)
         .order("due_date", { ascending: true });
@@ -166,6 +170,8 @@ export function useFinancialData() {
             is_locked: inv.is_locked ?? false,
             locked_at: inv.locked_at ?? null,
             is_accounted: inv.is_accounted ?? false,
+            calendar_week: (inv as any).weekly_closings?.calendar_week ?? undefined,
+            year: (inv as any).weekly_closings?.year ?? undefined,
             profile: profile || undefined,
             project: inv.project || undefined 
           } as Invoice;
