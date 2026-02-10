@@ -47,6 +47,11 @@ export interface InvoiceData {
   
   // Sanctions deduction (optional)
   sanctionsDeduction?: number;
+  
+  // Historical date overrides (from DB) — prevents using new Date()
+  historicalIssueDate?: string;   // YYYY-MM-DD
+  historicalDeliveryDate?: string; // YYYY-MM-DD
+  historicalDueDate?: string;     // YYYY-MM-DD
 }
 
 // TKJD s.r.o. company details (Odberatel / Customer)
@@ -178,10 +183,16 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<void> {
     totalAmount = baseAmount + vatAmount - advanceDeduction - sanctionsDeduction;
   }
   
-  // Dates - CEO requirement: due date = issue date + 21 days
-  const issueDate = new Date();
-  const deliveryDate = issueDate;
-  const dueDate = addDays(issueDate, 21);
+  // Dates: use historical dates from DB if available, otherwise fall back to today
+  const issueDate = data.historicalIssueDate
+    ? new Date(data.historicalIssueDate + "T12:00:00")
+    : new Date();
+  const deliveryDate = data.historicalDeliveryDate
+    ? new Date(data.historicalDeliveryDate + "T12:00:00")
+    : issueDate;
+  const dueDate = data.historicalDueDate
+    ? new Date(data.historicalDueDate + "T12:00:00")
+    : addDays(issueDate, 14);
 
   // Layout constants
   const pageWidth = doc.internal.pageSize.getWidth();

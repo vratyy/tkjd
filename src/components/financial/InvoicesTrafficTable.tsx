@@ -237,6 +237,10 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
         year,
         totalHours: fullInvoice.total_hours,
         advanceDeduction: fullInvoice.advance_deduction ?? 0,
+        // Use DB dates strictly — never new Date()
+        historicalIssueDate: fullInvoice.issue_date,
+        historicalDeliveryDate: fullInvoice.delivery_date,
+        historicalDueDate: fullInvoice.due_date,
       });
 
       toast({

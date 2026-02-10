@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Lock, Search, FileSpreadsheet, FileText } from "lucide-react";
-import { format, startOfISOWeek, endOfISOWeek } from "date-fns";
+import { format, startOfISOWeek, endOfISOWeek, addDays } from "date-fns";
 import { sk } from "date-fns/locale";
 import { isDateInWeek } from "@/lib/dateUtils";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -272,6 +272,22 @@ export default function LockWeeks() {
       const projectNames = [...new Set(week.records.map((r) => r.projects?.name).filter(Boolean))];
       const projectName = projectNames.join(", ") || "Projekt";
 
+      // Calculate historical dates from the week data
+      // Delivery date = last recorded working day in this week
+      const workDates = week.records
+        .map((r) => r.date)
+        .filter(Boolean)
+        .sort();
+      const lastWorkDay = workDates.length > 0 ? workDates[workDates.length - 1] : null;
+
+      // Issue date = Monday immediately after the work week
+      const weekRef = new Date(week.closing.year, 0, 4); // Jan 4 is always in week 1
+      const weekStart = startOfISOWeek(weekRef);
+      const mondayAfterWeek = addDays(weekStart, (week.closing.calendar_week) * 7);
+      const historicalIssueDate = format(mondayAfterWeek, "yyyy-MM-dd");
+      const historicalDeliveryDate = lastWorkDay || historicalIssueDate;
+      const historicalDueDate = format(addDays(mondayAfterWeek, 14), "yyyy-MM-dd");
+
       await generateInvoicePDF({
         supplierName: profile.full_name,
         supplierCompany: profile.company_name,
@@ -290,6 +306,9 @@ export default function LockWeeks() {
         year: week.closing.year,
         totalHours: week.totalHours,
         odberatelId: week.closing.id,
+        historicalIssueDate,
+        historicalDeliveryDate,
+        historicalDueDate,
       });
       toast({ title: "Faktúra vygenerovaná", description: "PDF faktúra bola stiahnutá." });
     } catch (error: any) {
