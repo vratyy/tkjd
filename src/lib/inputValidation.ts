@@ -24,6 +24,8 @@ export function sanitizeText(input: string): string {
     .replace(/javascript:/gi, "");
 }
 
+const REQUIRED_BILLING_MSG = "Toto pole je povinné pre fakturáciu.";
+
 // Profile validation schema
 export const profileSchema = z.object({
   full_name: z
@@ -35,40 +37,54 @@ export const profileSchema = z.object({
   company_name: z
     .string()
     .trim()
+    .min(1, REQUIRED_BILLING_MSG)
     .max(MAX_NAME_LENGTH, `Maximálne ${MAX_NAME_LENGTH} znakov`)
-    .transform(sanitizeText)
-    .nullable()
-    .optional(),
+    .transform(sanitizeText),
   contract_number: z
     .string()
     .trim()
+    .min(1, REQUIRED_BILLING_MSG)
     .max(MAX_CONTRACT_LENGTH, `Maximálne ${MAX_CONTRACT_LENGTH} znakov`)
-    .transform(sanitizeText)
-    .nullable()
-    .optional(),
-  iban: z
+    .transform(sanitizeText),
+  ico: z
     .string()
     .trim()
-    .max(MAX_IBAN_LENGTH, `Maximálne ${MAX_IBAN_LENGTH} znakov`)
-    .regex(/^[A-Z]{2}[0-9A-Z\s]*$|^$/, "Neplatný formát IBAN")
-    .transform((val) => val.replace(/\s/g, "").toUpperCase())
-    .nullable()
-    .optional(),
-  swift_bic: z
+    .min(1, REQUIRED_BILLING_MSG)
+    .max(20, "Maximálne 20 znakov")
+    .regex(/^[\d\s]+$/, "IČO môže obsahovať len čísla"),
+  dic: z
     .string()
     .trim()
-    .max(11, "SWIFT/BIC môže mať maximálne 11 znakov")
-    .regex(/^[A-Z0-9]*$|^$/, "Neplatný formát SWIFT/BIC")
-    .transform((val) => val.toUpperCase())
+    .max(20, "Maximálne 20 znakov")
+    .regex(/^[0-9]*$|^$/, "DIČ môže obsahovať len čísla")
     .nullable()
     .optional(),
   billing_address: z
     .string()
     .trim()
+    .min(1, REQUIRED_BILLING_MSG)
     .max(MAX_ADDRESS_LENGTH, `Maximálne ${MAX_ADDRESS_LENGTH} znakov`)
-    .transform(sanitizeText)
-    .nullable()
-    .optional(),
+    .transform(sanitizeText),
+  country: z
+    .string()
+    .trim()
+    .min(1, REQUIRED_BILLING_MSG)
+    .max(100, "Maximálne 100 znakov")
+    .transform(sanitizeText),
+  iban: z
+    .string()
+    .trim()
+    .min(1, REQUIRED_BILLING_MSG)
+    .max(MAX_IBAN_LENGTH, `Maximálne ${MAX_IBAN_LENGTH} znakov`)
+    .regex(/^[A-Za-z]{2}[0-9A-Za-z\s]+$/, "IBAN musí začínať 2 písmenami a pokračovať číslicami")
+    .transform((val) => val.replace(/\s/g, "").toUpperCase()),
+  swift_bic: z
+    .string()
+    .trim()
+    .min(1, REQUIRED_BILLING_MSG)
+    .max(11, "SWIFT/BIC môže mať maximálne 11 znakov")
+    .regex(/^[A-Za-z0-9]+$/, "Neplatný formát SWIFT/BIC")
+    .transform((val) => val.toUpperCase()),
   hourly_rate: z
     .number()
     .min(0, "Hodinová sadzba nemôže byť záporná")
@@ -82,20 +98,6 @@ export const profileSchema = z.object({
     .max(20, "Maximálne 20 znakov")
     .regex(/^[A-Z]{2}[0-9]+$|^$/, "Neplatný formát IČ DPH")
     .transform((val) => val.toUpperCase())
-    .nullable()
-    .optional(),
-  ico: z
-    .string()
-    .trim()
-    .max(20, "Maximálne 20 znakov")
-    .regex(/^[0-9]*$|^$/, "IČO môže obsahovať len čísla")
-    .nullable()
-    .optional(),
-  dic: z
-    .string()
-    .trim()
-    .max(20, "Maximálne 20 znakov")
-    .regex(/^[0-9]*$|^$/, "DIČ môže obsahovať len čísla")
     .nullable()
     .optional(),
 });
