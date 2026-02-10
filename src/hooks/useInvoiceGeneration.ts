@@ -98,14 +98,14 @@ export function useInvoiceGeneration() {
       }
 
       // Generate dates - use overrides for historical invoices
-      // Issue date = Monday after the work week; Due date = issue date + 14 days
+      // Issue date = Monday after the work week; Due date = issue date + 21 days
       const issueDate = overrideIssueDate
         ? new Date(overrideIssueDate + "T12:00:00")
         : new Date();
       const deliveryDate = overrideDeliveryDate
         ? new Date(overrideDeliveryDate + "T12:00:00")
         : issueDate;
-      const dueDate = addDays(issueDate, 14);
+      const dueDate = addDays(issueDate, 21);
       const invoiceNumber = await generateInvoiceNumber();
 
       // 1. FIRST: Insert invoice record into database
