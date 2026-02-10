@@ -292,6 +292,7 @@ export default function LockWeeks() {
         supplierName: profile.full_name,
         supplierCompany: profile.company_name,
         supplierAddress: profile.billing_address,
+        supplierCountry: (profile as any).country,
         supplierIco: profile.ico,
         supplierDic: profile.dic,
         supplierIban: profile.iban,
