@@ -12,22 +12,26 @@ import { Loader2, Save, User, CreditCard, Euro, Building2, Lock } from "lucide-r
 import { SignaturePad } from "@/components/SignaturePad";
 import { Switch } from "@/components/ui/switch";
 import { getSignedSignatureUrl } from "@/lib/signatureUtils";
+import { profileSchema } from "@/lib/inputValidation";
 
 interface ProfileData {
   full_name: string;
-  company_name: string | null;
-  contract_number: string | null;
+  company_name: string;
+  contract_number: string;
   hourly_rate: number | null;
   fixed_wage: number | null;
-  iban: string | null;
-  swift_bic: string | null;
-  billing_address: string | null;
+  iban: string;
+  swift_bic: string;
+  billing_address: string;
+  country: string;
   signature_url: string | null;
   is_vat_payer: boolean;
   vat_number: string | null;
-  ico: string | null;
+  ico: string;
   dic: string | null;
 }
+
+type FieldErrors = Partial<Record<string, string>>;
 
 export default function Profile() {
   const { user } = useAuth();
@@ -36,19 +40,21 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [signedSignatureUrl, setSignedSignatureUrl] = useState<string | null>(null);
+  const [errors, setErrors] = useState<FieldErrors>({});
   const [profile, setProfile] = useState<ProfileData>({
     full_name: "",
-    company_name: null,
-    contract_number: null,
+    company_name: "",
+    contract_number: "",
     hourly_rate: null,
     fixed_wage: null,
-    iban: null,
-    swift_bic: null,
-    billing_address: null,
+    iban: "",
+    swift_bic: "",
+    billing_address: "",
+    country: "Slovenská republika",
     signature_url: null,
     is_vat_payer: false,
     vat_number: null,
-    ico: null,
+    ico: "",
     dic: null,
   });
 
@@ -58,16 +64,30 @@ export default function Profile() {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("full_name, company_name, contract_number, hourly_rate, fixed_wage, iban, swift_bic, billing_address, signature_url, is_vat_payer, vat_number, ico, dic")
+        .select("full_name, company_name, contract_number, hourly_rate, fixed_wage, iban, swift_bic, billing_address, signature_url, is_vat_payer, vat_number, ico, dic, country")
         .eq("user_id", user.id)
         .maybeSingle();
 
       if (error) {
         console.error("Error fetching profile:", error);
       } else if (data) {
-        setProfile(data);
-        
-        // Generate signed URL for signature display
+        setProfile({
+          full_name: data.full_name || "",
+          company_name: data.company_name || "",
+          contract_number: data.contract_number || "",
+          hourly_rate: data.hourly_rate,
+          fixed_wage: data.fixed_wage,
+          iban: data.iban || "",
+          swift_bic: data.swift_bic || "",
+          billing_address: data.billing_address || "",
+          country: (data as any).country || "Slovenská republika",
+          signature_url: data.signature_url,
+          is_vat_payer: data.is_vat_payer ?? false,
+          vat_number: data.vat_number,
+          ico: data.ico || "",
+          dic: data.dic,
+        });
+
         if (data.signature_url) {
           const signedUrl = await getSignedSignatureUrl(data.signature_url, 3600);
           setSignedSignatureUrl(signedUrl);
@@ -83,22 +103,53 @@ export default function Profile() {
     e.preventDefault();
     if (!user) return;
 
+    // Validate with Zod schema
+    const result = profileSchema.safeParse({
+      ...profile,
+      ico: profile.ico || "",
+      iban: profile.iban || "",
+      swift_bic: profile.swift_bic || "",
+      billing_address: profile.billing_address || "",
+      company_name: profile.company_name || "",
+      contract_number: profile.contract_number || "",
+      country: profile.country || "",
+    });
+
+    if (!result.success) {
+      const fieldErrors: FieldErrors = {};
+      result.error.errors.forEach((err) => {
+        const field = err.path[0] as string;
+        if (!fieldErrors[field]) {
+          fieldErrors[field] = err.message;
+        }
+      });
+      setErrors(fieldErrors);
+      toast({
+        variant: "destructive",
+        title: "Neplatné údaje",
+        description: "Prosím opravte zvýraznené polia.",
+      });
+      return;
+    }
+
+    setErrors({});
     setSaving(true);
 
     const { error } = await supabase
       .from("profiles")
       .update({
-        full_name: profile.full_name,
-        company_name: profile.company_name,
-        contract_number: profile.contract_number,
+        full_name: result.data.full_name,
+        company_name: result.data.company_name,
+        contract_number: result.data.contract_number,
         hourly_rate: profile.hourly_rate,
-        iban: profile.iban,
-        swift_bic: profile.swift_bic,
-        billing_address: profile.billing_address,
-        is_vat_payer: profile.is_vat_payer,
-        vat_number: profile.vat_number,
-        ico: profile.ico,
-        dic: profile.dic,
+        iban: result.data.iban,
+        swift_bic: result.data.swift_bic,
+        billing_address: result.data.billing_address,
+        country: result.data.country,
+        is_vat_payer: result.data.is_vat_payer,
+        vat_number: result.data.vat_number,
+        ico: result.data.ico,
+        dic: result.data.dic,
       })
       .eq("user_id", user.id);
 
@@ -120,8 +171,16 @@ export default function Profile() {
 
   const handleSignatureSaved = (url: string) => {
     setProfile((prev) => ({ ...prev, signature_url: prev.signature_url }));
-    setSignedSignatureUrl(url); // url is already a signed URL from SignaturePad
+    setSignedSignatureUrl(url);
   };
+
+  const renderError = (field: string) => {
+    if (!errors[field]) return null;
+    return <p className="text-xs text-destructive mt-1">{errors[field]}</p>;
+  };
+
+  const fieldClass = (field: string) =>
+    errors[field] ? "border-destructive focus-visible:ring-destructive" : "";
 
   if (loading) {
     return (
@@ -138,120 +197,116 @@ export default function Profile() {
         <p className="text-muted-foreground">Spravujte svoje osobné a fakturačné údaje</p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Personal Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Osobné údaje
-            </CardTitle>
-            <CardDescription>Základné informácie o vás</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit}>
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Personal Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Osobné údaje
+              </CardTitle>
+              <CardDescription>Základné informácie o vás</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="fullName">Meno a priezvisko</Label>
+                <Label htmlFor="fullName">Meno a priezvisko *</Label>
                 <Input
                   id="fullName"
                   value={profile.full_name}
-                  onChange={(e) =>
-                    setProfile((prev) => ({ ...prev, full_name: e.target.value }))
-                  }
+                  onChange={(e) => setProfile((prev) => ({ ...prev, full_name: e.target.value }))}
+                  className={fieldClass("full_name")}
                   required
                 />
+                {renderError("full_name")}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="companyName">Názov firmy</Label>
+                <Label htmlFor="companyName">Názov firmy *</Label>
                 <Input
                   id="companyName"
-                  value={profile.company_name || ""}
-                  onChange={(e) =>
-                    setProfile((prev) => ({ ...prev, company_name: e.target.value }))
-                  }
+                  value={profile.company_name}
+                  onChange={(e) => setProfile((prev) => ({ ...prev, company_name: e.target.value }))}
                   placeholder="Napr. Ján Novák s.r.o."
+                  className={fieldClass("company_name")}
                 />
+                {renderError("company_name")}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="contractNumber">Číslo zmluvy</Label>
+                <Label htmlFor="contractNumber">Číslo zmluvy *</Label>
                 <Input
                   id="contractNumber"
-                  value={profile.contract_number || ""}
-                  onChange={(e) =>
-                    setProfile((prev) => ({ ...prev, contract_number: e.target.value }))
-                  }
-                  placeholder="Napr. ZML-2024-001"
+                  value={profile.contract_number}
+                  onChange={(e) => setProfile((prev) => ({ ...prev, contract_number: e.target.value }))}
+                  placeholder="Napr. 102026"
+                  className={fieldClass("contract_number")}
                 />
+                {renderError("contract_number")}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="ico">IČO</Label>
+                  <Label htmlFor="ico">IČO *</Label>
                   <Input
                     id="ico"
-                    value={profile.ico || ""}
-                    onChange={(e) =>
-                      setProfile((prev) => ({ ...prev, ico: e.target.value }))
-                    }
+                    value={profile.ico}
+                    onChange={(e) => setProfile((prev) => ({ ...prev, ico: e.target.value }))}
                     placeholder="12345678"
+                    className={fieldClass("ico")}
                   />
+                  {renderError("ico")}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="dic">DIČ</Label>
                   <Input
                     id="dic"
                     value={profile.dic || ""}
-                    onChange={(e) =>
-                      setProfile((prev) => ({ ...prev, dic: e.target.value }))
-                    }
+                    onChange={(e) => setProfile((prev) => ({ ...prev, dic: e.target.value }))}
                     placeholder="2012345678"
+                    className={fieldClass("dic")}
                   />
+                  {renderError("dic")}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="billingAddress">Fakturačná adresa</Label>
+                <Label htmlFor="billingAddress">Fakturačná adresa *</Label>
                 <Textarea
                   id="billingAddress"
-                  value={profile.billing_address || ""}
-                  onChange={(e) =>
-                    setProfile((prev) => ({ ...prev, billing_address: e.target.value }))
-                  }
-                  placeholder="Ulica, Mesto, PSČ"
+                  value={profile.billing_address}
+                  onChange={(e) => setProfile((prev) => ({ ...prev, billing_address: e.target.value }))}
+                  placeholder="Ulica, PSČ Mesto"
                   rows={3}
+                  className={fieldClass("billing_address")}
                 />
+                {renderError("billing_address")}
               </div>
 
-              <Button type="submit" disabled={saving} className="w-full">
-                {saving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Ukladám...
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Uložiť osobné údaje
-                  </>
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+              <div className="space-y-2">
+                <Label htmlFor="country">Krajina *</Label>
+                <Input
+                  id="country"
+                  value={profile.country}
+                  onChange={(e) => setProfile((prev) => ({ ...prev, country: e.target.value }))}
+                  placeholder="Slovenská republika"
+                  className={fieldClass("country")}
+                />
+                {renderError("country")}
+              </div>
+            </CardContent>
+          </Card>
 
-        {/* VAT Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Daňové údaje
-            </CardTitle>
-            <CardDescription>Nastavenia DPH pre fakturáciu</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+          {/* VAT Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5" />
+                Daňové údaje
+              </CardTitle>
+              <CardDescription>Nastavenia DPH pre fakturáciu</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <div className="space-y-0.5">
                   <Label htmlFor="isVatPayer" className="text-base">Platca DPH</Label>
@@ -274,42 +329,26 @@ export default function Profile() {
                   <Input
                     id="vatNumber"
                     value={profile.vat_number || ""}
-                    onChange={(e) =>
-                      setProfile((prev) => ({ ...prev, vat_number: e.target.value }))
-                    }
+                    onChange={(e) => setProfile((prev) => ({ ...prev, vat_number: e.target.value }))}
                     placeholder="SK1234567890"
+                    className={fieldClass("vat_number")}
                   />
+                  {renderError("vat_number")}
                 </div>
               )}
+            </CardContent>
+          </Card>
 
-              <Button type="submit" disabled={saving} className="w-full">
-                {saving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Ukladám...
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Uložiť daňové údaje
-                  </>
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Banking Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5" />
-              Bankové údaje
-            </CardTitle>
-            <CardDescription>Údaje pre príjem platieb</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Banking Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5" />
+                Bankové údaje
+              </CardTitle>
+              <CardDescription>Údaje pre príjem platieb</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               {/* Fixed Wage - Admin only edit, readonly for users */}
               <div className="space-y-2">
                 <Label htmlFor="fixedWage" className="flex items-center gap-1">
@@ -369,57 +408,60 @@ export default function Profile() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="iban">IBAN</Label>
+                <Label htmlFor="iban">IBAN *</Label>
                 <Input
                   id="iban"
-                  value={profile.iban || ""}
-                  onChange={(e) =>
-                    setProfile((prev) => ({ ...prev, iban: e.target.value }))
-                  }
+                  value={profile.iban}
+                  onChange={(e) => setProfile((prev) => ({ ...prev, iban: e.target.value }))}
                   placeholder="SK00 0000 0000 0000 0000 0000"
+                  className={fieldClass("iban")}
                 />
+                {renderError("iban")}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="swiftBic">SWIFT/BIC</Label>
+                <Label htmlFor="swiftBic">SWIFT/BIC *</Label>
                 <Input
                   id="swiftBic"
-                  value={profile.swift_bic || ""}
-                  onChange={(e) =>
-                    setProfile((prev) => ({ ...prev, swift_bic: e.target.value }))
-                  }
+                  value={profile.swift_bic}
+                  onChange={(e) => setProfile((prev) => ({ ...prev, swift_bic: e.target.value }))}
                   placeholder="Napr. TATRSKBX"
+                  className={fieldClass("swift_bic")}
                 />
+                {renderError("swift_bic")}
               </div>
+            </CardContent>
+          </Card>
 
-              <Button type="submit" disabled={saving} className="w-full">
-                {saving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Ukladám...
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Uložiť bankové údaje
-                  </>
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Digital Signature */}
-        {user && (
+          {/* Save button spanning full width */}
           <div className="lg:col-span-2">
-            <SignaturePad
-              userId={user.id}
-              currentSignatureUrl={signedSignatureUrl}
-              onSignatureSaved={handleSignatureSaved}
-            />
+            <Button type="submit" disabled={saving} className="w-full" size="lg">
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Ukladám...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Uložiť profil
+                </>
+              )}
+            </Button>
           </div>
-        )}
-      </div>
+
+          {/* Digital Signature */}
+          {user && (
+            <div className="lg:col-span-2">
+              <SignaturePad
+                userId={user.id}
+                currentSignatureUrl={signedSignatureUrl}
+                onSignatureSaved={handleSignatureSaved}
+              />
+            </div>
+          )}
+        </div>
+      </form>
     </div>
   );
 }
