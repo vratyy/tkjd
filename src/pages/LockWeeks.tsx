@@ -1,20 +1,29 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Lock, User, ChevronDown, ChevronUp, FileSpreadsheet, FileText } from "lucide-react";
-import { format } from "date-fns";
+import { Loader2, Lock, Search, FileSpreadsheet, FileText } from "lucide-react";
+import { format, startOfISOWeek, endOfISOWeek } from "date-fns";
 import { sk } from "date-fns/locale";
 import { isDateInWeek } from "@/lib/dateUtils";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Navigate } from "react-router-dom";
 import { exportWeeklyRecordsToExcel } from "@/lib/excelExport";
 import { generateInvoicePDF } from "@/lib/invoiceGenerator";
 import { ProjectExportSection } from "@/components/approvals/ProjectExportSection";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface Profile {
   full_name: string;
@@ -60,6 +69,26 @@ interface ApprovedWeek {
   totalHours: number;
 }
 
+/** A week bucket grouping multiple workers */
+interface WeekBucket {
+  week: number;
+  year: number;
+  items: ApprovedWeek[];
+  totalHours: number;
+  totalAmount: number;
+}
+
+function getWeekDateRange(week: number, year: number): string {
+  // Build a date in the target ISO week (Thursday is always in the correct week)
+  const jan4 = new Date(year, 0, 4);
+  const dayOfWeek = jan4.getDay() || 7;
+  const monday = new Date(jan4);
+  monday.setDate(jan4.getDate() - dayOfWeek + 1 + (week - 1) * 7);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return `${format(monday, "d.M.", { locale: sk })} – ${format(sunday, "d.M.yyyy", { locale: sk })}`;
+}
+
 export default function LockWeeks() {
   const { user } = useAuth();
   const { isAdmin, loading: roleLoading } = useUserRole();
@@ -67,8 +96,8 @@ export default function LockWeeks() {
   const [approvedWeeks, setApprovedWeeks] = useState<ApprovedWeek[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
-  const [openItems, setOpenItems] = useState<Set<string>>(new Set());
   const [generatingInvoice, setGeneratingInvoice] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const fetchData = async () => {
     if (!user) return;
@@ -86,7 +115,6 @@ export default function LockWeeks() {
       return;
     }
 
-    // Fetch profiles separately
     const userIds = [...new Set(closings?.map(c => c.user_id) || [])];
     const { data: profiles } = await supabase
       .from("profiles")
@@ -97,7 +125,7 @@ export default function LockWeeks() {
 
     for (const closing of closings || []) {
       const profile = profiles?.find(p => p.user_id === closing.user_id);
-      
+
       const { data: records } = await supabase
         .from("performance_records")
         .select("id, date, time_from, time_to, break_start, break_end, break2_start, break2_end, total_hours, status, note, projects(name, address, location)")
@@ -128,11 +156,7 @@ export default function LockWeeks() {
         } : null
       };
 
-      weeks.push({
-        closing: closingWithProfile,
-        records: weekRecords,
-        totalHours,
-      });
+      weeks.push({ closing: closingWithProfile, records: weekRecords, totalHours });
     }
 
     setApprovedWeeks(weeks);
@@ -143,54 +167,82 @@ export default function LockWeeks() {
     fetchData();
   }, [user]);
 
-  // getWeek removed — replaced by isDateInWeek from dateUtils
+  // Group by week and filter by search
+  const filteredBuckets = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+
+    // Filter items by surname
+    const filtered = q
+      ? approvedWeeks.filter(w => w.closing.profiles?.full_name?.toLowerCase().includes(q))
+      : approvedWeeks;
+
+    // Group into week buckets
+    const map = new Map<string, WeekBucket>();
+    for (const item of filtered) {
+      const key = `${item.closing.year}-${item.closing.calendar_week}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          week: item.closing.calendar_week,
+          year: item.closing.year,
+          items: [],
+          totalHours: 0,
+          totalAmount: 0,
+        });
+      }
+      const bucket = map.get(key)!;
+      bucket.items.push(item);
+      bucket.totalHours += item.totalHours;
+      const rate = item.closing.profiles?.hourly_rate || 0;
+      bucket.totalAmount += item.totalHours * rate;
+    }
+
+    // Sort items within each bucket by surname ascending
+    for (const bucket of map.values()) {
+      bucket.items.sort((a, b) => {
+        const nameA = a.closing.profiles?.full_name || "";
+        const nameB = b.closing.profiles?.full_name || "";
+        return nameA.localeCompare(nameB, "sk");
+      });
+    }
+
+    // Sort buckets by year desc, then week desc
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.year !== b.year) return b.year - a.year;
+      return b.week - a.week;
+    });
+  }, [approvedWeeks, searchQuery]);
 
   const handleLock = async (week: ApprovedWeek) => {
     setProcessing(week.closing.id);
-
     try {
-      // Update closing status to locked
       const { error: closingError } = await supabase
         .from("weekly_closings")
         .update({ status: "locked" })
         .eq("id", week.closing.id);
-
       if (closingError) throw closingError;
 
       toast({
         title: "Uzamknuté",
-        description: `KW ${week.closing.calendar_week}/${week.closing.year} bol uzamknutý.`,
+        description: `KW ${week.closing.calendar_week}/${week.closing.year} – ${week.closing.profiles?.full_name || "?"} bol uzamknutý.`,
       });
-
       await fetchData();
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Chyba",
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: "Chyba", description: error.message });
     }
-
     setProcessing(null);
   };
 
   const handleExport = async (week: ApprovedWeek) => {
     const projectNames = [...new Set(week.records.map((r) => r.projects?.name).filter(Boolean))];
     const projectName = projectNames.join(", ") || "Neznámy projekt";
-
     try {
       const firstProject = week.records.find((r) => r.projects)?.projects;
       await exportWeeklyRecordsToExcel({
         records: week.records.map((r) => ({
-          date: r.date,
-          time_from: r.time_from,
-          time_to: r.time_to,
-          break_start: r.break_start,
-          break_end: r.break_end,
-          break2_start: r.break2_start,
-          break2_end: r.break2_end,
-          total_hours: r.total_hours,
-          note: r.note,
+          date: r.date, time_from: r.time_from, time_to: r.time_to,
+          break_start: r.break_start, break_end: r.break_end,
+          break2_start: r.break2_start, break2_end: r.break2_end,
+          total_hours: r.total_hours, note: r.note,
         })),
         projectName,
         projectAddress: firstProject?.address || firstProject?.location || null,
@@ -198,21 +250,11 @@ export default function LockWeeks() {
         calendarWeek: week.closing.calendar_week,
         year: week.closing.year,
       });
-
-      toast({
-        title: "Export úspešný",
-        description: `Leistungsnachweis bol stiahnutý.`,
-      });
+      toast({ title: "Export úspešný", description: "Leistungsnachweis bol stiahnutý." });
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Chyba pri exporte",
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: "Chyba pri exporte", description: error.message });
     }
   };
-
-  // Always allow invoice generation attempt — show toast if data missing
 
   const handleGenerateInvoice = async (week: ApprovedWeek) => {
     const profile = week.closing.profiles;
@@ -226,7 +268,6 @@ export default function LockWeeks() {
     }
 
     setGeneratingInvoice(week.closing.id);
-
     try {
       const projectNames = [...new Set(week.records.map((r) => r.projects?.name).filter(Boolean))];
       const projectName = projectNames.join(", ") || "Projekt";
@@ -250,30 +291,11 @@ export default function LockWeeks() {
         totalHours: week.totalHours,
         odberatelId: week.closing.id,
       });
-
-      toast({
-        title: "Faktúra vygenerovaná",
-        description: `PDF faktúra bola stiahnutá.`,
-      });
+      toast({ title: "Faktúra vygenerovaná", description: "PDF faktúra bola stiahnutá." });
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Chyba",
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: "Chyba", description: error.message });
     }
-
     setGeneratingInvoice(null);
-  };
-
-  const toggleItem = (id: string) => {
-    const newOpen = new Set(openItems);
-    if (newOpen.has(id)) {
-      newOpen.delete(id);
-    } else {
-      newOpen.add(id);
-    }
-    setOpenItems(newOpen);
   };
 
   if (roleLoading) {
@@ -303,128 +325,142 @@ export default function LockWeeks() {
         <p className="text-muted-foreground">Finálne uzamknutie schválených týždňov</p>
       </div>
 
-      {/* Consolidated Project Export */}
       <ProjectExportSection />
 
-      {approvedWeeks.length === 0 ? (
+      {/* Search filter */}
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Hľadať podľa priezviska..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      {filteredBuckets.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <Lock className="h-12 w-12 mx-auto mb-3 opacity-50 text-muted-foreground" />
-            <p className="text-muted-foreground">Žiadne schválené týždne na uzamknutie.</p>
+            <p className="text-muted-foreground">
+              {searchQuery ? "Žiadne výsledky pre zadané meno." : "Žiadne schválené týždne na uzamknutie."}
+            </p>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {approvedWeeks.map((week) => {
-            const isOpen = openItems.has(week.closing.id);
+        <Accordion
+          type="single"
+          collapsible
+          defaultValue={filteredBuckets.length > 0 ? `${filteredBuckets[0].year}-${filteredBuckets[0].week}` : undefined}
+        >
+          {filteredBuckets.map((bucket) => {
+            const key = `${bucket.year}-${bucket.week}`;
+            const dateRange = getWeekDateRange(bucket.week, bucket.year);
 
             return (
-              <Card key={week.closing.id}>
-                <Collapsible open={isOpen} onOpenChange={() => toggleItem(week.closing.id)}>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <CollapsibleTrigger asChild>
-                          <Button variant="ghost" size="sm" className="p-0 h-auto">
-                            {isOpen ? (
-                              <ChevronUp className="h-5 w-5" />
-                            ) : (
-                              <ChevronDown className="h-5 w-5" />
-                            )}
-                          </Button>
-                        </CollapsibleTrigger>
-                        <div className="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center">
-                          <User className="h-5 w-5 text-success" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">
-                            {week.closing.profiles?.full_name || "Neznámy používateľ"}
-                          </CardTitle>
-                          <CardDescription>
-                            KW {week.closing.calendar_week}/{week.closing.year} •{" "}
-                            {week.records.length} záznamov •{" "}
-                            {Math.round(week.totalHours * 10) / 10}h
-                            {week.closing.profiles?.company_name && (
-                              <> • {week.closing.profiles.company_name}</>
-                            )}
-                          </CardDescription>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <StatusBadge status="approved" />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleExport(week)}
-                        >
-                          <FileSpreadsheet className="h-4 w-4 sm:mr-1" />
-                          <span className="hidden sm:inline">Export</span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleGenerateInvoice(week)}
-                          disabled={generatingInvoice === week.closing.id}
-                        >
-                          {generatingInvoice === week.closing.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <>
-                              <FileText className="h-4 w-4 sm:mr-1" />
-                              <span className="hidden sm:inline">Faktúra</span>
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => handleLock(week)}
-                          disabled={processing === week.closing.id}
-                        >
-                          {processing === week.closing.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <>
-                              <Lock className="h-4 w-4 sm:mr-1" />
-                              <span className="hidden sm:inline">Uzamknúť</span>
-                            </>
-                          )}
-                        </Button>
-                      </div>
+              <AccordionItem key={key} value={key} className="border-b-0 mb-3">
+                <AccordionTrigger className="hover:no-underline rounded-lg bg-muted/50 px-4 py-3 [&[data-state=open]]:bg-muted">
+                  <div className="flex items-center justify-between w-full pr-2">
+                    <div className="flex items-center gap-3">
+                      <span className="font-semibold text-base">
+                        KW {bucket.week} <span className="text-muted-foreground font-normal text-sm">({dateRange})</span>
+                      </span>
+                      <StatusBadge status="approved" />
                     </div>
-                  </CardHeader>
-                  <CollapsibleContent>
-                    <CardContent className="pt-0">
-                      <div className="space-y-2">
-                        {week.records.map((record) => (
-                          <div
-                            key={record.id}
-                            className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">
-                                  {format(new Date(record.date), "EEEE, d. MMM", { locale: sk })}
-                                </span>
-                              </div>
-                              <p className="text-sm text-muted-foreground">
-                                {record.projects?.name || "—"} • {record.time_from} - {record.time_to}
-                                {record.note && ` • ${record.note}`}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <span className="font-semibold">{record.total_hours}h</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </CollapsibleContent>
-                </Collapsible>
-              </Card>
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <span>{bucket.items.length} {bucket.items.length === 1 ? "osoba" : "osôb"}</span>
+                      <span>{Math.round(bucket.totalHours * 10) / 10}h</span>
+                      <span className="font-semibold text-foreground">
+                        €{bucket.totalAmount.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="pt-2 pb-0">
+                  <Card>
+                    <div className="overflow-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Spolupracovník</TableHead>
+                            <TableHead className="text-right">Hodiny</TableHead>
+                            <TableHead className="text-right">Suma (€)</TableHead>
+                            <TableHead className="text-right">Akcie</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {bucket.items.map((item) => {
+                            const rate = item.closing.profiles?.hourly_rate || 0;
+                            const amount = item.totalHours * rate;
+
+                            return (
+                              <TableRow key={item.closing.id}>
+                                <TableCell>
+                                  <div>
+                                    <span className="font-medium">{item.closing.profiles?.full_name || "Neznámy"}</span>
+                                    {item.closing.profiles?.company_name && (
+                                      <span className="text-muted-foreground text-xs ml-2">
+                                        {item.closing.profiles.company_name}
+                                      </span>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-right font-mono">
+                                  {Math.round(item.totalHours * 10) / 10}h
+                                </TableCell>
+                                <TableCell className="text-right font-mono font-semibold">
+                                  €{amount.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => handleExport(item)}
+                                      title="Export Excel"
+                                    >
+                                      <FileSpreadsheet className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => handleGenerateInvoice(item)}
+                                      disabled={generatingInvoice === item.closing.id}
+                                      title="Generovať faktúru"
+                                    >
+                                      {generatingInvoice === item.closing.id ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <FileText className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      onClick={() => handleLock(item)}
+                                      disabled={processing === item.closing.id}
+                                      title="Uzamknúť"
+                                    >
+                                      {processing === item.closing.id ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <Lock className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </Card>
+                </AccordionContent>
+              </AccordionItem>
             );
           })}
-        </div>
+        </Accordion>
       )}
     </div>
   );
