@@ -9,6 +9,10 @@ interface GenerateInvoiceParams {
   invoiceData: InvoiceData;
   projectId?: string | null;
   weekClosingId?: string | null;
+  /** Override issue date (YYYY-MM-DD) for historical invoices */
+  overrideIssueDate?: string;
+  /** Override delivery date (YYYY-MM-DD) for historical invoices */
+  overrideDeliveryDate?: string;
 }
 
 /**
@@ -63,6 +67,8 @@ export function useInvoiceGeneration() {
     invoiceData,
     projectId,
     weekClosingId,
+    overrideIssueDate,
+    overrideDeliveryDate,
   }: GenerateInvoiceParams): Promise<{ success: boolean; invoiceId?: string }> => {
     if (!user) {
       toast({
@@ -91,10 +97,15 @@ export function useInvoiceGeneration() {
         totalAmount = baseAmount + vatAmount - advanceDeduction;
       }
 
-      // Generate dates - due date = issue date + 21 days
-      const issueDate = new Date();
-      const deliveryDate = issueDate;
-      const dueDate = addDays(issueDate, 21);
+      // Generate dates - use overrides for historical invoices
+      // Issue date = Monday after the work week; Due date = issue date + 14 days
+      const issueDate = overrideIssueDate
+        ? new Date(overrideIssueDate + "T12:00:00")
+        : new Date();
+      const deliveryDate = overrideDeliveryDate
+        ? new Date(overrideDeliveryDate + "T12:00:00")
+        : issueDate;
+      const dueDate = addDays(issueDate, 14);
       const invoiceNumber = await generateInvoiceNumber();
 
       // 1. FIRST: Insert invoice record into database
@@ -127,11 +138,14 @@ export function useInvoiceGeneration() {
         throw new Error(`Nepodarilo sa uložiť faktúru: ${insertError.message}`);
       }
 
-      // 2. THEN: Generate and download the PDF
+      // 2. THEN: Generate and download the PDF with historical dates from DB
       await generateInvoicePDF({
         ...invoiceData,
         invoiceNumber: invoiceNumber,
         odberatelId: newInvoice.id,
+        historicalIssueDate: format(issueDate, "yyyy-MM-dd"),
+        historicalDeliveryDate: format(deliveryDate, "yyyy-MM-dd"),
+        historicalDueDate: format(dueDate, "yyyy-MM-dd"),
       });
 
       toast({
