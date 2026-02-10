@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format, startOfISOWeek, endOfISOWeek } from "date-fns";
 import { sk } from "date-fns/locale";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
@@ -117,14 +117,14 @@ export function UserRecordsTab({
 
   return (
     <>
-      <ScrollArea className="flex-1 max-h-[60vh]">
+      <div className="flex-1 overflow-y-auto max-h-[55vh] pr-2">
         {records.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
             <p>Žiadne záznamy</p>
           </div>
         ) : (
-          <Accordion type="single" collapsible defaultValue={defaultWeek} className="pr-4">
+          <Accordion type="single" collapsible defaultValue={defaultWeek}>
             {weekGroups.map(([key, group]) => (
               <AccordionItem key={key} value={key} className="border-b-0 mb-2">
                 <AccordionTrigger className="hover:no-underline rounded-lg bg-muted/50 px-4 py-3 [&[data-state=open]]:bg-muted">
@@ -209,7 +209,7 @@ export function UserRecordsTab({
             ))}
           </Accordion>
         )}
-      </ScrollArea>
+      </div>
 
       {records.length > 0 && (
         <div className="pt-4 border-t mt-4">
