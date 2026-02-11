@@ -25,6 +25,7 @@ interface StundenzettelParams {
   workerName: string;
   calendarWeek: number;
   year: number;
+  companySignatureBase64?: string | null;
 }
 
 // German day names for the week (Monday to Saturday)
@@ -329,10 +330,37 @@ export async function exportStundenzettelToExcel(params: StundenzettelParams): P
   totalSumCell.fill = { type: "pattern", pattern: "solid", fgColor: BLACK_COLOR };
   totalSumCell.border = thinBorder;
 
-  // ============ ROWS 25-32: Empty spacer rows ============
-  for (let i = 25; i <= 32; i++) {
-    ws.getRow(i).height = 15;
+  // ============ ROWS 25-26: Auftraggeber signature section ============
+  ws.getRow(25).height = 15;
+  ws.getRow(26).height = 15;
+
+  // ============ ROW 27: Auftraggeber label ============
+  ws.mergeCells("A27:C27");
+  ws.getCell("A27").value = "AUFTRAGGEBER / ZADÁVATEĽ:";
+  ws.getCell("A27").font = { bold: true, size: 9 };
+  ws.getCell("A27").alignment = { horizontal: "left", vertical: "middle" };
+  ws.getRow(27).height = 16;
+
+  // ============ ROWS 28-31: Company signature image area ============
+  for (let i = 28; i <= 31; i++) ws.getRow(i).height = 20;
+
+  // Add company signature/stamp if available
+  if (params.companySignatureBase64) {
+    try {
+      const sigImageId = workbook.addImage({
+        base64: params.companySignatureBase64,
+        extension: "png",
+      });
+      ws.addImage(sigImageId, {
+        tl: { col: 0, row: 27 },
+        ext: { width: 150, height: 80 },
+      });
+    } catch (error) {
+      console.warn("Could not embed company signature:", error);
+    }
   }
+
+  ws.getRow(32).height = 15;
 
   // ============ ROW 33: Signature label (German) ============
   ws.getCell("E33").value = "UNTERSCHRIFT DES BAULEITERS";
@@ -608,8 +636,33 @@ export async function exportMultipleStundenzettelsToExcel(
     ws.getCell(`F${totalRowNum}`).fill = { type: "pattern", pattern: "solid", fgColor: BLACK_COLOR };
     ws.getCell(`F${totalRowNum}`).border = thinBorder;
 
-    // Spacer rows 25-32
-    for (let i = 25; i <= 32; i++) ws.getRow(i).height = 15;
+    // ============ Auftraggeber signature section ============
+    ws.getRow(25).height = 15;
+    ws.getRow(26).height = 15;
+    ws.mergeCells("A27:C27");
+    ws.getCell("A27").value = "AUFTRAGGEBER / ZADÁVATEĽ:";
+    ws.getCell("A27").font = { bold: true, size: 9 };
+    ws.getCell("A27").alignment = { horizontal: "left", vertical: "middle" };
+    ws.getRow(27).height = 16;
+    for (let i = 28; i <= 31; i++) ws.getRow(i).height = 20;
+
+    // Add company signature/stamp if available
+    if (params.companySignatureBase64) {
+      try {
+        const sigImgId = workbook.addImage({
+          base64: params.companySignatureBase64,
+          extension: "png",
+        });
+        ws.addImage(sigImgId, {
+          tl: { col: 0, row: 27 },
+          ext: { width: 150, height: 80 },
+        });
+      } catch (error) {
+        console.warn("Could not embed company signature:", error);
+      }
+    }
+
+    ws.getRow(32).height = 15;
 
     // Signature rows
     ws.getCell("E33").value = "UNTERSCHRIFT DES BAULEITERS";

@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { exportWeeklyRecordsToExcel } from "@/lib/excelExport";
 import { exportStundenzettelToExcel } from "@/lib/stundenzettelExport";
+import { getCompanySignatureBase64 } from "@/hooks/useCompanySignature";
 import { useInvoiceGeneration } from "@/hooks/useInvoiceGeneration";
 
 interface PerformanceRecord {
@@ -378,6 +379,9 @@ export default function WeeklyClosings() {
     const projectLocation = firstProject?.location || null;
 
     try {
+      // Fetch company signature for PDF
+      const companySignatureBase64 = await getCompanySignatureBase64();
+
       await exportStundenzettelToExcel({
         records: group.records.map((r) => ({
           date: r.date,
@@ -396,6 +400,7 @@ export default function WeeklyClosings() {
         workerName: userProfile?.full_name || "Neznámy používateľ",
         calendarWeek: group.week,
         year: group.year,
+        companySignatureBase64,
       });
 
       toast({
