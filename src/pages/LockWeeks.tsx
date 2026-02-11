@@ -7,11 +7,21 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Lock, Search, FileSpreadsheet, FileText } from "lucide-react";
+import { Loader2, Lock, Search, FileSpreadsheet, FileText, Trash2 } from "lucide-react";
 import { format, startOfISOWeek, endOfISOWeek, addDays } from "date-fns";
 import { sk } from "date-fns/locale";
 import { isDateInWeek } from "@/lib/dateUtils";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Navigate } from "react-router-dom";
 import { exportWeeklyRecordsToExcel } from "@/lib/excelExport";
 import { generateInvoicePDF } from "@/lib/invoiceGenerator";
@@ -98,6 +108,8 @@ export default function LockWeeks() {
   const [processing, setProcessing] = useState<string | null>(null);
   const [generatingInvoice, setGeneratingInvoice] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [deleteClosingId, setDeleteClosingId] = useState<string | null>(null);
+  const [deletingClosing, setDeletingClosing] = useState(false);
 
   const fetchData = async () => {
     if (!user) return;
@@ -230,6 +242,36 @@ export default function LockWeeks() {
       toast({ variant: "destructive", title: "Chyba", description: error.message });
     }
     setProcessing(null);
+  };
+
+  const handleDeleteClosing = async () => {
+    if (!deleteClosingId) return;
+    setDeletingClosing(true);
+    try {
+      // Soft-delete related invoices
+      const { error: invError } = await supabase
+        .from("invoices")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("week_closing_id", deleteClosingId);
+      if (invError) throw invError;
+
+      // Soft-delete the weekly closing
+      const { error: closingError } = await supabase
+        .from("weekly_closings")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", deleteClosingId);
+      if (closingError) throw closingError;
+
+      toast({
+        title: "Uzávierka vymazaná",
+        description: "Uzávierka a súvisiace faktúry boli vymazané.",
+      });
+      setDeleteClosingId(null);
+      await fetchData();
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Chyba", description: error.message });
+    }
+    setDeletingClosing(false);
   };
 
   const handleExport = async (week: ApprovedWeek) => {
@@ -468,6 +510,15 @@ export default function LockWeeks() {
                                         <Lock className="h-4 w-4" />
                                       )}
                                     </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => setDeleteClosingId(item.closing.id)}
+                                      title="Vymazať uzávierku"
+                                      className="text-destructive hover:text-destructive"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
                                   </div>
                                 </TableCell>
                               </TableRow>
@@ -539,6 +590,15 @@ export default function LockWeeks() {
                                   <Lock className="h-4 w-4" />
                                 )}
                               </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                onClick={() => setDeleteClosingId(item.closing.id)}
+                                title="Vymazať uzávierku"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
                           </div>
                         </Card>
@@ -551,6 +611,29 @@ export default function LockWeeks() {
           })}
         </Accordion>
       )}
+
+      {/* Delete closing confirmation */}
+      <AlertDialog open={!!deleteClosingId} onOpenChange={(open) => !open && setDeleteClosingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Naozaj zmazať uzávierku a súvisiace faktúry?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Táto akcia vymaže uzávierku a všetky prepojené faktúry. Údaje budú označené ako vymazané.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingClosing}>Zrušiť</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteClosing}
+              disabled={deletingClosing}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingClosing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Vymazať
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

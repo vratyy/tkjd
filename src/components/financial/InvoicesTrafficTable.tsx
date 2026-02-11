@@ -10,6 +10,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TaxPaymentStatusBadge } from "./TaxPaymentStatusBadge";
 import { InvoiceDetailDialog } from "./InvoiceDetailDialog";
 import { InvoiceStatusDropdown } from "./InvoiceStatusDropdown";
@@ -20,7 +21,7 @@ import { AlertTriangle, Eye, Lock, Unlock, BookCheck, BookX, RefreshCw } from "l
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/useUserRole";
-import { format, startOfISOWeek, endOfISOWeek } from "date-fns";
+import { format } from "date-fns";
 import { sk } from "date-fns/locale";
 import { generateInvoicePDF } from "@/lib/invoiceGenerator";
 import { getISOWeekLocal } from "@/lib/dateUtils";
@@ -62,6 +63,8 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
   const [lockingId, setLockingId] = useState<string | null>(null);
   const [accountingId, setAccountingId] = useState<string | null>(null);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
+  const [filterProject, setFilterProject] = useState<string>("all");
+  const [filterWeek, setFilterWeek] = useState<string>("all");
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const { isAdmin } = useUserRole();
@@ -82,11 +85,56 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
     }
   };
 
+  // Unique projects and weeks for filter dropdowns
+  const projectOptions = useMemo(() => {
+    const projects = new Map<string, string>();
+    invoices.forEach((inv) => {
+      if (inv.project?.name) {
+        projects.set(inv.project.name, inv.project.name);
+      }
+    });
+    return Array.from(projects.values()).sort((a, b) => a.localeCompare(b, "sk"));
+  }, [invoices]);
+
+  const weekOptions = useMemo(() => {
+    const weeks = new Set<string>();
+    invoices.forEach((inv) => {
+      let cw = inv.calendar_week;
+      let yr = inv.year;
+      if (!cw || !yr) {
+        const d = new Date(inv.delivery_date || inv.issue_date);
+        cw = getISOWeekLocal(d);
+        yr = d.getFullYear();
+      }
+      weeks.add(`${yr}-${String(cw).padStart(2, "0")}`);
+    });
+    return Array.from(weeks).sort().reverse();
+  }, [invoices]);
+
+  // Apply filters
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter((inv) => {
+      if (filterProject !== "all" && inv.project?.name !== filterProject) return false;
+      if (filterWeek !== "all") {
+        let cw = inv.calendar_week;
+        let yr = inv.year;
+        if (!cw || !yr) {
+          const d = new Date(inv.delivery_date || inv.issue_date);
+          cw = getISOWeekLocal(d);
+          yr = d.getFullYear();
+        }
+        const key = `${yr}-${String(cw).padStart(2, "0")}`;
+        if (key !== filterWeek) return false;
+      }
+      return true;
+    });
+  }, [invoices, filterProject, filterWeek]);
+
   // Group invoices by calendar week, sorted descending (latest first)
   const weekGroups = useMemo<WeekGroup[]>(() => {
     const groups = new Map<string, WeekGroup>();
 
-    invoices.forEach((inv) => {
+    filteredInvoices.forEach((inv) => {
       // Use week_closing data if available, otherwise derive from delivery_date
       let cw = inv.calendar_week;
       let yr = inv.year;
@@ -114,7 +162,7 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
 
     // Sort groups descending by key (year-week)
     return Array.from(groups.values()).sort((a, b) => b.key.localeCompare(a.key));
-  }, [invoices]);
+  }, [filteredInvoices]);
 
   // The latest week key for default expansion
   const latestWeekKey = weekGroups.length > 0 ? weekGroups[0].key : undefined;
@@ -359,7 +407,7 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3">
           <div>
             <CardTitle className="flex items-center gap-2">
               Prehľad faktúr
@@ -378,6 +426,33 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
                 </span>
               )}
             </CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Select value={filterProject} onValueChange={setFilterProject}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Projekt" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Všetky projekty</SelectItem>
+                {projectOptions.map((p) => (
+                  <SelectItem key={p} value={p}>{p}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterWeek} onValueChange={setFilterWeek}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Týždeň" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Všetky týždne</SelectItem>
+                {weekOptions.map((w) => {
+                  const [yr, wk] = w.split("-");
+                  return (
+                    <SelectItem key={w} value={w}>KW {parseInt(wk)} / {yr}</SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </CardHeader>
