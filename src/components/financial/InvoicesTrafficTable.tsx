@@ -258,9 +258,17 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
     );
   }
 
-  const renderInvoiceRow = (invoice: Invoice) => (
+  const renderInvoiceRow = (invoice: Invoice, index: number) => {
+    let cw = invoice.calendar_week;
+    if (!cw) {
+      const d = new Date(invoice.delivery_date || invoice.issue_date);
+      cw = getISOWeekLocal(d);
+    }
+    return (
     <TableRow key={invoice.id}>
+      <TableCell className="w-10 text-muted-foreground">{index + 1}</TableCell>
       <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
+      <TableCell className="hidden lg:table-cell text-muted-foreground">KW {cw}</TableCell>
       <TableCell>
         <div>
           <div className="font-medium">{invoice.profile?.full_name ?? "—"}</div>
@@ -345,7 +353,8 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
         </div>
       </TableCell>
     </TableRow>
-  );
+    );
+  };
 
   return (
     <Card>
@@ -435,7 +444,9 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
                       <Table>
                         <TableHeader>
                           <TableRow>
+                            <TableHead className="w-10">#</TableHead>
                             <TableHead>Číslo faktúry</TableHead>
+                            <TableHead className="hidden lg:table-cell">KW</TableHead>
                             <TableHead>Dodávateľ</TableHead>
                             <TableHead>Projekt</TableHead>
                             <TableHead>Dátum vystavenia</TableHead>
@@ -447,7 +458,7 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {group.invoices.map(renderInvoiceRow)}
+                          {group.invoices.map((inv, idx) => renderInvoiceRow(inv, idx))}
                         </TableBody>
                       </Table>
                     </div>
