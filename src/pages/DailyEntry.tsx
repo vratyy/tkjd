@@ -296,20 +296,35 @@ export default function DailyEntry() {
     const stdHours = selected?.standard_hours ?? null;
     setSelectedStandardHours(stdHours);
 
-    // Pre-fill times based on standard_hours (only when not editing)
-    if (stdHours && stdHours > 0 && !editingId) {
-      const startHour = 7;
-      const startMin = 0;
-      const breakDuration = 30; // 30 min default break
-      const totalMinutes = stdHours * 60 + breakDuration;
-      const endHour = Math.floor((startHour * 60 + startMin + totalMinutes) / 60);
-      const endMin = (startHour * 60 + startMin + totalMinutes) % 60;
+    // Pre-fill times based on project (only when not editing)
+    if (!editingId) {
+      const isRivaLiving = selected?.name?.toLowerCase().includes("riva living");
 
-      setTimeFrom(`${String(startHour).padStart(2, "0")}:${String(startMin).padStart(2, "0")}`);
-      setTimeTo(`${String(endHour).padStart(2, "0")}:${String(endMin).padStart(2, "0")}`);
-      setBreakStart("12:00");
-      setBreakEnd("12:30");
-      setIsManualOverride(false);
+      if (isRivaLiving) {
+        // Riva Living specific schedule
+        setTimeFrom("06:30");
+        setTimeTo("17:30");
+        setBreakStart("09:30");
+        setBreakEnd("10:00");
+        setBreak2Start("13:30");
+        setBreak2End("14:00");
+        setIsManualOverride(false);
+      } else if (stdHours && stdHours > 0) {
+        const startHour = 7;
+        const startMin = 0;
+        const breakDuration = 30; // 30 min default break
+        const totalMinutes = stdHours * 60 + breakDuration;
+        const endHour = Math.floor((startHour * 60 + startMin + totalMinutes) / 60);
+        const endMin = (startHour * 60 + startMin + totalMinutes) % 60;
+
+        setTimeFrom(`${String(startHour).padStart(2, "0")}:${String(startMin).padStart(2, "0")}`);
+        setTimeTo(`${String(endHour).padStart(2, "0")}:${String(endMin).padStart(2, "0")}`);
+        setBreakStart("12:00");
+        setBreakEnd("12:30");
+        setBreak2Start("");
+        setBreak2End("");
+        setIsManualOverride(false);
+      }
     }
   };
 
