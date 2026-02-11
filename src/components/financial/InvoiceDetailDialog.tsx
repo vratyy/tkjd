@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Calculator, CheckCircle2, ShieldCheck, BookCheck, BookX } from "lucide-react";
+import { Calculator, CheckCircle2, ShieldCheck, BookCheck, BookX, CreditCard } from "lucide-react";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
 
@@ -28,6 +28,7 @@ interface Invoice {
   total_amount: number;
   issue_date: string;
   due_date: string;
+  status: string;
   transaction_tax_rate: number;
   transaction_tax_amount: number;
   tax_payment_status: "pending" | "confirmed" | "verified";
@@ -177,6 +178,37 @@ export function InvoiceDetailDialog({
   };
 
   const isOwnInvoice = user?.id === invoice.user_id;
+  const isPaid = invoice.status === "paid";
+
+  const handleMarkAsPaid = async () => {
+    setUpdating(true);
+    try {
+      const { error } = await supabase
+        .from("invoices")
+        .update({ 
+          status: "paid" as const, 
+          paid_at: new Date().toISOString() 
+        })
+        .eq("id", invoice.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Úspech",
+        description: "Faktúra bola označená ako zaplatená",
+      });
+      onUpdate();
+    } catch (error) {
+      console.error("Error marking as paid:", error);
+      toast({
+        title: "Chyba",
+        description: "Nepodarilo sa označiť faktúru ako zaplatenú",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   const handleToggleAccounted = async () => {
     setUpdating(true);
@@ -331,6 +363,18 @@ export function InvoiceDetailDialog({
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
+          {/* Mark as Paid button */}
+          {!isPaid && (
+            <Button
+              onClick={handleMarkAsPaid}
+              disabled={updating}
+              variant="default"
+              className="gap-2"
+            >
+              <CreditCard className="h-4 w-4" />
+              Označiť ako uhradené
+            </Button>
+          )}
           {/* Admin can toggle accounting status */}
           {isAdmin && (
             <Button
