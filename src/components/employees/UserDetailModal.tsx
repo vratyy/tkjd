@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useAuth } from "@/hooks/useAuth";
 import { AdminAddEntryModal, type EditEntryData } from "./AdminAddEntryModal";
 import { UserRecordsTab } from "./UserRecordsTab";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +21,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +47,8 @@ import {
   CreditCard,
   Building2,
   Clock,
+  History,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
@@ -101,6 +112,7 @@ export function UserDetailModal({
   onProfileUpdated,
 }: UserDetailModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const { role } = useUserRole();
   const isPrivileged = role === "admin" || role === "director";
   const [loading, setLoading] = useState(true);
@@ -114,6 +126,34 @@ export function UserDetailModal({
   const [originalHourlyRate, setOriginalHourlyRate] = useState<string>("");
   const [addEntryOpen, setAddEntryOpen] = useState(false);
   const [editEntryData, setEditEntryData] = useState<EditEntryData | null>(null);
+  
+  // Rate history state
+  const [rateHistory, setRateHistory] = useState<Array<{
+    id: string;
+    rate: number;
+    valid_from: string;
+    valid_to: string | null;
+    created_at: string;
+  }>>([]);
+  const [newRateValue, setNewRateValue] = useState("");
+  const [newRateFrom, setNewRateFrom] = useState("");
+  const [newRateTo, setNewRateTo] = useState("");
+  const [savingRate, setSavingRate] = useState(false);
+
+  const fetchRateHistory = useCallback(async () => {
+    if (!userId) return;
+    const { data } = await supabase
+      .from("rate_history")
+      .select("id, rate, valid_from, valid_to, created_at")
+      .eq("user_id", userId)
+      .order("valid_from", { ascending: false });
+    setRateHistory(data || []);
+  }, [userId]);
+
+  useEffect(() => {
+    if (!open || !userId) return;
+    fetchRateHistory();
+  }, [open, userId, fetchRateHistory]);
 
   useEffect(() => {
     if (!open || !userId) return;
@@ -224,6 +264,40 @@ export function UserDetailModal({
       toast({ variant: "destructive", title: "Chyba", description: error.message });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAddRateHistory = async () => {
+    if (!userId || !newRateValue || !newRateFrom) return;
+    setSavingRate(true);
+    try {
+      const { error } = await supabase.from("rate_history").insert({
+        user_id: userId,
+        rate: parseFloat(newRateValue),
+        valid_from: newRateFrom,
+        valid_to: newRateTo || null,
+        created_by: user?.id,
+      });
+      if (error) throw error;
+      toast({ title: "Uložené", description: "Historická sadzba bola pridaná." });
+      setNewRateValue("");
+      setNewRateFrom("");
+      setNewRateTo("");
+      fetchRateHistory();
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Chyba", description: error.message });
+    }
+    setSavingRate(false);
+  };
+
+  const handleDeleteRateHistory = async (id: string) => {
+    try {
+      const { error } = await supabase.from("rate_history").delete().eq("id", id);
+      if (error) throw error;
+      toast({ title: "Vymazané", description: "Záznam sadzby bol odstránený." });
+      fetchRateHistory();
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Chyba", description: error.message });
     }
   };
 
@@ -399,6 +473,108 @@ export function UserDetailModal({
                       <><Save className="mr-2 h-4 w-4" />Uložiť mzdové údaje</>
                     )}
                   </Button>
+
+                  {/* Rate History Section */}
+                  {isPrivileged && (
+                    <>
+                      <Separator />
+                      <div className="space-y-3">
+                        <Label className="flex items-center gap-1.5 text-base font-medium">
+                          <History className="h-4 w-4" />
+                          História sadzieb
+                        </Label>
+                        
+                        {/* Add new rate */}
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <Label className="text-xs">Sadzba (€)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={newRateValue}
+                              onChange={(e) => setNewRateValue(e.target.value)}
+                              placeholder="25.00"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Platná od</Label>
+                            <Input
+                              type="date"
+                              value={newRateFrom}
+                              onChange={(e) => setNewRateFrom(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Platná do</Label>
+                            <Input
+                              type="date"
+                              value={newRateTo}
+                              onChange={(e) => setNewRateTo(e.target.value)}
+                              placeholder="Neobmedzená"
+                            />
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={handleAddRateHistory}
+                          disabled={savingRate || !newRateValue || !newRateFrom}
+                          className="w-full"
+                        >
+                          {savingRate ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          ) : (
+                            <Plus className="h-4 w-4 mr-2" />
+                          )}
+                          Pridať sadzbu
+                        </Button>
+
+                        {/* Rate history table */}
+                        {rateHistory.length > 0 && (
+                          <div className="rounded-lg border overflow-hidden">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="text-xs">Sadzba</TableHead>
+                                  <TableHead className="text-xs">Od</TableHead>
+                                  <TableHead className="text-xs">Do</TableHead>
+                                  <TableHead className="text-xs w-10"></TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {rateHistory.map((rh) => (
+                                  <TableRow key={rh.id}>
+                                    <TableCell className="font-medium text-sm">{rh.rate} €</TableCell>
+                                    <TableCell className="text-sm">
+                                      {format(new Date(rh.valid_from), "d.M.yyyy")}
+                                    </TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">
+                                      {rh.valid_to ? format(new Date(rh.valid_to), "d.M.yyyy") : "—"}
+                                    </TableCell>
+                                    <TableCell>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => handleDeleteRateHistory(rh.id)}
+                                        className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                        {rateHistory.length === 0 && (
+                          <p className="text-xs text-muted-foreground text-center py-2">
+                            Žiadna história sadzieb
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               </TabsContent>
 

@@ -532,25 +532,27 @@ export default function WeeklyClosings() {
                       
                       {/* Desktop action buttons */}
                       <div className="hidden md:flex items-center gap-2 sm:gap-3">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button size="sm" variant="outline">
-                              <FileSpreadsheet className="h-4 w-4 sm:mr-2" />
-                              <span className="hidden sm:inline">Export Excel</span>
-                              <ChevronDown className="h-3 w-3 ml-1" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleExportStundenzettel(group)}>
-                              <Clock className="h-4 w-4 mr-2" />
-                              Stundenzettel (hodinový)
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleExportLeistungsnachweis(group)}>
-                              <FileSpreadsheet className="h-4 w-4 mr-2" />
-                              Leistungsnachweis (prehľad)
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        {isAdmin && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="sm" variant="outline">
+                                <FileSpreadsheet className="h-4 w-4 sm:mr-2" />
+                                <span className="hidden sm:inline">Export Excel</span>
+                                <ChevronDown className="h-3 w-3 ml-1" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleExportStundenzettel(group)}>
+                                <Clock className="h-4 w-4 mr-2" />
+                                Stundenzettel (hodinový)
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleExportLeistungsnachweis(group)}>
+                                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                                Leistungsnachweis (prehľad)
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                         {canShowInvoiceButton(group) && (() => {
                           const disabledReason = getInvoiceDisabledReason();
                           const btn = (
@@ -618,25 +620,27 @@ export default function WeeklyClosings() {
                     
                     {/* Mobile action buttons - stacked */}
                     <div className="flex flex-wrap gap-2 mt-3 md:hidden">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="sm" variant="outline" className="flex-1 h-10 text-sm">
-                            <FileSpreadsheet className="h-4 w-4 mr-2" />
-                            Excel
-                            <ChevronDown className="h-3 w-3 ml-1" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                          <DropdownMenuItem onClick={() => handleExportStundenzettel(group)}>
-                            <Clock className="h-4 w-4 mr-2" />
-                            Stundenzettel
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleExportLeistungsnachweis(group)}>
-                            <FileSpreadsheet className="h-4 w-4 mr-2" />
-                            Leistungsnachweis
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {isAdmin && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="sm" variant="outline" className="flex-1 h-10 text-sm">
+                              <FileSpreadsheet className="h-4 w-4 mr-2" />
+                              Excel
+                              <ChevronDown className="h-3 w-3 ml-1" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuItem onClick={() => handleExportStundenzettel(group)}>
+                              <Clock className="h-4 w-4 mr-2" />
+                              Stundenzettel
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleExportLeistungsnachweis(group)}>
+                              <FileSpreadsheet className="h-4 w-4 mr-2" />
+                              Leistungsnachweis
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                         {canShowInvoiceButton(group) && (() => {
                           const disabledReason = getInvoiceDisabledReason();
                           const btn = (
