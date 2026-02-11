@@ -17,7 +17,7 @@ export default function AdminSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [seeding, setSeeding] = useState(false);
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
 
   const seedTestData = async () => {
@@ -98,10 +98,56 @@ export default function AdminSettings() {
     }
   };
 
-  const exportBackup = async () => {
-    setExporting(true);
+  const downloadCsv = (data: Record<string, any>[], filename: string) => {
+    if (!data.length) return;
+    const headers = Object.keys(data[0]);
+    const csvRows = [
+      headers.join(","),
+      ...data.map(row =>
+        headers.map(h => {
+          const val = row[h] === null || row[h] === undefined ? "" : String(row[h]);
+          return `"${val.replace(/"/g, '""')}"`;
+        }).join(",")
+      ),
+    ];
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const exportTable = async (tableName: string, label: string) => {
+    setExporting(tableName);
     try {
-      // Fetch all data from main tables
+      const { data, error } = await supabase
+        .from(tableName as any)
+        .select("*")
+        .is("deleted_at", null);
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        toast({ title: "Žiadne dáta", description: `Tabuľka "${label}" je prázdna.` });
+        setExporting(null);
+        return;
+      }
+
+      downloadCsv(data as Record<string, any>[], `backup_${tableName}_${format(new Date(), "yyyy-MM-dd")}.csv`);
+      toast({ title: "Export úspešný", description: `${label} (${data.length} záznamov) exportované.` });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Chyba", description: error.message });
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const exportBackup = async () => {
+    setExporting("all");
+    try {
       const [profilesRes, projectsRes, recordsRes, invoicesRes, accommodationsRes, assignmentsRes] = await Promise.all([
         supabase.from("profiles").select("*").is("deleted_at", null),
         supabase.from("projects").select("*").is("deleted_at", null),
@@ -124,7 +170,6 @@ export default function AdminSettings() {
         },
       };
 
-      // Create and download JSON file
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -135,18 +180,11 @@ export default function AdminSettings() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      toast({
-        title: "Záloha stiahnutá",
-        description: "Kompletná záloha dát bola úspešne exportovaná.",
-      });
+      toast({ title: "Záloha stiahnutá", description: "Kompletná záloha dát bola úspešne exportovaná." });
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Chyba",
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: "Chyba", description: error.message });
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   };
 
@@ -307,40 +345,55 @@ export default function AdminSettings() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Download className="h-5 w-5 text-primary" />
-              Zálohovanie dát
+              Záloha dát
             </CardTitle>
             <CardDescription>
-              Stiahnite kompletnú zálohu všetkých dát vo formáte JSON
+              Exportujte dáta z jednotlivých tabuliek vo formáte CSV alebo kompletnú zálohu JSON
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="text-sm text-muted-foreground space-y-1">
-              <p>Záloha obsahuje:</p>
-              <ul className="list-disc list-inside ml-2 space-y-1">
-                <li>Profily používateľov</li>
-                <li>Projekty</li>
-                <li>Výkonové záznamy</li>
-                <li>Faktúry</li>
-                <li>Ubytovanie a priradenia</li>
-              </ul>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { table: "profiles", label: "Profily (Používatelia, Sadzby, IBAN)" },
+                { table: "performance_records", label: "Denné záznamy (Výkony)" },
+                { table: "invoices", label: "Faktúry" },
+                { table: "projects", label: "Projekty" },
+              ].map(({ table, label }) => (
+                <Button
+                  key={table}
+                  variant="outline"
+                  className="w-full justify-start h-auto py-3"
+                  disabled={!!exporting}
+                  onClick={() => exportTable(table, label)}
+                >
+                  {exporting === table ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin shrink-0" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-2 shrink-0" />
+                  )}
+                  <span className="text-left text-xs">{label}</span>
+                </Button>
+              ))}
             </div>
-            <Button onClick={exportBackup} disabled={exporting} className="w-full" variant="secondary">
-              {exporting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Exportujem...
-                </>
-              ) : (
-                <>
-                  <Download className="h-4 w-4 mr-2" />
-                  Stiahnuť kompletnú zálohu (JSON)
-                </>
-              )}
-            </Button>
+            <div className="border-t pt-4">
+              <Button onClick={exportBackup} disabled={!!exporting} className="w-full" variant="secondary">
+                {exporting === "all" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Exportujem...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4 mr-2" />
+                    Stiahnuť kompletnú zálohu (JSON)
+                  </>
+                )}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
