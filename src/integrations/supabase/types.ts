@@ -547,6 +547,36 @@ export type Database = {
         }
         Relationships: []
       }
+      rate_history: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          rate: number
+          user_id: string
+          valid_from: string
+          valid_to: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          rate: number
+          user_id: string
+          valid_from: string
+          valid_to?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          rate?: number
+          user_id?: string
+          valid_from?: string
+          valid_to?: string | null
+        }
+        Relationships: []
+      }
       sanctions: {
         Row: {
           admin_id: string
@@ -671,6 +701,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_effective_rate: {
+        Args: { p_date: string; p_user_id: string }
+        Returns: number
+      }
       get_team_profiles_safe: {
         Args: { target_user_ids?: string[] }
         Returns: {
