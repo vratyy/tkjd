@@ -51,7 +51,10 @@ export default function Employees() {
   const [loading, setLoading] = useState(true);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState<"name" | "salary" | "project">("name");
+  const [sortBy, setSortBy] = useState<"name" | "salary">("name");
+  const [projectFilter, setProjectFilter] = useState<string>("all");
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+  const [projectAssignments, setProjectAssignments] = useState<{ user_id: string; project_id: string }[]>([]);
   
   // Edit parent dialog
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -96,6 +99,23 @@ export default function Employees() {
         .from("accommodation_assignments")
         .select("user_id, total_cost")
         .is("deleted_at", null);
+
+      // Fetch project assignments for filtering
+      const { data: assignments } = await supabase
+        .from("project_assignments")
+        .select("user_id, project_id");
+
+      setProjectAssignments(assignments || []);
+
+      // Fetch projects for filter dropdown
+      const { data: projectsData } = await supabase
+        .from("projects")
+        .select("id, name")
+        .eq("is_active", true)
+        .is("deleted_at", null)
+        .order("name");
+
+      setProjects(projectsData || []);
 
       // Build employee objects
       const employeeMap = new Map<string, Employee>();
@@ -175,7 +195,7 @@ export default function Employees() {
     const sortFn = (a: Employee, b: Employee) => {
       if (sortBy === "name") return getSurname(a.full_name).localeCompare(getSurname(b.full_name), "sk");
       if (sortBy === "salary") return (b.fixed_wage || b.hourly_rate || 0) - (a.fixed_wage || a.hourly_rate || 0);
-      return 0;
+      return getSurname(a.full_name).localeCompare(getSurname(b.full_name), "sk");
     };
     
     const sortTree = (nodes: Employee[]) => {
@@ -187,16 +207,21 @@ export default function Employees() {
     return roots;
   }, [employees, sortBy]);
 
-  // Filter by search
+  // Filter by search and project
   const filteredTree = useMemo(() => {
-    if (!search.trim()) return tree;
-    
+    // Get user IDs assigned to selected project
+    const projectUserIds = projectFilter !== "all"
+      ? new Set(projectAssignments.filter(a => a.project_id === projectFilter).map(a => a.user_id))
+      : null;
+
     const filterNodes = (nodes: Employee[]): Employee[] => {
       return nodes.filter(node => {
-        const matches = node.full_name.toLowerCase().includes(search.toLowerCase()) ||
-                       node.company_name?.toLowerCase().includes(search.toLowerCase());
+        const searchMatch = !search.trim() || 
+          node.full_name.toLowerCase().includes(search.toLowerCase()) ||
+          node.company_name?.toLowerCase().includes(search.toLowerCase());
+        const projectMatch = !projectUserIds || projectUserIds.has(node.user_id);
         const childMatches = node.children && filterNodes(node.children).length > 0;
-        return matches || childMatches;
+        return (searchMatch && projectMatch) || childMatches;
       }).map(node => ({
         ...node,
         children: node.children ? filterNodes(node.children) : [],
@@ -204,7 +229,7 @@ export default function Employees() {
     };
     
     return filterNodes(tree);
-  }, [tree, search]);
+  }, [tree, search, projectFilter, projectAssignments]);
 
   const toggleNode = (userId: string) => {
     const newExpanded = new Set(expandedNodes);
@@ -457,6 +482,19 @@ export default function Employees() {
             </div>
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={projectFilter} onValueChange={setProjectFilter}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Filtrovať podľa projektu" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Všetky projekty</SelectItem>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
               <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Zoradiť" />
@@ -464,7 +502,6 @@ export default function Employees() {
                 <SelectContent>
                   <SelectItem value="name">Podľa priezviska</SelectItem>
                   <SelectItem value="salary">Podľa mzdy</SelectItem>
-                  <SelectItem value="project">Podľa projektu</SelectItem>
                 </SelectContent>
               </Select>
             </div>
