@@ -17,7 +17,7 @@ import { InvoiceStatusDropdown } from "./InvoiceStatusDropdown";
 import { MobileInvoiceCard } from "@/components/mobile/MobileInvoiceCard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Eye, Lock, Unlock, BookCheck, BookX, RefreshCw } from "lucide-react";
+import { AlertTriangle, Eye, Lock, Unlock, BookCheck, BookX, RefreshCw, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -32,6 +32,8 @@ interface InvoicesTrafficTableProps {
   loading: boolean;
   onMarkAsPaid: (invoiceId: string) => void;
   onRefresh: () => void;
+  urgentFilterActive?: boolean;
+  onClearUrgentFilter?: () => void;
 }
 
 interface WeekGroup {
@@ -57,7 +59,7 @@ function getWeekDateRange(week: number, year: number): string {
   return `${format(weekStart, "d. MMM", { locale: sk })} - ${format(weekEnd, "d. MMM yyyy", { locale: sk })}`;
 }
 
-export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefresh }: InvoicesTrafficTableProps) {
+export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefresh, urgentFilterActive, onClearUrgentFilter }: InvoicesTrafficTableProps) {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [lockingId, setLockingId] = useState<string | null>(null);
@@ -111,8 +113,25 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
     return Array.from(weeks).sort().reverse();
   }, [invoices]);
 
+  // Urgent invoices for filter mode
+  const urgentAndApproachingInvoices = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const in7Days = new Date(today);
+    in7Days.setDate(in7Days.getDate() + 7);
+
+    return invoices.filter((inv) => {
+      if (inv.status === "paid" || inv.status === "void") return false;
+      const due = new Date(inv.due_date);
+      due.setHours(0, 0, 0, 0);
+      return due <= in7Days;
+    });
+  }, [invoices]);
+
   // Apply filters
   const filteredInvoices = useMemo(() => {
+    if (urgentFilterActive) return urgentAndApproachingInvoices;
+
     return invoices.filter((inv) => {
       if (filterProject !== "all" && inv.project?.name !== filterProject) return false;
       if (filterWeek !== "all") {
@@ -128,7 +147,7 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
       }
       return true;
     });
-  }, [invoices, filterProject, filterWeek]);
+  }, [invoices, filterProject, filterWeek, urgentFilterActive, urgentAndApproachingInvoices]);
 
   // Group invoices by calendar week, sorted descending (latest first)
   const weekGroups = useMemo<WeekGroup[]>(() => {
@@ -408,56 +427,127 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
     <Card>
       <CardHeader>
         <div className="flex flex-col gap-3">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              Prehľad faktúr
-              {overdueCount > 0 && (
-                <span className="flex items-center gap-1 text-sm font-normal text-destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  {overdueCount} po splatnosti
-                </span>
-              )}
-            </CardTitle>
-            <CardDescription>
-              Faktúry zoskupené podľa kalendárneho týždňa
-              {dueSoonCount > 0 && (
-                <span className="ml-2 text-orange-600 dark:text-orange-400">
-                  • {dueSoonCount} blíži sa splatnosť
-                </span>
-              )}
-            </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                {urgentFilterActive ? "Urgentné faktúry" : "Prehľad faktúr"}
+                {!urgentFilterActive && overdueCount > 0 && (
+                  <span className="flex items-center gap-1 text-sm font-normal text-destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    {overdueCount} po splatnosti
+                  </span>
+                )}
+              </CardTitle>
+              <CardDescription>
+                {urgentFilterActive
+                  ? "Zobrazené sú iba faktúry splatné dnes, po splatnosti alebo do 7 dní"
+                  : "Faktúry zoskupené podľa kalendárneho týždňa"}
+                {!urgentFilterActive && dueSoonCount > 0 && (
+                  <span className="ml-2 text-orange-600 dark:text-orange-400">
+                    • {dueSoonCount} blíži sa splatnosť
+                  </span>
+                )}
+              </CardDescription>
+            </div>
+            {urgentFilterActive && onClearUrgentFilter && (
+              <Button variant="outline" size="sm" onClick={onClearUrgentFilter}>
+                <XCircle className="mr-2 h-4 w-4" />
+                Zrušiť urgentný filter
+              </Button>
+            )}
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Select value={filterProject} onValueChange={setFilterProject}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Projekt" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Všetky projekty</SelectItem>
-                {projectOptions.map((p) => (
-                  <SelectItem key={p} value={p}>{p}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={filterWeek} onValueChange={setFilterWeek}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Týždeň" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Všetky týždne</SelectItem>
-                {weekOptions.map((w) => {
-                  const [yr, wk] = w.split("-");
-                  return (
-                    <SelectItem key={w} value={w}>KW {parseInt(wk)} / {yr}</SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          </div>
+          {!urgentFilterActive && (
+            <div className="flex flex-wrap gap-2">
+              <Select value={filterProject} onValueChange={setFilterProject}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Projekt" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Všetky projekty</SelectItem>
+                  {projectOptions.map((p) => (
+                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filterWeek} onValueChange={setFilterWeek}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Týždeň" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Všetky týždne</SelectItem>
+                  {weekOptions.map((w) => {
+                    const [yr, wk] = w.split("-");
+                    return (
+                      <SelectItem key={w} value={w}>KW {parseInt(wk)} / {yr}</SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
       </CardHeader>
       <CardContent>
-        {weekGroups.length === 0 ? (
+        {urgentFilterActive ? (
+          /* Flat urgent list — no KW grouping */
+          filteredInvoices.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Žiadne urgentné faktúry 🎉
+            </div>
+          ) : (
+            <div className="overflow-y-auto max-h-[65vh] pr-2">
+              {/* Mobile */}
+              <div className="md:hidden space-y-0">
+                {filteredInvoices.map((invoice) => (
+                  <MobileInvoiceCard
+                    key={invoice.id}
+                    id={invoice.id}
+                    invoiceNumber={invoice.invoice_number}
+                    supplierName={invoice.profile?.full_name}
+                    companyName={invoice.profile?.company_name}
+                    projectName={invoice.project?.name}
+                    issueDate={invoice.issue_date}
+                    dueDate={invoice.due_date}
+                    totalAmount={invoice.total_amount}
+                    status={invoice.status}
+                    taxPaymentStatus={invoice.tax_payment_status || "pending"}
+                    onView={(id) => {
+                      const inv = filteredInvoices.find((i) => i.id === id);
+                      if (inv) {
+                        setSelectedInvoice(inv);
+                        setDetailOpen(true);
+                      }
+                    }}
+                    onStatusChange={onRefresh}
+                  />
+                ))}
+              </div>
+              {/* Desktop */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">#</TableHead>
+                      <TableHead>Číslo faktúry</TableHead>
+                      <TableHead>KW</TableHead>
+                      <TableHead>Dodávateľ</TableHead>
+                      <TableHead>Projekt</TableHead>
+                      <TableHead>Dátum vystavenia</TableHead>
+                      <TableHead>Splatnosť</TableHead>
+                      <TableHead className="text-right">Suma</TableHead>
+                      <TableHead>Stav platby</TableHead>
+                      <TableHead>Stav dane</TableHead>
+                      <TableHead className="text-right">Akcie</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredInvoices.map((inv, idx) => renderInvoiceRow(inv, idx))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )
+        ) : weekGroups.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             Žiadne faktúry na zobrazenie
           </div>

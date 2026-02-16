@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import { FinancialMetricsCards } from "@/components/financial/FinancialMetricsCards";
 import { InvoicesTrafficTable } from "@/components/financial/InvoicesTrafficTable";
 import { AdvancesManagement } from "@/components/financial/AdvancesManagement";
+import { UrgentActionBanner } from "@/components/financial/UrgentActionBanner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RefreshCw } from "lucide-react";
@@ -11,6 +13,7 @@ import { Navigate } from "react-router-dom";
 export default function FinancialDashboard() {
   const { isAdmin, isAccountant, loading: roleLoading } = useUserRole();
   const { invoices, metrics, loading, refetch, markAsPaid } = useFinancialData();
+  const [isUrgentFilterActive, setIsUrgentFilterActive] = useState(false);
 
   // Only Admin and Accountant can access financial dashboard
   const hasAccess = isAdmin || isAccountant;
@@ -36,6 +39,13 @@ export default function FinancialDashboard() {
       </div>
 
       <FinancialMetricsCards data={metrics} loading={loading} />
+
+      {!loading && (
+        <UrgentActionBanner
+          invoices={invoices}
+          onActivateFilter={() => setIsUrgentFilterActive(true)}
+        />
+      )}
       
       <Tabs defaultValue="invoices" className="space-y-4">
         <TabsList>
@@ -49,6 +59,8 @@ export default function FinancialDashboard() {
             loading={loading}
             onMarkAsPaid={markAsPaid}
             onRefresh={refetch}
+            urgentFilterActive={isUrgentFilterActive}
+            onClearUrgentFilter={() => setIsUrgentFilterActive(false)}
           />
         </TabsContent>
         
