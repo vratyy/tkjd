@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -14,8 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { CheckCircle, X } from "lucide-react";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
-import { getTrafficLevel } from "./InvoiceStatusBadge";
 import { InvoiceStatusBadge } from "./InvoiceStatusBadge";
+import QRCode from "qrcode";
 import type { Invoice } from "@/hooks/useFinancialData";
 
 interface InvoicePreviewModalProps {
@@ -25,6 +25,9 @@ interface InvoicePreviewModalProps {
   onUpdate: () => void;
 }
 
+const sanitize = (s: string) =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "_");
+
 export function InvoicePreviewModal({
   invoice,
   open,
@@ -33,6 +36,49 @@ export function InvoicePreviewModal({
 }: InvoicePreviewModalProps) {
   const { toast } = useToast();
   const [marking, setMarking] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [profileIban, setProfileIban] = useState<string | null>(null);
+
+  // Fetch IBAN from profile when invoice changes
+  useEffect(() => {
+    if (!invoice) { setProfileIban(null); return; }
+    const fetchIban = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("iban")
+        .eq("user_id", invoice.user_id)
+        .maybeSingle();
+      setProfileIban(data?.iban ?? null);
+    };
+    fetchIban();
+  }, [invoice?.user_id]);
+
+  const qrMessage = useMemo(() => {
+    if (!invoice) return "";
+    const name = invoice.profile?.full_name || "";
+    const parts = name.split(" ");
+    const firstName = parts[0] || "";
+    const lastName = parts.slice(1).join("_") || "";
+    const cw = invoice.calendar_week || 0;
+    return `${cw}_woche_${sanitize(firstName)}_${sanitize(lastName)}`;
+  }, [invoice]);
+
+  // Generate live QR code
+  useEffect(() => {
+    if (!invoice || !profileIban) { setQrDataUrl(null); return; }
+    const generateQr = async () => {
+      try {
+        const cleanIban = profileIban.replace(/\s+/g, "");
+        const amount = Number(invoice.total_amount) || 0;
+        const vs = invoice.invoice_number.replace(/\D/g, "");
+        const supplierName = invoice.profile?.company_name || invoice.profile?.full_name || "";
+        const qrString = `SPD*1.0*ACC:${cleanIban}*AM:${amount.toFixed(2)}*CC:EUR*X-VS:${vs}*MSG:${qrMessage}*RN:${sanitize(supplierName)}`;
+        const url = await QRCode.toDataURL(qrString, { width: 200, margin: 1, errorCorrectionLevel: "M" });
+        setQrDataUrl(url);
+      } catch { setQrDataUrl(null); }
+    };
+    generateQr();
+  }, [invoice, profileIban, qrMessage]);
 
   if (!invoice) return null;
 
@@ -81,21 +127,6 @@ export function InvoicePreviewModal({
       setMarking(false);
     }
   };
-
-  // Build QR data string for PAY by square
-  const qrDataString = (() => {
-    const name = invoice.profile?.full_name || "";
-    const parts = name.split(" ");
-    const firstName = parts[0] || "";
-    const lastName = parts.slice(1).join("_") || "";
-    const sanitize = (s: string) =>
-      s
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/\s+/g, "_");
-    const cw = invoice.calendar_week || 0;
-    return `${cw}_woche_${sanitize(firstName)}_${sanitize(lastName)}`;
-  })();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -173,20 +204,6 @@ export function InvoicePreviewModal({
                   <span>-{formatAmount(invoice.advance_deduction)}</span>
                 </div>
               )}
-
-              {Number(invoice.transaction_tax_amount) > 0 && (
-                <>
-                  <Separator />
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      Transakčná daň ({(invoice.transaction_tax_rate * 100).toFixed(0)}%)
-                    </span>
-                    <span className="font-medium text-warning-foreground">
-                      {formatAmount(invoice.transaction_tax_amount)}
-                    </span>
-                  </div>
-                </>
-              )}
             </div>
           </div>
 
@@ -196,13 +213,17 @@ export function InvoicePreviewModal({
               <span className="text-sm font-medium text-muted-foreground">
                 PAY by square
               </span>
-              <div className="w-36 h-36 bg-muted rounded-md flex items-center justify-center">
-                <span className="text-xs text-muted-foreground text-center px-2">
-                  QR kód sa generuje pri stiahnutí PDF
-                </span>
-              </div>
+              {qrDataUrl ? (
+                <img src={qrDataUrl} alt="PAY by square QR" className="w-36 h-36 rounded-md" />
+              ) : (
+                <div className="w-36 h-36 bg-muted rounded-md flex items-center justify-center">
+                  <span className="text-xs text-muted-foreground text-center px-2">
+                    Chýba IBAN v profile
+                  </span>
+                </div>
+              )}
               <div className="text-xs text-muted-foreground text-center break-all">
-                Správa: {qrDataString}
+                Správa: {qrMessage}
               </div>
             </div>
 
