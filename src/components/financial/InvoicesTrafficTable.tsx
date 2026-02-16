@@ -13,11 +13,12 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TaxPaymentStatusBadge } from "./TaxPaymentStatusBadge";
 import { InvoiceDetailDialog } from "./InvoiceDetailDialog";
+import { InvoicePreviewModal } from "./InvoicePreviewModal";
 import { InvoiceStatusDropdown } from "./InvoiceStatusDropdown";
 import { MobileInvoiceCard } from "@/components/mobile/MobileInvoiceCard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Eye, Lock, Unlock, BookCheck, BookX, RefreshCw, XCircle } from "lucide-react";
+import { AlertTriangle, Eye, FileSearch, Lock, Unlock, BookCheck, BookX, RefreshCw, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -62,6 +63,8 @@ function getWeekDateRange(week: number, year: number): string {
 export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefresh, urgentFilterActive, onClearUrgentFilter }: InvoicesTrafficTableProps) {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [lockingId, setLockingId] = useState<string | null>(null);
   const [accountingId, setAccountingId] = useState<string | null>(null);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
@@ -332,7 +335,7 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
       cw = getISOWeekLocal(d);
     }
     return (
-    <TableRow key={invoice.id}>
+    <TableRow key={invoice.id} className={invoice.status === "paid" ? "bg-green-50 dark:bg-green-900/10" : ""}>
       <TableCell className="w-10 text-muted-foreground">{index + 1}</TableCell>
       <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
       <TableCell className="hidden lg:table-cell text-muted-foreground">KW {cw}</TableCell>
@@ -411,9 +414,21 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
             size="sm"
             variant="ghost"
             onClick={() => {
+              setPreviewInvoice(invoice);
+              setPreviewOpen(true);
+            }}
+            title="Náhľad faktúry"
+          >
+            <FileSearch className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
               setSelectedInvoice(invoice);
               setDetailOpen(true);
             }}
+            title="Detail faktúry"
           >
             <Eye className="h-4 w-4" />
           </Button>
@@ -641,6 +656,16 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
           onUpdate={() => {
             onRefresh();
             setDetailOpen(false);
+          }}
+        />
+
+        <InvoicePreviewModal
+          invoice={previewInvoice}
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          onUpdate={() => {
+            onRefresh();
+            setPreviewOpen(false);
           }}
         />
       </CardContent>
