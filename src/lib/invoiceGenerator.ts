@@ -125,8 +125,8 @@ function generatePayBySquareData(
   const lastName = removeDiacritics(nameParts.slice(1).join("_") || "");
   const message = `${calendarWeek}_woche_${firstName}_${lastName}`;
   
-  // PAY by square format (SEPA with VS and proper message)
-  return `SPD*1.0*ACC:${cleanIban}*AM:${amountStr}*CC:EUR*X-VS:${variableSymbol}*MSG:${message}*RN:${safeText(supplierName)}`;
+  // PAY by square format (SEPA with VS and proper message + payer note for Fio bank)
+  return `SPD*1.0*ACC:${cleanIban}*AM:${amountStr}*CC:EUR*X-VS:${variableSymbol}*MSG:${message}*NT:${message}*RN:${safeText(supplierName)}`;
 }
 
 async function loadImageAsBase64(url: string): Promise<string | null> {

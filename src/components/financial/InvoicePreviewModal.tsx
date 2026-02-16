@@ -72,7 +72,7 @@ export function InvoicePreviewModal({
         const amount = Number(invoice.total_amount) || 0;
         const vs = invoice.invoice_number.replace(/\D/g, "");
         const supplierName = invoice.profile?.company_name || invoice.profile?.full_name || "";
-        const qrString = `SPD*1.0*ACC:${cleanIban}*AM:${amount.toFixed(2)}*CC:EUR*X-VS:${vs}*MSG:${qrMessage}*RN:${sanitize(supplierName)}`;
+        const qrString = `SPD*1.0*ACC:${cleanIban}*AM:${amount.toFixed(2)}*CC:EUR*X-VS:${vs}*MSG:${qrMessage}*NT:${qrMessage}*RN:${sanitize(supplierName)}`;
         const url = await QRCode.toDataURL(qrString, { width: 200, margin: 1, errorCorrectionLevel: "M" });
         setQrDataUrl(url);
       } catch { setQrDataUrl(null); }
