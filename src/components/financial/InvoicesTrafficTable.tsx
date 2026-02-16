@@ -18,7 +18,17 @@ import { InvoiceStatusDropdown } from "./InvoiceStatusDropdown";
 import { MobileInvoiceCard } from "@/components/mobile/MobileInvoiceCard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Eye, FileSearch, Lock, Unlock, BookCheck, BookX, RefreshCw, XCircle } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { AlertTriangle, Eye, FileSearch, Lock, Unlock, BookCheck, BookX, RefreshCw, XCircle, Trash2, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -73,6 +83,10 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const { isAdmin } = useUserRole();
+  const [trashView, setTrashView] = useState(false);
+  const [trashConfirm, setTrashConfirm] = useState<Invoice | null>(null);
+  const [hardDeleteConfirm, setHardDeleteConfirm] = useState<Invoice | null>(null);
+  const [trashingId, setTrashingId] = useState<string | null>(null);
 
   const formatAmount = (amount: number) => {
     const safeAmount = Number(amount) || 0;
@@ -131,11 +145,16 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
     });
   }, [invoices]);
 
-  // Apply filters
+  // Split invoices into active and trashed
+  const activeInvoices = useMemo(() => invoices.filter(inv => inv.status !== "void"), [invoices]);
+  const trashedInvoices = useMemo(() => invoices.filter(inv => inv.status === "void"), [invoices]);
+
+  // Apply filters (only on active invoices)
   const filteredInvoices = useMemo(() => {
     if (urgentFilterActive) return urgentAndApproachingInvoices;
+    if (trashView) return trashedInvoices;
 
-    return invoices.filter((inv) => {
+    return activeInvoices.filter((inv) => {
       if (filterProject !== "all" && inv.project?.name !== filterProject) return false;
       if (filterWeek !== "all") {
         let cw = inv.calendar_week;
@@ -150,7 +169,7 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
       }
       return true;
     });
-  }, [invoices, filterProject, filterWeek, urgentFilterActive, urgentAndApproachingInvoices]);
+  }, [activeInvoices, trashedInvoices, filterProject, filterWeek, urgentFilterActive, urgentAndApproachingInvoices, trashView]);
 
   // Group invoices by calendar week, sorted descending (latest first)
   const weekGroups = useMemo<WeekGroup[]>(() => {
@@ -308,6 +327,60 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
     }
   };
 
+  // --- Trash / Restore / Hard Delete handlers ---
+  const handleTrashInvoice = async (invoice: Invoice) => {
+    setTrashingId(invoice.id);
+    try {
+      const { error } = await supabase
+        .from("invoices")
+        .update({ status: "void" as const })
+        .eq("id", invoice.id);
+      if (error) throw error;
+      toast({ title: "Faktúra presunutá do koša", description: `Faktúra ${invoice.invoice_number} bola zrušená.` });
+      onRefresh();
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Chyba", description: error.message });
+    } finally {
+      setTrashingId(null);
+      setTrashConfirm(null);
+    }
+  };
+
+  const handleRestoreInvoice = async (invoice: Invoice) => {
+    setTrashingId(invoice.id);
+    try {
+      const { error } = await supabase
+        .from("invoices")
+        .update({ status: "pending" as const })
+        .eq("id", invoice.id);
+      if (error) throw error;
+      toast({ title: "Faktúra obnovená", description: `Faktúra ${invoice.invoice_number} bola obnovená.` });
+      onRefresh();
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Chyba", description: error.message });
+    } finally {
+      setTrashingId(null);
+    }
+  };
+
+  const handleHardDelete = async (invoice: Invoice) => {
+    setTrashingId(invoice.id);
+    try {
+      const { error } = await supabase
+        .from("invoices")
+        .delete()
+        .eq("id", invoice.id);
+      if (error) throw error;
+      toast({ title: "Faktúra trvalo vymazaná", description: `Faktúra ${invoice.invoice_number} bola permanentne odstránená.` });
+      onRefresh();
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Chyba", description: error.message });
+    } finally {
+      setTrashingId(null);
+      setHardDeleteConfirm(null);
+    }
+  };
+
   // --- Render ---
 
   if (loading) {
@@ -421,7 +494,7 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
           >
             <FileSearch className="h-4 w-4" />
           </Button>
-          <Button
+           <Button
             size="sm"
             variant="ghost"
             onClick={() => {
@@ -432,9 +505,67 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
           >
             <Eye className="h-4 w-4" />
           </Button>
+          {isAdmin && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setTrashConfirm(invoice)}
+              disabled={trashingId === invoice.id}
+              title="Presunúť do koša"
+            >
+              <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+            </Button>
+          )}
         </div>
       </TableCell>
     </TableRow>
+    );
+  };
+
+  const renderTrashRow = (invoice: Invoice, index: number) => {
+    let cw = invoice.calendar_week;
+    if (!cw) {
+      const d = new Date(invoice.delivery_date || invoice.issue_date);
+      cw = getISOWeekLocal(d);
+    }
+    return (
+      <TableRow key={invoice.id} className="opacity-70">
+        <TableCell className="w-10 text-muted-foreground">{index + 1}</TableCell>
+        <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
+        <TableCell className="hidden lg:table-cell text-muted-foreground">KW {cw}</TableCell>
+        <TableCell>
+          <div className="font-medium">{invoice.profile?.full_name ?? "—"}</div>
+        </TableCell>
+        <TableCell>{invoice.project?.name ?? "—"}</TableCell>
+        <TableCell>{formatDate(invoice.issue_date)}</TableCell>
+        <TableCell className="text-right font-medium">{formatAmount(invoice.total_amount)}</TableCell>
+        <TableCell className="text-right">
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleRestoreInvoice(invoice)}
+              disabled={trashingId === invoice.id}
+              title="Obnoviť faktúru"
+            >
+              <RotateCcw className="h-4 w-4 mr-1" />
+              Obnoviť
+            </Button>
+            {isAdmin && (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setHardDeleteConfirm(invoice)}
+                disabled={trashingId === invoice.id}
+                title="Trvalo vymazať"
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Vymazať
+              </Button>
+            )}
+          </div>
+        </TableCell>
+      </TableRow>
     );
   };
 
@@ -445,8 +576,8 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                {urgentFilterActive ? "Urgentné faktúry" : "Prehľad faktúr"}
-                {!urgentFilterActive && overdueCount > 0 && (
+                {urgentFilterActive ? "Urgentné faktúry" : trashView ? "Kôš – zrušené faktúry" : "Prehľad faktúr"}
+                {!urgentFilterActive && !trashView && overdueCount > 0 && (
                   <span className="flex items-center gap-1 text-sm font-normal text-destructive">
                     <AlertTriangle className="h-4 w-4" />
                     {overdueCount} po splatnosti
@@ -456,8 +587,10 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
               <CardDescription>
                 {urgentFilterActive
                   ? "Zobrazené sú iba faktúry splatné dnes, po splatnosti alebo do 7 dní"
+                  : trashView
+                  ? "Zrušené faktúry – môžete ich obnoviť alebo trvalo vymazať"
                   : "Faktúry zoskupené podľa kalendárneho týždňa"}
-                {!urgentFilterActive && dueSoonCount > 0 && (
+                {!urgentFilterActive && !trashView && dueSoonCount > 0 && (
                   <span className="ml-2 text-orange-600 dark:text-orange-400">
                     • {dueSoonCount} blíži sa splatnosť
                   </span>
@@ -471,7 +604,27 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
               </Button>
             )}
           </div>
+          {/* Active / Trash view toggle */}
           {!urgentFilterActive && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant={trashView ? "outline" : "default"}
+                size="sm"
+                onClick={() => setTrashView(false)}
+              >
+                Aktívne faktúry ({activeInvoices.length})
+              </Button>
+              <Button
+                variant={trashView ? "default" : "outline"}
+                size="sm"
+                onClick={() => setTrashView(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Kôš ({trashedInvoices.length})
+              </Button>
+            </div>
+          )}
+          {!urgentFilterActive && !trashView && (
             <div className="flex flex-wrap gap-2">
               <Select value={filterProject} onValueChange={setFilterProject}>
                 <SelectTrigger className="w-[180px]">
@@ -503,7 +656,60 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
         </div>
       </CardHeader>
       <CardContent>
-        {urgentFilterActive ? (
+        {/* Trash view */}
+        {trashView && !urgentFilterActive ? (
+          filteredInvoices.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Kôš je prázdny
+            </div>
+          ) : (
+            <div className="overflow-y-auto max-h-[65vh] pr-2">
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">#</TableHead>
+                      <TableHead>Číslo faktúry</TableHead>
+                      <TableHead className="hidden lg:table-cell">KW</TableHead>
+                      <TableHead>Dodávateľ</TableHead>
+                      <TableHead>Projekt</TableHead>
+                      <TableHead>Dátum vystavenia</TableHead>
+                      <TableHead className="text-right">Suma</TableHead>
+                      <TableHead className="text-right">Akcie</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredInvoices.map((inv, idx) => renderTrashRow(inv, idx))}
+                  </TableBody>
+                </Table>
+              </div>
+              {/* Mobile trash cards */}
+              <div className="md:hidden space-y-2">
+                {filteredInvoices.map((inv) => (
+                  <div key={inv.id} className="border rounded-lg p-3 opacity-70 space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-medium">{inv.invoice_number}</div>
+                        <div className="text-sm text-muted-foreground">{inv.profile?.full_name}</div>
+                      </div>
+                      <div className="font-medium">{formatAmount(inv.total_amount)}</div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => handleRestoreInvoice(inv)} disabled={trashingId === inv.id}>
+                        <RotateCcw className="h-4 w-4 mr-1" /> Obnoviť
+                      </Button>
+                      {isAdmin && (
+                        <Button size="sm" variant="destructive" onClick={() => setHardDeleteConfirm(inv)} disabled={trashingId === inv.id}>
+                          <Trash2 className="h-4 w-4 mr-1" /> Vymazať
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        ) : urgentFilterActive ? (
           /* Flat urgent list — no KW grouping */
           filteredInvoices.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
@@ -668,6 +874,45 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
             setPreviewOpen(false);
           }}
         />
+
+        {/* Trash confirmation dialog */}
+        <AlertDialog open={!!trashConfirm} onOpenChange={(open) => !open && setTrashConfirm(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Presunúť do koša?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Faktúra {trashConfirm?.invoice_number} bude presunutá do koša. Môžete ju neskôr obnoviť.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Zrušiť</AlertDialogCancel>
+              <AlertDialogAction onClick={() => trashConfirm && handleTrashInvoice(trashConfirm)}>
+                Presunúť do koša
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Hard delete confirmation dialog */}
+        <AlertDialog open={!!hardDeleteConfirm} onOpenChange={(open) => !open && setHardDeleteConfirm(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Trvalo vymazať faktúru?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Naozaj chcete túto faktúru trvalo vymazať? Tento krok sa nedá vrátiť. Faktúra {hardDeleteConfirm?.invoice_number} bude permanentne odstránená.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Zrušiť</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => hardDeleteConfirm && handleHardDelete(hardDeleteConfirm)}
+              >
+                Trvalo vymazať
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );
