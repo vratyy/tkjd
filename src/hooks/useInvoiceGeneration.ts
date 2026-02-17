@@ -82,6 +82,27 @@ export function useInvoiceGeneration() {
     setGenerating(true);
 
     try {
+      // Idempotency check: prevent duplicate invoice for same week_closing
+      if (weekClosingId) {
+        const { data: existing } = await supabase
+          .from("invoices")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("week_closing_id", weekClosingId)
+          .is("deleted_at", null)
+          .neq("status", "void")
+          .limit(1);
+
+        if (existing && existing.length > 0) {
+          toast({
+            variant: "destructive",
+            title: "Faktúra už existuje",
+            description: "Faktúra pre tohto dodávateľa a tento týždeň už bola vygenerovaná.",
+          });
+          return { success: false };
+        }
+      }
+
       // Calculate amounts
       const totalHours = safeNumber(invoiceData.totalHours);
       const hourlyRate = safeNumber(invoiceData.hourlyRate);
