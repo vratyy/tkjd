@@ -379,6 +379,11 @@ export default function WeeklyClosings() {
     const projectLocation = firstProject?.location || null;
 
     try {
+      toast({
+        title: "Generujem výkaz zo šablóny...",
+        description: "Načítavam šablónu a vkladám dáta.",
+      });
+
       // Fetch company signature for PDF
       const companySignatureBase64 = await getCompanySignatureBase64();
 

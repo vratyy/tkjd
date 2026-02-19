@@ -46,8 +46,9 @@ function formatTime(time: string | null | undefined): string {
 
 /** Load the template workbook from public folder */
 async function loadTemplate(): Promise<ArrayBuffer> {
-  const response = await fetch(TEMPLATE_URL);
-  if (!response.ok) throw new Error("Failed to load Stundenzettel template");
+  console.log("INITIATING TEMPLATE DOWNLOAD: Fetching /template_stundenzettel.xlsx");
+  const response = await fetch(TEMPLATE_URL + "?v=" + Date.now());
+  if (!response.ok) throw new Error("Šablóna template_stundenzettel.xlsx sa nenašla v priečinku public.");
   return response.arrayBuffer();
 }
 
