@@ -12,6 +12,7 @@ interface StundenzettelRecord {
   break2_end?: string | null;
   total_hours: number;
   note?: string | null;
+  activity_description?: string | null;
 }
 
 interface StundenzettelParams {
@@ -23,10 +24,16 @@ interface StundenzettelParams {
   calendarWeek: number;
   year: number;
   companySignatureBase64?: string | null;
+  employeeAddress?: string | null;
+  employeeBirthdate?: string | null;
+  companyName?: string | null;
+  companyAddress?: string | null;
+  projectAddress?: string | null;
 }
 
 const TEMPLATE_URL = "/template_stundenzettel.xlsx";
 
+/** Template has 6 physical day rows (Mon–Sat). Sunday data is accepted but not rendered. */
 const germanDays = ["Montag", "Dienstag", "Mitwoch", "Donnerstag", "Freitag", "Samstag"];
 
 function getWeekDateRange(week: number, year: number): { start: Date; end: Date } {
