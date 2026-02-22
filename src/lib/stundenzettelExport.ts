@@ -62,64 +62,76 @@ async function loadTemplate(): Promise<ArrayBuffer> {
 /** Inject data into a template worksheet */
 function fillTemplateSheet(ws: ExcelJS.Worksheet, params: StundenzettelParams) {
   const { records, projectName, projectClient, projectLocation, workerName, calendarWeek, year } = params;
+
   const { start, end } = getWeekDateRange(calendarWeek, year);
 
-  // Row 12 col D: Client / Auftraggeber
+  // -----------------------------
+  // HEADER FIELDS
+  // -----------------------------
+
   ws.getCell("D12").value = projectClient || projectName;
-
-  // Row 13 col D: Worker name
   ws.getCell("D13").value = workerName;
-
-  // Row 14 col D: Location
   ws.getCell("D14").value = projectLocation || projectName;
 
-  // Row 15 col D: Period
-  ws.getCell("D15").value = `${calendarWeek} Woche (${format(start, "dd.MM.yyyy")} - ${format(end, "dd.MM.yyyy")})`;
+  ws.getCell("D15").value =
+    `KW ${calendarWeek} / ${year} (${format(start, "dd.MM.yyyy")} - ${format(end, "dd.MM.yyyy")})`;
 
-  // Map records by German day name
+  // -----------------------------
+  // MAP RECORDS BY GERMAN DAY
+  // -----------------------------
+
   const recordsByDay = new Map<string, StundenzettelRecord>();
+
   records.forEach((record) => {
     const recordDate = new Date(record.date);
-    const dayName = format(recordDate, "EEEE", { locale: de });
-    const normalizedDay = dayName.charAt(0).toUpperCase() + dayName.slice(1);
-    recordsByDay.set(normalizedDay, record);
+    const germanDay = format(recordDate, "EEEE", { locale: de });
+    const normalized = germanDay.charAt(0).toUpperCase() + germanDay.slice(1);
+
+    recordsByDay.set(normalized, record);
   });
 
-  // Rows 18-23: Monday to Saturday data
-  let totalHours = 0;
+  // -----------------------------
+  // TABLE (ROWS 18–23)
+  // -----------------------------
+
+  const germanDays = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+
   const dataStartRow = 18;
+  let totalHours = 0;
 
   germanDays.forEach((day, index) => {
     const rowNum = dataStartRow + index;
     const record = recordsByDay.get(day);
+
     const hours = record ? Number(record.total_hours) || 0 : 0;
     totalHours += hours;
 
-    // B: Beginn
+    // Column A – Tag (only write if template doesn't already contain it)
+    const dayCell = ws.getCell(`A${rowNum}`);
+    if (!dayCell.value) {
+      dayCell.value = day;
+    }
+
+    // Column B – Beginn
     ws.getCell(`B${rowNum}`).value = record ? formatTime(record.time_from) : "";
 
-    // C: Pause Von (combined if two breaks)
-    const pauseVonParts = [
-      record?.break_start ? formatTime(record.break_start) : "",
-      record?.break2_start ? formatTime(record.break2_start) : "",
-    ].filter(Boolean);
-    ws.getCell(`C${rowNum}`).value = pauseVonParts.join(" / ");
+    // Column C – Pause von
+    ws.getCell(`C${rowNum}`).value = record?.break_start ? formatTime(record.break_start) : "";
 
-    // D: Pause Bis
-    const pauseBisParts = [
-      record?.break_end ? formatTime(record.break_end) : "",
-      record?.break2_end ? formatTime(record.break2_end) : "",
-    ].filter(Boolean);
-    ws.getCell(`D${rowNum}`).value = pauseBisParts.join(" / ");
+    // Column D – Pause bis
+    ws.getCell(`D${rowNum}`).value = record?.break_end ? formatTime(record.break_end) : "";
 
-    // E: Ende
+    // Column E – Ende
     ws.getCell(`E${rowNum}`).value = record ? formatTime(record.time_to) : "";
 
-    // F: Summe
+    // Column F – Summe Stunden
     ws.getCell(`F${rowNum}`).value = hours > 0 ? hours : "";
   });
 
-  // Row 24: Total hours
+  // -----------------------------
+  // TOTAL ROW (ROW 24)
+  // -----------------------------
+
   ws.getCell("F24").value = totalHours;
 }
 
