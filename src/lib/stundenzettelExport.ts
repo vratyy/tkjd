@@ -149,7 +149,7 @@ export async function exportStundenzettelToExcel(params: StundenzettelParams): P
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(templateBuffer);
 
-  const ws = workbook.getWorksheet(1);
+  const ws = workbook.worksheets[0];
   if (!ws) throw new Error("Template worksheet not found");
 
   fillTemplateSheet(ws, params);
@@ -200,7 +200,7 @@ export async function exportMultipleStundenzettelsToExcel(sheets: Array<Stundenz
     // Load a fresh template workbook for each sheet to clone from
     const tmpWorkbook = new ExcelJS.Workbook();
     await tmpWorkbook.xlsx.load(templateBuffer);
-    const templateWs = tmpWorkbook.getWorksheet(1);
+    const templateWs = tmpWorkbook.worksheets[0];
     if (!templateWs) continue;
 
     // Create sheet in output workbook
