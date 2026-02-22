@@ -34,7 +34,7 @@ interface StundenzettelParams {
 const TEMPLATE_URL = "/template_stundenzettel.xlsx";
 
 /** Template has 6 physical day rows (Mon–Sat). Sunday data is accepted but not rendered. */
-const germanDays = ["Montag", "Dienstag", "Mitwoch", "Donnerstag", "Freitag", "Samstag"];
+const germanDays = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
 
 function getWeekDateRange(week: number, year: number): { start: Date; end: Date } {
   const firstDayOfYear = new Date(year, 0, 1);
@@ -60,10 +60,7 @@ async function loadTemplate(): Promise<ArrayBuffer> {
 }
 
 /** Inject data into a template worksheet */
-function fillTemplateSheet(
-  ws: ExcelJS.Worksheet,
-  params: StundenzettelParams,
-) {
+function fillTemplateSheet(ws: ExcelJS.Worksheet, params: StundenzettelParams) {
   const { records, projectName, projectClient, projectLocation, workerName, calendarWeek, year } = params;
   const { start, end } = getWeekDateRange(calendarWeek, year);
 
@@ -81,7 +78,7 @@ function fillTemplateSheet(
 
   // Map records by German day name
   const recordsByDay = new Map<string, StundenzettelRecord>();
-  records.forEach(record => {
+  records.forEach((record) => {
     const recordDate = new Date(record.date);
     const dayName = format(recordDate, "EEEE", { locale: de });
     const normalizedDay = dayName.charAt(0).toUpperCase() + dayName.slice(1);
@@ -95,7 +92,7 @@ function fillTemplateSheet(
   germanDays.forEach((day, index) => {
     const rowNum = dataStartRow + index;
     const record = recordsByDay.get(day);
-    const hours = record ? (Number(record.total_hours) || 0) : 0;
+    const hours = record ? Number(record.total_hours) || 0 : 0;
     totalHours += hours;
 
     // B: Beginn
@@ -172,9 +169,7 @@ export async function exportStundenzettelToExcel(params: StundenzettelParams): P
 }
 
 /** Multi-sheet export for admin — one sheet per worker, all from template */
-export async function exportMultipleStundenzettelsToExcel(
-  sheets: Array<StundenzettelParams>
-): Promise<void> {
+export async function exportMultipleStundenzettelsToExcel(sheets: Array<StundenzettelParams>): Promise<void> {
   const templateBuffer = await loadTemplate();
 
   // For multi-sheet: create a fresh workbook for output
@@ -216,7 +211,11 @@ export async function exportMultipleStundenzettelsToExcel(
     const merges = templateWs.model?.merges;
     if (merges && Array.isArray(merges)) {
       merges.forEach((merge: string) => {
-        try { ws.mergeCells(merge); } catch { /* already merged */ }
+        try {
+          ws.mergeCells(merge);
+        } catch {
+          /* already merged */
+        }
       });
     }
 
