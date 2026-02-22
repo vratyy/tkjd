@@ -28,6 +28,7 @@ import { generateInvoicePDF } from "@/lib/invoiceGenerator";
 import { ProjectExportSection } from "@/components/approvals/ProjectExportSection";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getCompanySignatureBase64 } from "@/hooks/useCompanySignature";
+import { exportStundenzettelToExcel } from "@/lib/stundenzettelExport";
 
 interface Profile {
   full_name: string;
