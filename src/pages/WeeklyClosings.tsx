@@ -8,17 +8,25 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { MobileRecordCard } from "@/components/mobile/MobileRecordCard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, Calendar, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Clock, Undo2, Pencil, Trash2 } from "lucide-react";
+import {
+  Loader2,
+  Send,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  FileSpreadsheet,
+  FileText,
+  Clock,
+  Undo2,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
 import { parseLocalDate, getISOWeekLocal, getISOWeekYear } from "@/lib/dateUtils";
 import { useNavigate } from "react-router-dom";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -140,7 +148,9 @@ export default function WeeklyClosings() {
     // Fetch user profile with billing info
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name, company_name, billing_address, hourly_rate, iban, swift_bic, signature_url, is_vat_payer, vat_number, ico, dic")
+      .select(
+        "full_name, company_name, billing_address, hourly_rate, iban, swift_bic, signature_url, is_vat_payer, vat_number, ico, dic",
+      )
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -149,7 +159,9 @@ export default function WeeklyClosings() {
     // Fetch all records for the user
     const { data: records, error: recordsError } = await supabase
       .from("performance_records")
-      .select("id, date, time_from, time_to, break_start, break_end, break2_start, break2_end, total_hours, status, note, projects(name, client, location, address)")
+      .select(
+        "id, date, time_from, time_to, break_start, break_end, break2_start, break2_end, total_hours, status, note, projects(name, client, location, address)",
+      )
       .eq("user_id", user.id)
       .is("deleted_at", null)
       .order("date", { ascending: false });
@@ -172,8 +184,8 @@ export default function WeeklyClosings() {
 
     // Group records by week
     const grouped = new Map<string, WeekGroup>();
-    
-    (records as PerformanceRecord[] || []).forEach((record) => {
+
+    ((records as PerformanceRecord[]) || []).forEach((record) => {
       const recordDate = parseLocalDate(record.date);
       const week = getISOWeekLocal(recordDate);
       const year = getISOWeekYear(recordDate);
@@ -181,9 +193,7 @@ export default function WeeklyClosings() {
 
       if (!grouped.has(key)) {
         // Find corresponding closing
-        const closing = closings?.find(
-          (c: any) => c.calendar_week === week && c.year === year
-        );
+        const closing = closings?.find((c: any) => c.calendar_week === week && c.year === year);
 
         grouped.set(key, {
           week,
@@ -224,9 +234,7 @@ export default function WeeklyClosings() {
 
     try {
       // Update all draft/returned records in this week to submitted
-      const recordIds = group.records
-        .filter((r) => r.status === "draft" || r.status === "returned")
-        .map((r) => r.id);
+      const recordIds = group.records.filter((r) => r.status === "draft" || r.status === "returned").map((r) => r.id);
 
       if (recordIds.length > 0) {
         const { error: updateError } = await supabase
@@ -282,9 +290,7 @@ export default function WeeklyClosings() {
 
     try {
       // Revert submitted records back to draft
-      const recordIds = group.records
-        .filter((r) => r.status === "submitted")
-        .map((r) => r.id);
+      const recordIds = group.records.filter((r) => r.status === "submitted").map((r) => r.id);
 
       if (recordIds.length > 0) {
         const { error: updateError } = await supabase
@@ -326,20 +332,21 @@ export default function WeeklyClosings() {
   };
 
   const canSubmit = (group: WeekGroup) => {
-    const hasEditableRecords = group.records.some(
-      (r) => r.status === "draft" || r.status === "returned"
-    );
+    const hasEditableRecords = group.records.some((r) => r.status === "draft" || r.status === "returned");
     return hasEditableRecords && group.closingStatus !== "locked";
   };
 
   const handleExportLeistungsnachweis = async (group: WeekGroup) => {
-    // Get unique project name(s) for this week
-    const projectNames = [...new Set(group.records.map((r) => r.projects?.name).filter(Boolean))];
-    const projectName = projectNames.join(", ") || "Neznámy projekt";
+    const firstProject = group.records.find((r) => r.projects)?.projects;
+
+    const projectName = firstProject?.name || "Neznámy projekt";
+    const projectClient = firstProject?.client || "";
+    const projectLocation = firstProject?.location || null;
 
     try {
-      const firstProject = group.records.find((r) => r.projects)?.projects;
-      await exportWeeklyRecordsToExcel({
+      const companySignatureBase64 = await getCompanySignatureBase64();
+
+      await exportStundenzettelToExcel({
         records: group.records.map((r) => ({
           date: r.date,
           time_from: r.time_from,
@@ -352,15 +359,17 @@ export default function WeeklyClosings() {
           note: r.note,
         })),
         projectName,
-        projectAddress: firstProject?.address || firstProject?.location || null,
+        projectClient,
+        projectLocation,
         workerName: userProfile?.full_name || "Neznámy používateľ",
         calendarWeek: group.week,
         year: group.year,
+        companySignatureBase64,
       });
 
       toast({
         title: "Export úspešný",
-        description: `Leistungsnachweis pre KW ${group.week}/${group.year} bol stiahnutý.`,
+        description: `Stundenzettel pre KW ${group.week}/${group.year} bol stiahnutý.`,
       });
     } catch (error: any) {
       toast({
@@ -519,11 +528,7 @@ export default function WeeklyClosings() {
                       <div className="flex items-center gap-3 md:gap-4">
                         <CollapsibleTrigger asChild>
                           <Button variant="ghost" size="sm" className="p-0 h-auto">
-                            {isOpen ? (
-                              <ChevronUp className="h-5 w-5" />
-                            ) : (
-                              <ChevronDown className="h-5 w-5" />
-                            )}
+                            {isOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
                           </Button>
                         </CollapsibleTrigger>
                         <div>
@@ -536,10 +541,12 @@ export default function WeeklyClosings() {
                         </div>
                         <StatusBadge status={group.closingStatus as any} />
                         {group.closingStatus === "submitted" && (
-                          <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">Čaká na schválenie</span>
+                          <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                            Čaká na schválenie
+                          </span>
                         )}
                       </div>
-                      
+
                       {/* Desktop action buttons */}
                       <div className="hidden md:flex items-center gap-2 sm:gap-3">
                         {isAdmin && (
@@ -563,40 +570,41 @@ export default function WeeklyClosings() {
                             </DropdownMenuContent>
                           </DropdownMenu>
                         )}
-                        {canShowInvoiceButton(group) && (() => {
-                          const disabledReason = getInvoiceDisabledReason();
-                          const btn = (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => !disabledReason && handleGenerateInvoice(group)}
-                              disabled={!!disabledReason || generatingInvoice || generatingKey === key}
-                            >
-                              {generatingKey === key ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <>
-                                  <FileText className="h-4 w-4 sm:mr-2" />
-                                  <span className="hidden sm:inline">Faktúra PDF</span>
-                                </>
-                              )}
-                            </Button>
-                          );
-                          return disabledReason ? (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>{btn}</TooltipTrigger>
-                                <TooltipContent><p>{disabledReason}</p></TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          ) : btn;
-                        })()}
+                        {canShowInvoiceButton(group) &&
+                          (() => {
+                            const disabledReason = getInvoiceDisabledReason();
+                            const btn = (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => !disabledReason && handleGenerateInvoice(group)}
+                                disabled={!!disabledReason || generatingInvoice || generatingKey === key}
+                              >
+                                {generatingKey === key ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <FileText className="h-4 w-4 sm:mr-2" />
+                                    <span className="hidden sm:inline">Faktúra PDF</span>
+                                  </>
+                                )}
+                              </Button>
+                            );
+                            return disabledReason ? (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>{btn}</TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>{disabledReason}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : (
+                              btn
+                            );
+                          })()}
                         {canSubmit(group) && (
-                          <Button
-                            size="sm"
-                            onClick={() => handleSubmitWeek(group)}
-                            disabled={submitting === key}
-                          >
+                          <Button size="sm" onClick={() => handleSubmitWeek(group)} disabled={submitting === key}>
                             {submitting === key ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
@@ -627,7 +635,7 @@ export default function WeeklyClosings() {
                         )}
                       </div>
                     </div>
-                    
+
                     {/* Mobile action buttons - stacked */}
                     <div className="flex flex-wrap gap-2 mt-3 md:hidden">
                       {isAdmin && (
@@ -651,7 +659,8 @@ export default function WeeklyClosings() {
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
-                        {canShowInvoiceButton(group) && (() => {
+                      {canShowInvoiceButton(group) &&
+                        (() => {
                           const disabledReason = getInvoiceDisabledReason();
                           const btn = (
                             <Button
@@ -675,10 +684,14 @@ export default function WeeklyClosings() {
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>{btn}</TooltipTrigger>
-                                <TooltipContent><p>{disabledReason}</p></TooltipContent>
+                                <TooltipContent>
+                                  <p>{disabledReason}</p>
+                                </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
-                          ) : btn;
+                          ) : (
+                            btn
+                          );
                         })()}
                       {canSubmit(group) && (
                         <Button
@@ -716,7 +729,7 @@ export default function WeeklyClosings() {
                         </Button>
                       )}
                     </div>
-                    
+
                     {group.returnComment && (
                       <div className="mt-3 p-3 rounded-md bg-destructive/10 border border-destructive/20">
                         <p className="text-sm text-destructive">
@@ -746,7 +759,7 @@ export default function WeeklyClosings() {
                           />
                         ))}
                       </div>
-                      
+
                       {/* Desktop: List view */}
                       <div className="hidden md:block space-y-2">
                         {group.records.map((record) => {
