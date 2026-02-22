@@ -15,7 +15,7 @@ interface StundenzettelRecord {
   activity_description?: string | null;
 }
 
-export interface StundenzettelParams {
+interface StundenzettelParams {
   records: StundenzettelRecord[];
   projectName: string;
   projectClient: string;
@@ -150,7 +150,7 @@ function applyPageSetupFromTemplate(target: ExcelJS.Worksheet, source: ExcelJS.W
     fitToPage: true,
     fitToWidth: 1,
     fitToHeight: 0, // CRITICAL: prevent vertical compression
-    orientation: "landscape",
+    orientation: "portrait",
     paperSize: 9, // A4
   };
 }
@@ -206,63 +206,37 @@ export async function exportStundenzettelToExcel(params: StundenzettelParams): P
 export async function exportMultipleStundenzettelsToExcel(sheets: Array<StundenzettelParams>): Promise<void> {
   const templateBuffer = await loadTemplate();
 
-  // Strategy: load the template once as the output workbook,
-  // use its first sheet for the first worker, then clone for subsequent workers.
+  // For multi-sheet: create a fresh workbook for output
   const outWorkbook = new ExcelJS.Workbook();
-  await outWorkbook.xlsx.load(templateBuffer);
+  outWorkbook.creator = "TKJD s.r.o.";
+  outWorkbook.created = new Date();
 
-  // The template has one worksheet — use it for the first sheet
-  const firstWs = outWorkbook.worksheets[0];
-  if (!firstWs) throw new Error("Template worksheet not found");
-
-  // Process first worker on the existing template sheet
-  if (sheets.length > 0) {
-    const firstParams = sheets[0];
-    const sheetName = `${firstParams.workerName.slice(0, 20)}_KW${firstParams.calendarWeek}`.slice(0, 31).replace(/[\\/*?[\]:]/g, "_");
-    firstWs.name = sheetName;
-    applyPageSetupFromTemplate(firstWs, firstWs);
-    fillTemplateSheet(firstWs, firstParams);
-
-    if (firstParams.companySignatureBase64) {
-      try {
-        const sigImgId = outWorkbook.addImage({
-          base64: firstParams.companySignatureBase64,
-          extension: "png",
-        });
-        firstWs.addImage(sigImgId, {
-          tl: { col: 0, row: 27 },
-          ext: { width: 150, height: 80 },
-        });
-      } catch (error) {
-        console.warn("Could not embed company signature:", error);
-      }
-    }
-  }
-
-  // For subsequent workers, load a fresh template each time and copy it in
-  for (let i = 1; i < sheets.length; i++) {
-    const params = sheets[i];
+  for (const params of sheets) {
+    // Load a fresh template workbook for each sheet to clone from
     const tmpWorkbook = new ExcelJS.Workbook();
     await tmpWorkbook.xlsx.load(templateBuffer);
-    const templateWs = tmpWorkbook.worksheets[0];
+    const templateWs = tmpWorkbook.getWorksheet(1);
     if (!templateWs) continue;
 
-    const sheetName = `${params.workerName.slice(0, 20)}_KW${params.calendarWeek}`.slice(0, 31).replace(/[\\/*?[\]:]/g, "_");
+    // Create sheet in output workbook
+    const sheetName = `${params.workerName.slice(0, 20)}_KW${params.calendarWeek}`.slice(0, 31);
     const ws = outWorkbook.addWorksheet(sheetName);
 
-    // Copy column widths
-    templateWs.columns.forEach((col, idx) => {
-      ws.getColumn(idx + 1).width = col.width;
+    // Copy template structure: column widths
+    templateWs.columns.forEach((col, i) => {
+      if (ws.columns[i]) {
+        ws.getColumn(i + 1).width = col.width;
+      }
     });
 
-    // Copy rows, values, styles
+    // Copy all rows with values, styles, merges
     templateWs.eachRow({ includeEmpty: true }, (row, rowNumber) => {
       const newRow = ws.getRow(rowNumber);
       newRow.height = row.height;
       row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
         const newCell = newRow.getCell(colNumber);
         newCell.value = cell.value;
-        newCell.style = JSON.parse(JSON.stringify(cell.style));
+        newCell.style = { ...cell.style };
       });
     });
 
@@ -279,9 +253,11 @@ export async function exportMultipleStundenzettelsToExcel(sheets: Array<Stundenz
       });
     }
 
-    applyPageSetupFromTemplate(ws, templateWs);
+    // Now inject data
     fillTemplateSheet(ws, params);
+    applyPageSetupFromTemplate(ws, templateWs);
 
+    // Add company signature if available
     if (params.companySignatureBase64) {
       try {
         const sigImgId = outWorkbook.addImage({
