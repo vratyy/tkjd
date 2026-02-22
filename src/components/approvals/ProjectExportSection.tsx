@@ -11,7 +11,8 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { FileSpreadsheet, Loader2, Download } from "lucide-react";
-import { exportProjectConsolidatedExcel, type ProjectWorkerSheet } from "@/lib/projectExcelExport";
+import { exportMultipleStundenzettelsToExcel, type StundenzettelParams } from "@/lib/stundenzettelExport";
+import { getCompanySignatureBase64 } from "@/hooks/useCompanySignature";
 import { parseLocalDate, getISOWeekLocal, getISOWeekYear } from "@/lib/dateUtils";
 
 interface Project {
@@ -139,8 +140,11 @@ export function ProjectExportSection() {
       const { data: profiles } = await supabase
         .rpc("get_team_profiles_safe", { target_user_ids: userIds });
 
-      // Group records by user
-      const workerMap = new Map<string, ProjectWorkerSheet>();
+      // Fetch company signature
+      const companySignatureBase64 = await getCompanySignatureBase64();
+
+      // Group records by user and build StundenzettelParams[]
+      const workerMap = new Map<string, { workerName: string; records: typeof weekRecords }>();
       for (const record of weekRecords) {
         const profile = profiles?.find((p) => p.user_id === record.user_id);
         const workerName = profile?.full_name || "Neznámy";
@@ -152,36 +156,37 @@ export function ProjectExportSection() {
           });
         }
 
-        workerMap.get(record.user_id)!.records.push({
-          date: record.date,
-          time_from: record.time_from,
-          time_to: record.time_to,
-          break_start: record.break_start,
-          break_end: record.break_end,
-          break2_start: record.break2_start,
-          break2_end: record.break2_end,
-          total_hours: record.total_hours ?? 0,
-          note: record.note,
-        });
+        workerMap.get(record.user_id)!.records.push(record);
       }
 
-      const workers = Array.from(workerMap.values()).sort((a, b) =>
-        a.workerName.localeCompare(b.workerName)
-      );
+      const sheets: StundenzettelParams[] = Array.from(workerMap.values())
+        .sort((a, b) => a.workerName.localeCompare(b.workerName))
+        .map((worker) => ({
+          records: worker.records.map((r) => ({
+            date: r.date,
+            time_from: r.time_from,
+            time_to: r.time_to,
+            break_start: r.break_start,
+            break_end: r.break_end,
+            break2_start: r.break2_start,
+            break2_end: r.break2_end,
+            total_hours: r.total_hours ?? 0,
+            note: r.note,
+          })),
+          projectName: project.name,
+          projectClient: project.client,
+          projectLocation: project.location,
+          workerName: worker.workerName,
+          calendarWeek,
+          year,
+          companySignatureBase64,
+        }));
 
-      await exportProjectConsolidatedExcel({
-        projectName: project.name,
-        projectClient: project.client,
-        projectLocation: project.location,
-        projectAddress: project.address,
-        calendarWeek,
-        year,
-        workers,
-      });
+      await exportMultipleStundenzettelsToExcel(sheets);
 
       toast({
         title: "Export úspešný",
-        description: `Stiahnutý hromadný Excel pre ${project.name} – KW ${calendarWeek}/${year} (${workers.length} pracovníkov).`,
+        description: `Stiahnutý hromadný Excel pre ${project.name} – KW ${calendarWeek}/${year} (${sheets.length} pracovníkov).`,
       });
     } catch (err: any) {
       toast({
