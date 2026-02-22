@@ -61,31 +61,49 @@ async function loadTemplate(): Promise<ArrayBuffer> {
 
 /** Inject data into a template worksheet */
 function fillTemplateSheet(ws: ExcelJS.Worksheet, params: StundenzettelParams) {
-  const { records, projectClient, workerName, projectLocation, calendarWeek, year } = params;
+  const { records, projectClient, projectLocation, workerName, calendarWeek, year } = params;
 
   const { start, end } = getWeekDateRange(calendarWeek, year);
 
-  // =============================
-  // HEADER (RIGHT SIDE TEMPLATE)
-  // =============================
+  // =========================
+  // HEADER (NEW TEMPLATE)
+  // =========================
 
+  // Client
   ws.getCell("E12").value = projectClient || "";
-  ws.getCell("E13").value = workerName;
+
+  // Worker
+  ws.getCell("E13").value = workerName || "";
+
+  // Location
   ws.getCell("E14").value = projectLocation || "";
+
+  // Period
   ws.getCell("E15").value = `${format(start, "dd.MM.yyyy")} - ${format(end, "dd.MM.yyyy")}`;
 
-  // =============================
+  // =========================
   // MAP RECORDS BY DAY
-  // =============================
+  // =========================
 
   const recordsByDay = new Map<string, StundenzettelRecord>();
 
   records.forEach((record) => {
     const dateObj = new Date(record.date);
-    const day = format(dateObj, "EEEE", { locale: de });
-    const normalized = day.charAt(0).toUpperCase() + day.slice(1);
+    const germanDay = format(dateObj, "EEEE", { locale: de });
+    const normalized = germanDay.charAt(0).toUpperCase() + germanDay.slice(1);
+
     recordsByDay.set(normalized, record);
   });
+
+  // =========================
+  // TABLE STRUCTURE (B–G)
+  // =========================
+  // B = Day (already in template — DO NOT TOUCH)
+  // C = Beginn
+  // D = Pause von
+  // E = Pause bis
+  // F = Ende
+  // G = Summe
 
   const germanDays = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
 
@@ -99,15 +117,15 @@ function fillTemplateSheet(ws: ExcelJS.Worksheet, params: StundenzettelParams) {
     const hours = record ? Number(record.total_hours) || 0 : 0;
     totalHours += hours;
 
-    // DO NOT TOUCH COLUMN A ANYMORE
+    // NEVER WRITE COLUMN A OR B (template already has days)
 
     // Column C – Beginn
     ws.getCell(`C${row}`).value = record ? formatTime(record.time_from) : "";
 
-    // Column D – Pause Von
+    // Column D – Pause von
     ws.getCell(`D${row}`).value = record?.break_start ? formatTime(record.break_start) : "";
 
-    // Column E – Pause Bis
+    // Column E – Pause bis
     ws.getCell(`E${row}`).value = record?.break_end ? formatTime(record.break_end) : "";
 
     // Column F – Ende
@@ -117,7 +135,10 @@ function fillTemplateSheet(ws: ExcelJS.Worksheet, params: StundenzettelParams) {
     ws.getCell(`G${row}`).value = hours > 0 ? hours : "";
   });
 
-  // TOTAL
+  // =========================
+  // TOTAL (ROW 24)
+  // =========================
+
   ws.getCell("G24").value = totalHours;
 }
 
