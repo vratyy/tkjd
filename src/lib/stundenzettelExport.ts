@@ -61,78 +61,85 @@ async function loadTemplate(): Promise<ArrayBuffer> {
 
 /** Inject data into a template worksheet */
 function fillTemplateSheet(ws: ExcelJS.Worksheet, params: StundenzettelParams) {
-  const { records, projectName, projectClient, projectLocation, workerName, calendarWeek, year } = params;
+  const { records, projectClient, projectLocation, workerName, calendarWeek, year } = params;
 
   const { start, end } = getWeekDateRange(calendarWeek, year);
 
-  // -----------------------------
-  // HEADER FIELDS
-  // -----------------------------
+  // =========================
+  // HEADER (NEW TEMPLATE)
+  // =========================
 
-  ws.getCell("D12").value = projectClient || projectName;
-  ws.getCell("D13").value = workerName;
-  ws.getCell("D14").value = projectLocation || projectName;
+  // Client
+  ws.getCell("E12").value = projectClient || "";
 
-  ws.getCell("D15").value =
-    `KW ${calendarWeek} / ${year} (${format(start, "dd.MM.yyyy")} - ${format(end, "dd.MM.yyyy")})`;
+  // Worker
+  ws.getCell("E13").value = workerName || "";
 
-  // -----------------------------
-  // MAP RECORDS BY GERMAN DAY
-  // -----------------------------
+  // Location
+  ws.getCell("E14").value = projectLocation || "";
+
+  // Period
+  ws.getCell("E15").value = `${format(start, "dd.MM.yyyy")} - ${format(end, "dd.MM.yyyy")}`;
+
+  // =========================
+  // MAP RECORDS BY DAY
+  // =========================
 
   const recordsByDay = new Map<string, StundenzettelRecord>();
 
   records.forEach((record) => {
-    const recordDate = new Date(record.date);
-    const germanDay = format(recordDate, "EEEE", { locale: de });
+    const dateObj = new Date(record.date);
+    const germanDay = format(dateObj, "EEEE", { locale: de });
     const normalized = germanDay.charAt(0).toUpperCase() + germanDay.slice(1);
 
     recordsByDay.set(normalized, record);
   });
 
-  // -----------------------------
-  // TABLE (ROWS 18–23)
-  // -----------------------------
+  // =========================
+  // TABLE STRUCTURE (B–G)
+  // =========================
+  // B = Day (already in template — DO NOT TOUCH)
+  // C = Beginn
+  // D = Pause von
+  // E = Pause bis
+  // F = Ende
+  // G = Summe
 
   const germanDays = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
 
-  const dataStartRow = 18;
+  const startRow = 18;
   let totalHours = 0;
 
   germanDays.forEach((day, index) => {
-    const rowNum = dataStartRow + index;
+    const row = startRow + index;
     const record = recordsByDay.get(day);
 
     const hours = record ? Number(record.total_hours) || 0 : 0;
     totalHours += hours;
 
-    // Column A – Tag (only write if template doesn't already contain it)
-    const dayCell = ws.getCell(`A${rowNum}`);
-    if (!dayCell.value) {
-      dayCell.value = day;
-    }
+    // NEVER WRITE COLUMN A OR B (template already has days)
 
-    // Column B – Beginn
-    ws.getCell(`B${rowNum}`).value = record ? formatTime(record.time_from) : "";
+    // Column C – Beginn
+    ws.getCell(`C${row}`).value = record ? formatTime(record.time_from) : "";
 
-    // Column C – Pause von
-    ws.getCell(`C${rowNum}`).value = record?.break_start ? formatTime(record.break_start) : "";
+    // Column D – Pause von
+    ws.getCell(`D${row}`).value = record?.break_start ? formatTime(record.break_start) : "";
 
-    // Column D – Pause bis
-    ws.getCell(`D${rowNum}`).value = record?.break_end ? formatTime(record.break_end) : "";
+    // Column E – Pause bis
+    ws.getCell(`E${row}`).value = record?.break_end ? formatTime(record.break_end) : "";
 
-    // Column E – Ende
-    ws.getCell(`E${rowNum}`).value = record ? formatTime(record.time_to) : "";
+    // Column F – Ende
+    ws.getCell(`F${row}`).value = record ? formatTime(record.time_to) : "";
 
-    // Column F – Summe Stunden
-    ws.getCell(`F${rowNum}`).value = hours > 0 ? hours : "";
+    // Column G – Summe
+    ws.getCell(`G${row}`).value = hours > 0 ? hours : "";
   });
 
-  // -----------------------------
-  // TOTAL ROW (ROW 24)
-  // -----------------------------
+  // =========================
+  // TOTAL (ROW 24)
+  // =========================
 
-  ws.getCell("F24").value = totalHours;
+  ws.getCell("G24").value = totalHours;
 }
 
 /** Single sheet export — loads template, injects data, downloads */
