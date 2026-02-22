@@ -31,7 +31,7 @@ interface StundenzettelParams {
   projectAddress?: string | null;
 }
 
-const TEMPLATE_URL = "/template_stundenzettel.xlsx";
+const TEMPLATE_URL = "/template_stundenzettel_v2.xlsx";
 
 /** Template has 6 physical day rows (Mon–Sat). Sunday data is accepted but not rendered. */
 const germanDays = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
@@ -53,9 +53,9 @@ function formatTime(time: string | null | undefined): string {
 
 /** Load the template workbook from public folder */
 async function loadTemplate(): Promise<ArrayBuffer> {
-  console.log("INITIATING TEMPLATE DOWNLOAD: Fetching /template_stundenzettel.xlsx");
+  console.log("INITIATING TEMPLATE DOWNLOAD: Fetching /template_stundenzettel_v2.xlsx");
   const response = await fetch(TEMPLATE_URL + "?v=" + Date.now());
-  if (!response.ok) throw new Error("Šablóna template_stundenzettel.xlsx sa nenašla v priečinku public.");
+  if (!response.ok) throw new Error("Šablóna template_stundenzettel_v2.xlsx sa nenašla v priečinku public.");
   return response.arrayBuffer();
 }
 
