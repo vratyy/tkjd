@@ -26,14 +26,7 @@ import { Navigate } from "react-router-dom";
 import { exportWeeklyRecordsToExcel } from "@/lib/excelExport";
 import { generateInvoicePDF } from "@/lib/invoiceGenerator";
 import { ProjectExportSection } from "@/components/approvals/ProjectExportSection";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface Profile {
   full_name: string;
@@ -127,25 +120,29 @@ export default function LockWeeks() {
       return;
     }
 
-    const userIds = [...new Set(closings?.map(c => c.user_id) || [])];
+    const userIds = [...new Set(closings?.map((c) => c.user_id) || [])];
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("user_id, full_name, company_name, billing_address, hourly_rate, iban, swift_bic, signature_url, is_vat_payer, vat_number, ico, dic")
+      .select(
+        "user_id, full_name, company_name, billing_address, hourly_rate, iban, swift_bic, signature_url, is_vat_payer, vat_number, ico, dic",
+      )
       .in("user_id", userIds);
 
     const weeks: ApprovedWeek[] = [];
 
     for (const closing of closings || []) {
-      const profile = profiles?.find(p => p.user_id === closing.user_id);
+      const profile = profiles?.find((p) => p.user_id === closing.user_id);
 
       const { data: records } = await supabase
         .from("performance_records")
-        .select("id, date, time_from, time_to, break_start, break_end, break2_start, break2_end, total_hours, status, note, projects(name, address, location)")
+        .select(
+          "id, date, time_from, time_to, break_start, break_end, break2_start, break2_end, total_hours, status, note, projects(name, address, location)",
+        )
         .eq("user_id", closing.user_id)
         .eq("status", "approved")
         .is("deleted_at", null);
 
-      const weekRecords = (records as PerformanceRecord[] || []).filter((r) => {
+      const weekRecords = ((records as PerformanceRecord[]) || []).filter((r) => {
         return isDateInWeek(r.date, closing.calendar_week, closing.year);
       });
 
@@ -153,19 +150,21 @@ export default function LockWeeks() {
 
       const closingWithProfile: WeeklyClosing = {
         ...closing,
-        profiles: profile ? {
-          full_name: profile.full_name,
-          company_name: profile.company_name,
-          billing_address: profile.billing_address,
-          hourly_rate: profile.hourly_rate,
-          iban: profile.iban,
-          swift_bic: profile.swift_bic,
-          signature_url: profile.signature_url,
-          is_vat_payer: profile.is_vat_payer,
-          vat_number: profile.vat_number,
-          ico: profile.ico,
-          dic: profile.dic,
-        } : null
+        profiles: profile
+          ? {
+              full_name: profile.full_name,
+              company_name: profile.company_name,
+              billing_address: profile.billing_address,
+              hourly_rate: profile.hourly_rate,
+              iban: profile.iban,
+              swift_bic: profile.swift_bic,
+              signature_url: profile.signature_url,
+              is_vat_payer: profile.is_vat_payer,
+              vat_number: profile.vat_number,
+              ico: profile.ico,
+              dic: profile.dic,
+            }
+          : null,
       };
 
       weeks.push({ closing: closingWithProfile, records: weekRecords, totalHours });
@@ -185,7 +184,7 @@ export default function LockWeeks() {
 
     // Filter items by surname
     const filtered = q
-      ? approvedWeeks.filter(w => w.closing.profiles?.full_name?.toLowerCase().includes(q))
+      ? approvedWeeks.filter((w) => w.closing.profiles?.full_name?.toLowerCase().includes(q))
       : approvedWeeks;
 
     // Group into week buckets
@@ -275,26 +274,46 @@ export default function LockWeeks() {
   };
 
   const handleExport = async (week: ApprovedWeek) => {
-    const projectNames = [...new Set(week.records.map((r) => r.projects?.name).filter(Boolean))];
-    const projectName = projectNames.join(", ") || "Neznámy projekt";
+    const firstProject = week.records.find((r) => r.projects)?.projects;
+
+    const projectName = firstProject?.name || "Neznámy projekt";
+    const projectClient = firstProject?.client || "";
+    const projectLocation = firstProject?.location || null;
+
     try {
-      const firstProject = week.records.find((r) => r.projects)?.projects;
-      await exportWeeklyRecordsToExcel({
+      const companySignatureBase64 = await getCompanySignatureBase64();
+
+      await exportStundenzettelToExcel({
         records: week.records.map((r) => ({
-          date: r.date, time_from: r.time_from, time_to: r.time_to,
-          break_start: r.break_start, break_end: r.break_end,
-          break2_start: r.break2_start, break2_end: r.break2_end,
-          total_hours: r.total_hours, note: r.note,
+          date: r.date,
+          time_from: r.time_from,
+          time_to: r.time_to,
+          break_start: r.break_start,
+          break_end: r.break_end,
+          break2_start: r.break2_start,
+          break2_end: r.break2_end,
+          total_hours: r.total_hours,
+          note: r.note,
         })),
         projectName,
-        projectAddress: firstProject?.address || firstProject?.location || null,
+        projectClient,
+        projectLocation,
         workerName: week.closing.profiles?.full_name || "Neznámy používateľ",
         calendarWeek: week.closing.calendar_week,
         year: week.closing.year,
+        companySignatureBase64,
       });
-      toast({ title: "Export úspešný", description: "Leistungsnachweis bol stiahnutý." });
+
+      toast({
+        title: "Export úspešný",
+        description: "Stundenzettel bol stiahnutý.",
+      });
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Chyba pri exporte", description: error.message });
+      toast({
+        variant: "destructive",
+        title: "Chyba pri exporte",
+        description: error.message,
+      });
     }
   };
 
@@ -325,7 +344,7 @@ export default function LockWeeks() {
       // Issue date = Monday immediately after the work week
       const weekRef = new Date(week.closing.year, 0, 4); // Jan 4 is always in week 1
       const weekStart = startOfISOWeek(weekRef);
-      const mondayAfterWeek = addDays(weekStart, (week.closing.calendar_week) * 7);
+      const mondayAfterWeek = addDays(weekStart, week.closing.calendar_week * 7);
       const historicalIssueDate = format(mondayAfterWeek, "yyyy-MM-dd");
       const historicalDeliveryDate = lastWorkDay || historicalIssueDate;
       const historicalDueDate = format(addDays(mondayAfterWeek, 21), "yyyy-MM-dd");
@@ -413,7 +432,9 @@ export default function LockWeeks() {
         <Accordion
           type="single"
           collapsible
-          defaultValue={filteredBuckets.length > 0 ? `${filteredBuckets[0].year}-${filteredBuckets[0].week}` : undefined}
+          defaultValue={
+            filteredBuckets.length > 0 ? `${filteredBuckets[0].year}-${filteredBuckets[0].week}` : undefined
+          }
         >
           {filteredBuckets.map((bucket) => {
             const key = `${bucket.year}-${bucket.week}`;
@@ -425,15 +446,22 @@ export default function LockWeeks() {
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 gap-1 sm:gap-0">
                     <div className="flex items-center gap-2 sm:gap-3">
                       <span className="font-semibold text-sm sm:text-base">
-                        KW {bucket.week} <span className="text-muted-foreground font-normal text-xs sm:text-sm">({dateRange})</span>
+                        KW {bucket.week}{" "}
+                        <span className="text-muted-foreground font-normal text-xs sm:text-sm">({dateRange})</span>
                       </span>
                       <StatusBadge status="approved" />
                     </div>
                     <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
-                      <span>{bucket.items.length} {bucket.items.length === 1 ? "osoba" : "osôb"}</span>
+                      <span>
+                        {bucket.items.length} {bucket.items.length === 1 ? "osoba" : "osôb"}
+                      </span>
                       <span>{Math.round(bucket.totalHours * 10) / 10}h</span>
                       <span className="font-semibold text-foreground">
-                        €{bucket.totalAmount.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                        €
+                        {bucket.totalAmount.toLocaleString("de-DE", {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 2,
+                        })}
                       </span>
                     </div>
                   </div>
@@ -472,7 +500,11 @@ export default function LockWeeks() {
                                   {Math.round(item.totalHours * 10) / 10}h
                                 </TableCell>
                                 <TableCell className="text-right font-mono font-semibold">
-                                  €{amount.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                                  €
+                                  {amount.toLocaleString("de-DE", {
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: 2,
+                                  })}
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex items-center justify-end gap-1">
