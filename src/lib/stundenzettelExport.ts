@@ -162,7 +162,7 @@ export async function exportStundenzettelToExcel(params: StundenzettelParams): P
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(templateBuffer);
 
-  const ws = workbook.getWorksheet(1);
+  const ws = workbook.worksheets[0];
   if (!ws) throw new Error("Template worksheet not found");
 
   applyPageSetupFromTemplate(ws, ws);
