@@ -142,6 +142,19 @@ function fillTemplateSheet(ws: ExcelJS.Worksheet, params: StundenzettelParams) {
   ws.getCell("G24").value = totalHours;
 }
 
+function applyPageSetupFromTemplate(target: ExcelJS.Worksheet, source: ExcelJS.Worksheet) {
+  target.pageSetup = {
+    ...source.pageSetup,
+
+    // enforce safe printing behavior
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0, // CRITICAL: prevent vertical compression
+    orientation: "landscape",
+    paperSize: 9, // A4
+  };
+}
+
 /** Single sheet export — loads template, injects data, downloads */
 export async function exportStundenzettelToExcel(params: StundenzettelParams): Promise<void> {
   const templateBuffer = await loadTemplate();
@@ -149,7 +162,8 @@ export async function exportStundenzettelToExcel(params: StundenzettelParams): P
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(templateBuffer);
 
-  const ws = workbook.worksheets[0];
+  const ws = workbook.getWorksheet(1);
+  applyPageSetupFromTemplate(ws, ws);
   if (!ws) throw new Error("Template worksheet not found");
 
   fillTemplateSheet(ws, params);
@@ -200,7 +214,7 @@ export async function exportMultipleStundenzettelsToExcel(sheets: Array<Stundenz
     // Load a fresh template workbook for each sheet to clone from
     const tmpWorkbook = new ExcelJS.Workbook();
     await tmpWorkbook.xlsx.load(templateBuffer);
-    const templateWs = tmpWorkbook.worksheets[0];
+    const templateWs = tmpWorkbook.getWorksheet(1);
     if (!templateWs) continue;
 
     // Create sheet in output workbook
