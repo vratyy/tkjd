@@ -27,6 +27,7 @@ import { exportWeeklyRecordsToExcel } from "@/lib/excelExport";
 import { generateInvoicePDF } from "@/lib/invoiceGenerator";
 import { ProjectExportSection } from "@/components/approvals/ProjectExportSection";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getCompanySignatureBase64 } from "@/hooks/useCompanySignature";
 
 interface Profile {
   full_name: string;
@@ -274,16 +275,11 @@ export default function LockWeeks() {
   };
 
   const handleExport = async (week: ApprovedWeek) => {
-    const firstProject = week.records.find((r) => r.projects)?.projects;
-
-    const projectName = firstProject?.name || "Neznámy projekt";
-    const projectClient = firstProject?.client || "";
-    const projectLocation = firstProject?.location || null;
-
+    const projectNames = [...new Set(week.records.map((r) => r.projects?.name).filter(Boolean))];
+    const projectName = projectNames.join(", ") || "Neznámy projekt";
     try {
-      const companySignatureBase64 = await getCompanySignatureBase64();
-
-      await exportStundenzettelToExcel({
+      const firstProject = week.records.find((r) => r.projects)?.projects;
+      await exportWeeklyRecordsToExcel({
         records: week.records.map((r) => ({
           date: r.date,
           time_from: r.time_from,
@@ -296,24 +292,14 @@ export default function LockWeeks() {
           note: r.note,
         })),
         projectName,
-        projectClient,
-        projectLocation,
+        projectAddress: firstProject?.address || firstProject?.location || null,
         workerName: week.closing.profiles?.full_name || "Neznámy používateľ",
         calendarWeek: week.closing.calendar_week,
         year: week.closing.year,
-        companySignatureBase64,
       });
-
-      toast({
-        title: "Export úspešný",
-        description: "Stundenzettel bol stiahnutý.",
-      });
+      toast({ title: "Export úspešný", description: "Leistungsnachweis bol stiahnutý." });
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Chyba pri exporte",
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: "Chyba pri exporte", description: error.message });
     }
   };
 
