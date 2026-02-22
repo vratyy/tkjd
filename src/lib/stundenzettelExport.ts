@@ -276,6 +276,21 @@ export async function exportMultipleStundenzettelsToExcel(sheets: Array<Stundenz
       });
     }
 
+    // Copy images (logo etc.) from template to new sheet
+    const templateImages = templateWs.getImages();
+    for (const img of templateImages) {
+      // Re-add the image from the tmp workbook into the output workbook
+      // @ts-ignore - accessing internal media
+      const tmpMedia = tmpWb.model?.media?.find((m: any) => m.index === img.imageId || m.name === `image${img.imageId}`);
+      if (tmpMedia) {
+        const newImageId = outWorkbook.addImage({
+          buffer: tmpMedia.buffer,
+          extension: (tmpMedia.extension || "png") as "png" | "jpeg" | "gif",
+        });
+        ws.addImage(newImageId, img.range);
+      }
+    }
+
     fillTemplateSheet(ws, params);
     applyPageSetupFromTemplate(ws, templateWs);
 
