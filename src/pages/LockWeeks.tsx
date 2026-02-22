@@ -56,7 +56,7 @@ interface PerformanceRecord {
   total_hours: number;
   status: string;
   note: string | null;
-  projects: { name: string; address: string | null; location: string | null } | null;
+  projects: { name: string; client: string; address: string | null; location: string | null } | null;
 }
 
 interface WeeklyClosing {
@@ -138,7 +138,7 @@ export default function LockWeeks() {
       const { data: records } = await supabase
         .from("performance_records")
         .select(
-          "id, date, time_from, time_to, break_start, break_end, break2_start, break2_end, total_hours, status, note, projects(name, address, location)",
+          "id, date, time_from, time_to, break_start, break_end, break2_start, break2_end, total_hours, status, note, projects(name, client, address, location)",
         )
         .eq("user_id", closing.user_id)
         .eq("status", "approved")
