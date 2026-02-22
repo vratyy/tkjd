@@ -255,6 +255,7 @@ export async function exportMultipleStundenzettelsToExcel(sheets: Array<Stundenz
 
     // Now inject data
     fillTemplateSheet(ws, params);
+    applyPageSetupFromTemplate(ws, templateWs);
 
     // Add company signature if available
     if (params.companySignatureBase64) {
