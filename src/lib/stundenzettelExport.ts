@@ -61,78 +61,64 @@ async function loadTemplate(): Promise<ArrayBuffer> {
 
 /** Inject data into a template worksheet */
 function fillTemplateSheet(ws: ExcelJS.Worksheet, params: StundenzettelParams) {
-  const { records, projectName, projectClient, projectLocation, workerName, calendarWeek, year } = params;
+  const { records, projectClient, workerName, projectLocation, calendarWeek, year } = params;
 
   const { start, end } = getWeekDateRange(calendarWeek, year);
 
-  // -----------------------------
-  // HEADER FIELDS
-  // -----------------------------
+  // =============================
+  // HEADER (RIGHT SIDE TEMPLATE)
+  // =============================
 
-  ws.getCell("D12").value = projectClient || projectName;
-  ws.getCell("D13").value = workerName;
-  ws.getCell("D14").value = projectLocation || projectName;
+  ws.getCell("E12").value = projectClient || "";
+  ws.getCell("E13").value = workerName;
+  ws.getCell("E14").value = projectLocation || "";
+  ws.getCell("E15").value = `${format(start, "dd.MM.yyyy")} - ${format(end, "dd.MM.yyyy")}`;
 
-  ws.getCell("D15").value =
-    `KW ${calendarWeek} / ${year} (${format(start, "dd.MM.yyyy")} - ${format(end, "dd.MM.yyyy")})`;
-
-  // -----------------------------
-  // MAP RECORDS BY GERMAN DAY
-  // -----------------------------
+  // =============================
+  // MAP RECORDS BY DAY
+  // =============================
 
   const recordsByDay = new Map<string, StundenzettelRecord>();
 
   records.forEach((record) => {
-    const recordDate = new Date(record.date);
-    const germanDay = format(recordDate, "EEEE", { locale: de });
-    const normalized = germanDay.charAt(0).toUpperCase() + germanDay.slice(1);
-
+    const dateObj = new Date(record.date);
+    const day = format(dateObj, "EEEE", { locale: de });
+    const normalized = day.charAt(0).toUpperCase() + day.slice(1);
     recordsByDay.set(normalized, record);
   });
 
-  // -----------------------------
-  // TABLE (ROWS 18–23)
-  // -----------------------------
-
   const germanDays = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
 
-  const dataStartRow = 18;
+  const startRow = 18;
   let totalHours = 0;
 
   germanDays.forEach((day, index) => {
-    const rowNum = dataStartRow + index;
+    const row = startRow + index;
     const record = recordsByDay.get(day);
 
     const hours = record ? Number(record.total_hours) || 0 : 0;
     totalHours += hours;
 
-    // Column A – Tag (only write if template doesn't already contain it)
-    const dayCell = ws.getCell(`A${rowNum}`);
-    if (!dayCell.value) {
-      dayCell.value = day;
-    }
+    // DO NOT TOUCH COLUMN A ANYMORE
 
-    // Column B – Beginn
-    ws.getCell(`B${rowNum}`).value = record ? formatTime(record.time_from) : "";
+    // Column C – Beginn
+    ws.getCell(`C${row}`).value = record ? formatTime(record.time_from) : "";
 
-    // Column C – Pause von
-    ws.getCell(`C${rowNum}`).value = record?.break_start ? formatTime(record.break_start) : "";
+    // Column D – Pause Von
+    ws.getCell(`D${row}`).value = record?.break_start ? formatTime(record.break_start) : "";
 
-    // Column D – Pause bis
-    ws.getCell(`D${rowNum}`).value = record?.break_end ? formatTime(record.break_end) : "";
+    // Column E – Pause Bis
+    ws.getCell(`E${row}`).value = record?.break_end ? formatTime(record.break_end) : "";
 
-    // Column E – Ende
-    ws.getCell(`E${rowNum}`).value = record ? formatTime(record.time_to) : "";
+    // Column F – Ende
+    ws.getCell(`F${row}`).value = record ? formatTime(record.time_to) : "";
 
-    // Column F – Summe Stunden
-    ws.getCell(`F${rowNum}`).value = hours > 0 ? hours : "";
+    // Column G – Summe
+    ws.getCell(`G${row}`).value = hours > 0 ? hours : "";
   });
 
-  // -----------------------------
-  // TOTAL ROW (ROW 24)
-  // -----------------------------
-
-  ws.getCell("F24").value = totalHours;
+  // TOTAL
+  ws.getCell("G24").value = totalHours;
 }
 
 /** Single sheet export — loads template, injects data, downloads */
@@ -142,8 +128,7 @@ export async function exportStundenzettelToExcel(params: StundenzettelParams): P
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(templateBuffer);
 
-  // ExcelJS worksheet IDs can vary; grab the first available sheet
-  const ws = workbook.worksheets[0];
+  const ws = workbook.getWorksheet(1);
   if (!ws) throw new Error("Template worksheet not found");
 
   fillTemplateSheet(ws, params);
@@ -194,7 +179,7 @@ export async function exportMultipleStundenzettelsToExcel(sheets: Array<Stundenz
     // Load a fresh template workbook for each sheet to clone from
     const tmpWorkbook = new ExcelJS.Workbook();
     await tmpWorkbook.xlsx.load(templateBuffer);
-    const templateWs = tmpWorkbook.worksheets[0];
+    const templateWs = tmpWorkbook.getWorksheet(1);
     if (!templateWs) continue;
 
     // Create sheet in output workbook
