@@ -204,73 +204,86 @@ export async function exportStundenzettelToExcel(params: StundenzettelParams): P
 
 /** Multi-sheet export for admin — one sheet per worker, all from template */
 export async function exportMultipleStundenzettelsToExcel(sheets: Array<StundenzettelParams>): Promise<void> {
+  if (sheets.length === 0) return;
+
+  // If only one sheet, use the single export approach (proven to work)
+  if (sheets.length === 1) {
+    return exportStundenzettelToExcel({
+      ...sheets[0],
+      // Override filename via the single export
+    });
+  }
+
   const templateBuffer = await loadTemplate();
 
-  // For multi-sheet: create a fresh workbook for output
+  // Use the template workbook directly as the output
   const outWorkbook = new ExcelJS.Workbook();
-  outWorkbook.creator = "TKJD s.r.o.";
-  outWorkbook.created = new Date();
+  await outWorkbook.xlsx.load(templateBuffer);
 
-  for (const params of sheets) {
-    // Load a fresh template workbook for each sheet to clone from
-    const tmpWorkbook = new ExcelJS.Workbook();
-    await tmpWorkbook.xlsx.load(templateBuffer);
-    const templateWs = tmpWorkbook.getWorksheet(1);
+  // The template comes with one sheet — use it for the first worker
+  const firstWs = outWorkbook.worksheets[0];
+  if (!firstWs) throw new Error("Template worksheet not found");
+
+  const sanitizeName = (name: string) =>
+    name.replace(/[\\/*?\[\]:]/g, "").slice(0, 31) || "Sheet";
+
+  firstWs.name = sanitizeName(`${sheets[0].workerName.slice(0, 20)}_KW${sheets[0].calendarWeek}`);
+  applyPageSetupFromTemplate(firstWs, firstWs);
+  fillTemplateSheet(firstWs, sheets[0]);
+
+  if (sheets[0].companySignatureBase64) {
+    try {
+      const sigId = outWorkbook.addImage({ base64: sheets[0].companySignatureBase64, extension: "png" });
+      firstWs.addImage(sigId, { tl: { col: 0, row: 27 }, ext: { width: 150, height: 80 } });
+    } catch (e) { console.warn("Signature error:", e); }
+  }
+
+  // For subsequent workers, copy template structure into new sheets
+  for (let i = 1; i < sheets.length; i++) {
+    const params = sheets[i];
+
+    // Load a fresh copy of the template to clone from
+    const tmpWb = new ExcelJS.Workbook();
+    await tmpWb.xlsx.load(templateBuffer);
+    const templateWs = tmpWb.worksheets[0];
     if (!templateWs) continue;
 
-    // Create sheet in output workbook
-    const sheetName = `${params.workerName.slice(0, 20)}_KW${params.calendarWeek}`.slice(0, 31);
+    const sheetName = sanitizeName(`${params.workerName.slice(0, 20)}_KW${params.calendarWeek}`);
     const ws = outWorkbook.addWorksheet(sheetName);
 
-    // Copy template structure: column widths
-    templateWs.columns.forEach((col, i) => {
-      if (ws.columns[i]) {
-        ws.getColumn(i + 1).width = col.width;
-      }
+    // Copy column widths
+    templateWs.columns.forEach((col, idx) => {
+      ws.getColumn(idx + 1).width = col.width;
     });
 
-    // Copy all rows with values, styles, merges
+    // Copy rows (values + styles + heights)
     templateWs.eachRow({ includeEmpty: true }, (row, rowNumber) => {
       const newRow = ws.getRow(rowNumber);
       newRow.height = row.height;
       row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
         const newCell = newRow.getCell(colNumber);
         newCell.value = cell.value;
-        newCell.style = { ...cell.style };
+        newCell.style = JSON.parse(JSON.stringify(cell.style));
       });
     });
 
     // Copy merged cells
-    // @ts-ignore - accessing internal merges
+    // @ts-ignore
     const merges = templateWs.model?.merges;
     if (merges && Array.isArray(merges)) {
       merges.forEach((merge: string) => {
-        try {
-          ws.mergeCells(merge);
-        } catch {
-          /* already merged */
-        }
+        try { ws.mergeCells(merge); } catch { /* skip */ }
       });
     }
 
-    // Now inject data
     fillTemplateSheet(ws, params);
     applyPageSetupFromTemplate(ws, templateWs);
 
-    // Add company signature if available
     if (params.companySignatureBase64) {
       try {
-        const sigImgId = outWorkbook.addImage({
-          base64: params.companySignatureBase64,
-          extension: "png",
-        });
-        ws.addImage(sigImgId, {
-          tl: { col: 0, row: 27 },
-          ext: { width: 150, height: 80 },
-        });
-      } catch (error) {
-        console.warn("Could not embed company signature:", error);
-      }
+        const sigId = outWorkbook.addImage({ base64: params.companySignatureBase64, extension: "png" });
+        ws.addImage(sigId, { tl: { col: 0, row: 27 }, ext: { width: 150, height: 80 } });
+      } catch (e) { console.warn("Signature error:", e); }
     }
   }
 
