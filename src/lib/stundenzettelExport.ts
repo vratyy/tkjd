@@ -15,7 +15,7 @@ interface StundenzettelRecord {
   activity_description?: string | null;
 }
 
-interface StundenzettelParams {
+export interface StundenzettelParams {
   records: StundenzettelRecord[];
   projectName: string;
   projectClient: string;
