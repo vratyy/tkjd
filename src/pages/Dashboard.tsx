@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,6 +42,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { role, isManager, isAdmin } = useUserRole();
   const isMobile = useIsMobile();
+  const location = useLocation();
   const [openClosings, setOpenClosings] = useState<WeeklyClosing[]>([]);
   const [recentRecords, setRecentRecords] = useState<PerformanceRecord[]>([]);
   const [currentAccommodations, setCurrentAccommodations] = useState<AccommodationInfo[]>([]);
@@ -140,11 +141,24 @@ export default function Dashboard() {
     fetchDashboardData();
   }, [user, isAdmin]);
 
+  // Re-fetch when navigating back to dashboard
+  useEffect(() => {
+    if (location.pathname === "/dashboard") {
+      fetchDashboardData();
+    }
+  }, [location.key]);
+
   // Re-fetch when window regains focus (e.g. after editing in DailyEntry)
   useEffect(() => {
-    const handleFocus = () => { fetchDashboardData(); };
-    window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") fetchDashboardData();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", () => fetchDashboardData());
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", () => fetchDashboardData());
+    };
   }, [user, isAdmin]);
 
   const currentWeek = getWeek(new Date(), { weekStartsOn: 1 });
