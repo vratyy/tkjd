@@ -46,11 +46,10 @@ export default function CalendarPage() {
         .from("project_assignments")
         .select("project_id, projects:projects(id, name, address, location)")
         .eq("user_id", user.id)
-        .limit(1)
-        .single();
+        .limit(1);
 
-      if (data?.projects) {
-        const p = data.projects as unknown as AssignedProject;
+      if (data && data.length > 0 && data[0].projects) {
+        const p = data[0].projects as unknown as AssignedProject;
         setAssignedProject(p);
       }
     }
@@ -152,50 +151,48 @@ export default function CalendarPage() {
         <p className="text-muted-foreground">Prehľad odpracovaných dní</p>
       </div>
 
-      {/* Project Location Card */}
-      {assignedProject && (
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3 min-w-0">
-                <MapPin className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Miesto výkonu diela
-                  </p>
-                  <p className="font-semibold truncate">
-                    {assignedProject.name}
-                    {assignedProject.address && (
-                      <span className="font-normal text-muted-foreground"> – {assignedProject.address}</span>
-                    )}
-                  </p>
-                  {!assignedProject.address && (
-                    <p className="text-sm text-muted-foreground italic">Adresa nie je nastavená.</p>
+      {/* Project Location Card - ALWAYS VISIBLE */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardContent className="pt-4 pb-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3 min-w-0">
+              <MapPin className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Miesto výkonu diela
+                </p>
+                <p className="font-semibold truncate">
+                  {assignedProject?.name || "Žiadny aktívny projekt"}
+                  {(assignedProject?.address) ? (
+                    <span className="font-normal text-muted-foreground"> – {assignedProject.address}</span>
+                  ) : (
+                    <span className="font-normal text-muted-foreground italic block text-sm mt-0.5">
+                      Adresa nebola k tomuto projektu priradená.
+                    </span>
                   )}
-                </div>
+                </p>
               </div>
-              {assignedProject.address && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-shrink-0"
-                  asChild
-                >
-                  <a
-                    href={`https://maps.google.com/?q=${encodeURIComponent(assignedProject.address)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Navigation className="h-4 w-4" />
-                    📍 Navigovať na stavbu
-                  </a>
-                </Button>
-              )}
             </div>
-          </CardContent>
-        </Card>
-      )}
-
+            {assignedProject?.address && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-shrink-0"
+                asChild
+              >
+                <a
+                  href={`https://maps.google.com/?q=${encodeURIComponent(assignedProject.address)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Navigation className="h-4 w-4" />
+                  📍 Navigovať na stavbu
+                </a>
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
       {/* Monthly Stats */}
       <div className="grid gap-4 grid-cols-3">
         <Card>
