@@ -5,8 +5,9 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarDays, Clock, MapPin, FileText } from "lucide-react";
+import { CalendarDays, Clock, MapPin, FileText, Navigation } from "lucide-react";
 import { format, startOfMonth, endOfMonth, isSameDay, isWeekend, parseISO } from "date-fns";
 import { sk } from "date-fns/locale";
 
@@ -21,6 +22,13 @@ interface WorkRecord {
   project: { name: string } | null;
 }
 
+interface AssignedProject {
+  id: string;
+  name: string;
+  address: string | null;
+  location: string | null;
+}
+
 export default function CalendarPage() {
   const { user } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -28,6 +36,26 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [assignedProject, setAssignedProject] = useState<AssignedProject | null>(null);
+
+  // Fetch assigned project for the user
+  useEffect(() => {
+    async function fetchAssignedProject() {
+      if (!user) return;
+      const { data } = await supabase
+        .from("project_assignments")
+        .select("project_id, projects:projects(id, name, address, location)")
+        .eq("user_id", user.id)
+        .limit(1)
+        .single();
+
+      if (data?.projects) {
+        const p = data.projects as unknown as AssignedProject;
+        setAssignedProject(p);
+      }
+    }
+    fetchAssignedProject();
+  }, [user]);
 
   useEffect(() => {
     async function fetchRecords() {
@@ -123,6 +151,50 @@ export default function CalendarPage() {
         </h1>
         <p className="text-muted-foreground">Prehľad odpracovaných dní</p>
       </div>
+
+      {/* Project Location Card */}
+      {assignedProject && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3 min-w-0">
+                <MapPin className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Miesto výkonu diela
+                  </p>
+                  <p className="font-semibold truncate">
+                    {assignedProject.name}
+                    {assignedProject.address && (
+                      <span className="font-normal text-muted-foreground"> – {assignedProject.address}</span>
+                    )}
+                  </p>
+                  {!assignedProject.address && (
+                    <p className="text-sm text-muted-foreground italic">Adresa nie je nastavená.</p>
+                  )}
+                </div>
+              </div>
+              {assignedProject.address && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-shrink-0"
+                  asChild
+                >
+                  <a
+                    href={`https://maps.google.com/?q=${encodeURIComponent(assignedProject.address)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Navigation className="h-4 w-4" />
+                    📍 Navigovať na stavbu
+                  </a>
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Monthly Stats */}
       <div className="grid gap-4 grid-cols-3">
