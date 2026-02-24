@@ -399,6 +399,19 @@ export default function DailyEntry() {
       if (error) {
         toast({ variant: "destructive", title: "Chyba pri ukladaní", description: error.message });
       } else {
+        // If we reset a returned/rejected record, also reset the parent weekly_closing to 'open'
+        if (shouldResetStatus && editingRecord) {
+          const recordDate = parseLocalDate(editingRecord.date);
+          const week = getISOWeekLocal(recordDate);
+          const year = getISOWeekYear(recordDate);
+          await supabase
+            .from("weekly_closings")
+            .update({ status: "open" as any, return_comment: null })
+            .eq("user_id", user.id)
+            .eq("calendar_week", week)
+            .eq("year", year)
+            .in("status", ["returned", "rejected"] as any);
+        }
         toast({ title: "Záznam aktualizovaný", description: "Váš výkon bol úspešne upravený." });
         resetForm();
         await fetchTodayRecords();
