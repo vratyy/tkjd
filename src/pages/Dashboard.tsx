@@ -48,95 +48,103 @@ export default function Dashboard() {
   const [stats, setStats] = useState({ monthlyHours: 0, activeProjects: 0 });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!user) return;
+  const fetchDashboardData = async () => {
+    if (!user) return;
 
-      // Fetch open weekly closings
-      const { data: closings } = await supabase
-        .from("weekly_closings")
-        .select("*")
-        .eq("user_id", user.id)
-        .in("status", ["open", "returned"] as any)
-        .order("year", { ascending: false })
-        .order("calendar_week", { ascending: false })
+    // Fetch open weekly closings
+    const { data: closings } = await supabase
+      .from("weekly_closings")
+      .select("*")
+      .eq("user_id", user.id)
+      .in("status", ["returned"] as any)
+      .order("year", { ascending: false })
+      .order("calendar_week", { ascending: false })
+      .limit(5);
+
+    setOpenClosings((closings as unknown as WeeklyClosing[]) || []);
+
+    // Fetch recent performance records
+    const { data: records } = await supabase
+      .from("performance_records")
+      .select("id, date, time_from, time_to, total_hours, status, projects(name)")
+      .eq("user_id", user.id)
+      .is("deleted_at", null)
+      .order("date", { ascending: false })
+      .limit(5);
+
+    setRecentRecords((records as PerformanceRecord[]) || []);
+
+    // Calculate monthly stats
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const { data: monthRecords } = await supabase
+      .from("performance_records")
+      .select("total_hours")
+      .eq("user_id", user.id)
+      .gte("date", startOfMonth.toISOString().split("T")[0]);
+
+    const monthlyHours = (monthRecords || []).reduce(
+      (sum, r) => sum + (Number(r.total_hours) || 0),
+      0
+    );
+
+    // Count active projects
+    const { count: projectCount } = await supabase
+      .from("projects")
+      .select("*", { count: "exact", head: true })
+      .eq("is_active", true);
+
+    setStats({
+      monthlyHours: Math.round(monthlyHours * 10) / 10,
+      activeProjects: projectCount || 0,
+    });
+
+    // Fetch current accommodations for Admin widget
+    if (isAdmin) {
+      const today = new Date().toISOString().split("T")[0];
+      const { data: assignments } = await supabase
+        .from("accommodation_assignments")
+        .select(`
+          id,
+          check_out,
+          accommodation:accommodations(name)
+        `)
+        .is("deleted_at", null)
+        .or(`check_out.is.null,check_out.gte.${today}`)
         .limit(5);
 
-      setOpenClosings((closings as unknown as WeeklyClosing[]) || []);
-
-      // Fetch recent performance records
-      const { data: records } = await supabase
-        .from("performance_records")
-        .select("id, date, time_from, time_to, total_hours, status, projects(name)")
-        .eq("user_id", user.id)
-        .order("date", { ascending: false })
-        .limit(5);
-
-      setRecentRecords((records as PerformanceRecord[]) || []);
-
-      // Calculate monthly stats
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0, 0, 0, 0);
-
-      const { data: monthRecords } = await supabase
-        .from("performance_records")
-        .select("total_hours")
-        .eq("user_id", user.id)
-        .gte("date", startOfMonth.toISOString().split("T")[0]);
-
-      const monthlyHours = (monthRecords || []).reduce(
-        (sum, r) => sum + (Number(r.total_hours) || 0),
-        0
+      const enrichedAssignments = await Promise.all(
+        (assignments || []).map(async (a: any) => {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("user_id", a.user_id)
+            .maybeSingle();
+          return {
+            id: a.id,
+            user_name: profile?.full_name || "Neznámy",
+            accommodation_name: a.accommodation?.name || "—",
+            check_out: a.check_out,
+          } as AccommodationInfo;
+        })
       );
-
-      // Count active projects
-      const { count: projectCount } = await supabase
-        .from("projects")
-        .select("*", { count: "exact", head: true })
-        .eq("is_active", true);
-
-      setStats({
-        monthlyHours: Math.round(monthlyHours * 10) / 10,
-        activeProjects: projectCount || 0,
-      });
-
-      // Fetch current accommodations for Admin widget
-      if (isAdmin) {
-        const today = new Date().toISOString().split("T")[0];
-        const { data: assignments } = await supabase
-          .from("accommodation_assignments")
-          .select(`
-            id,
-            check_out,
-            accommodation:accommodations(name)
-          `)
-          .is("deleted_at", null)
-          .or(`check_out.is.null,check_out.gte.${today}`)
-          .limit(5);
-
-        const enrichedAssignments = await Promise.all(
-          (assignments || []).map(async (a: any) => {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("full_name")
-              .eq("user_id", a.user_id)
-              .maybeSingle();
-            return {
-              id: a.id,
-              user_name: profile?.full_name || "Neznámy",
-              accommodation_name: a.accommodation?.name || "—",
-              check_out: a.check_out,
-            } as AccommodationInfo;
-          })
-        );
-        setCurrentAccommodations(enrichedAssignments);
-      }
-
-      setLoading(false);
+      setCurrentAccommodations(enrichedAssignments);
     }
 
-    fetchData();
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [user, isAdmin]);
+
+  // Re-fetch when window regains focus (e.g. after editing in DailyEntry)
+  useEffect(() => {
+    const handleFocus = () => { fetchDashboardData(); };
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
   }, [user, isAdmin]);
 
   const currentWeek = getWeek(new Date(), { weekStartsOn: 1 });
