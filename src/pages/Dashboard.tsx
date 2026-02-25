@@ -3,13 +3,15 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
+import { addDays, addMonths } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
 import { MobileRecordCard } from "@/components/mobile/MobileRecordCard";
 import { StickyActionButton } from "@/components/mobile/StickyActionButton";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Calendar, ClipboardList, FolderOpen, Plus, Home, Users, MapPin } from "lucide-react";
+import { Calendar, ClipboardList, FolderOpen, Plus, Home, Users, MapPin, Euro, CheckCircle2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { format, getWeek, getYear } from "date-fns";
 import { sk } from "date-fns/locale";
 
@@ -45,15 +47,25 @@ interface MyAccommodation {
   check_out: string | null;
 }
 
+interface PaymentDue {
+  id: string;
+  name: string;
+  address: string;
+  next_payment_date: string;
+  payment_frequency: string;
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const { role, isManager, isAdmin } = useUserRole();
+  const { toast } = useToast();
   const isMobile = useIsMobile();
   const location = useLocation();
   const [openClosings, setOpenClosings] = useState<WeeklyClosing[]>([]);
   const [recentRecords, setRecentRecords] = useState<PerformanceRecord[]>([]);
   const [currentAccommodations, setCurrentAccommodations] = useState<AccommodationInfo[]>([]);
   const [myAccommodation, setMyAccommodation] = useState<MyAccommodation | null>(null);
+  const [paymentsDue, setPaymentsDue] = useState<PaymentDue[]>([]);
   const [stats, setStats] = useState({ monthlyHours: 0, activeProjects: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -140,6 +152,17 @@ export default function Dashboard() {
         })
       );
       setCurrentAccommodations(enrichedAssignments);
+
+      // Fetch upcoming payment dues (within 3 days or overdue)
+      const threeDaysFromNow = addDays(new Date(), 3).toISOString().split("T")[0];
+      const { data: dueAccommodations } = await supabase
+        .from("accommodations")
+        .select("id, name, address, next_payment_date, payment_frequency")
+        .is("deleted_at", null)
+        .not("next_payment_date", "is", null)
+        .lte("next_payment_date", threeDaysFromNow);
+
+      setPaymentsDue((dueAccommodations as any[]) || []);
     }
 
     // Fetch subcontractor's own active accommodation
@@ -168,6 +191,32 @@ export default function Dashboard() {
     }
 
     setLoading(false);
+  };
+
+  const handleMarkAsPaid = async (acc: PaymentDue) => {
+    let newDate: Date;
+    const oldDate = new Date(acc.next_payment_date);
+    switch (acc.payment_frequency) {
+      case "biweekly":
+        newDate = addDays(oldDate, 14);
+        break;
+      case "monthly":
+        newDate = addMonths(oldDate, 1);
+        break;
+      default: // weekly
+        newDate = addDays(oldDate, 7);
+        break;
+    }
+    const { error } = await supabase
+      .from("accommodations")
+      .update({ next_payment_date: format(newDate, "yyyy-MM-dd") } as any)
+      .eq("id", acc.id);
+    if (error) {
+      toast({ title: "Chyba", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Zaplatené", description: `Ďalšia platba: ${format(newDate, "d.M.yyyy")}` });
+      setPaymentsDue((prev) => prev.filter((p) => p.id !== acc.id));
+    }
   };
 
   useEffect(() => {
@@ -291,6 +340,35 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Payment Due Alerts - Admin only */}
+      {isAdmin && paymentsDue.length > 0 && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardHeader className="pb-2 p-4 md:p-6">
+            <CardTitle className="flex items-center gap-2 text-base md:text-lg text-amber-700 dark:text-amber-400">
+              <Euro className="h-5 w-5" />
+              Splatnosť ubytovania
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 md:px-6 md:pb-6 pt-0 space-y-2">
+            {paymentsDue.map((acc) => (
+              <div key={acc.id} className="flex items-center justify-between p-3 rounded-lg bg-background border">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-sm truncate">{acc.name || acc.address}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Dátum: {format(new Date(acc.next_payment_date), "d.M.yyyy")} •{" "}
+                    {acc.payment_frequency === "weekly" ? "Týždenne" : acc.payment_frequency === "biweekly" ? "Dvojtýždenne" : "Mesačne"}
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" className="shrink-0 ml-2 text-xs border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950" onClick={() => handleMarkAsPaid(acc)}>
+                  <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                  Zaplatené
+                </Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Subcontractor's active accommodation */}
       {!isAdmin && myAccommodation && (
