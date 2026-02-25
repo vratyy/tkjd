@@ -105,20 +105,36 @@ export default function Accommodations() {
   const handleSeedRatings = async () => {
     setSeeding(true);
     toast({ title: "⏳ Aktualizujem hodnotenia..." });
+    let updated = 0;
     try {
       for (const item of seedRatings) {
-        await supabase.from("accommodations").update({
-          rating_location: item.loc,
-          rating_price: item.price,
-          rating_extension: item.ext,
-          rating_amenities: item.am,
-          rating_overall: item.ov,
-        }).ilike("address", `%${item.keyword}%`);
+        const { data, error } = await supabase
+          .from("accommodations")
+          .update({
+            rating_location: item.loc,
+            rating_price: item.price,
+            rating_extension: item.ext,
+            rating_amenities: item.am,
+            rating_overall: item.ov,
+          })
+          .ilike("address", `%${item.keyword}%`)
+          .select();
+
+        if (error) {
+          console.error(`Chyba pri "${item.keyword}":`, error);
+          toast({ title: `Chyba pri ${item.keyword}`, description: error.message, variant: "destructive" });
+        } else if (!data || data.length === 0) {
+          console.warn(`Nenašla sa zhoda pre: "${item.keyword}"`);
+        } else {
+          updated += data.length;
+          console.log(`Aktualizovaných ${data.length} záznamov pre "${item.keyword}"`);
+        }
       }
-      toast({ title: "✅ Hodnotenia boli úspešne aktualizované!" });
+      toast({ title: `✅ Skript dobehol. Aktualizovaných: ${updated} záznamov.` });
       await fetchData();
     } catch (e: any) {
-      toast({ title: "Chyba", description: e.message, variant: "destructive" });
+      console.error("Kritická chyba:", e);
+      toast({ title: "Kritická chyba", description: e.message, variant: "destructive" });
     } finally {
       setSeeding(false);
     }
