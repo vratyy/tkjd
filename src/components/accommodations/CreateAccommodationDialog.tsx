@@ -1,0 +1,171 @@
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Loader2 } from "lucide-react";
+
+const AMENITY_OPTIONS = ["WiFi", "Parkovanie", "Práčka", "Kuchyňa", "TV", "Klimatizácia"];
+
+interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: () => void;
+}
+
+export default function CreateAccommodationDialog({ open, onOpenChange, onCreated }: Props) {
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    name: "", address: "", city: "", contact: "", capacity: "",
+    price_total: "", price_per_person: "", default_price_per_night: "",
+    distance_from_center: "", owner_email: "", owner_phone: "",
+    rating: "", notes: "", lat: "", lng: "", amenities: [] as string[],
+  });
+
+  const toggleAmenity = (a: string) => {
+    setForm((f) => ({
+      ...f,
+      amenities: f.amenities.includes(a) ? f.amenities.filter((x) => x !== a) : [...f.amenities, a],
+    }));
+  };
+
+  const handleCreate = async () => {
+    if (!form.address || !form.city) {
+      toast({ variant: "destructive", title: "Vyplňte adresu a mesto" });
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase.from("accommodations").insert({
+      name: form.name || null,
+      address: form.address,
+      city: form.city,
+      contact: form.contact || null,
+      capacity: parseInt(form.capacity) || 1,
+      price_total: parseFloat(form.price_total) || 0,
+      price_per_person: parseFloat(form.price_per_person) || 0,
+      default_price_per_night: parseFloat(form.default_price_per_night) || 0,
+      distance_from_center: form.distance_from_center || null,
+      owner_email: form.owner_email || null,
+      owner_phone: form.owner_phone || null,
+      rating: parseFloat(form.rating) || 0,
+      notes: form.notes || null,
+      lat: form.lat ? parseFloat(form.lat) : null,
+      lng: form.lng ? parseFloat(form.lng) : null,
+      amenities: form.amenities,
+    } as any);
+    if (error) {
+      toast({ variant: "destructive", title: "Chyba", description: error.message });
+    } else {
+      toast({ title: "Ubytovanie vytvorené" });
+      onOpenChange(false);
+      setForm({
+        name: "", address: "", city: "", contact: "", capacity: "",
+        price_total: "", price_per_person: "", default_price_per_night: "",
+        distance_from_center: "", owner_email: "", owner_phone: "",
+        rating: "", notes: "", lat: "", lng: "", amenities: [],
+      });
+      onCreated();
+    }
+    setSaving(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Nové ubytovanie</DialogTitle>
+          <DialogDescription>Pridajte ubytovacie zariadenie s detailmi</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Názov</Label>
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="napr. Penzión Pod Dubom" />
+            </div>
+            <div>
+              <Label className="text-xs">Mesto *</Label>
+              <Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="napr. Berlin" />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs">Adresa *</Label>
+            <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Hlavná 123, Bratislava" />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label className="text-xs">Kapacita</Label>
+              <Input type="number" min="1" value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} placeholder="4" />
+            </div>
+            <div>
+              <Label className="text-xs">Cena celkom (€)</Label>
+              <Input type="number" step="0.01" value={form.price_total} onChange={(e) => setForm({ ...form, price_total: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-xs">Cena/osoba (€)</Label>
+              <Input type="number" step="0.01" value={form.price_per_person} onChange={(e) => setForm({ ...form, price_per_person: e.target.value })} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Vzdialenosť od centra</Label>
+              <Input value={form.distance_from_center} onChange={(e) => setForm({ ...form, distance_from_center: e.target.value })} placeholder="2.5 km" />
+            </div>
+            <div>
+              <Label className="text-xs">Hodnotenie (1-5)</Label>
+              <Input type="number" min="0" max="5" step="0.5" value={form.rating} onChange={(e) => setForm({ ...form, rating: e.target.value })} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Email majiteľa</Label>
+              <Input type="email" value={form.owner_email} onChange={(e) => setForm({ ...form, owner_email: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-xs">Telefón majiteľa</Label>
+              <Input value={form.owner_phone} onChange={(e) => setForm({ ...form, owner_phone: e.target.value })} placeholder="+49 ..." />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Lat (GPS)</Label>
+              <Input type="number" step="0.000001" value={form.lat} onChange={(e) => setForm({ ...form, lat: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-xs">Lng (GPS)</Label>
+              <Input type="number" step="0.000001" value={form.lng} onChange={(e) => setForm({ ...form, lng: e.target.value })} />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs mb-2 block">Vybavenie</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {AMENITY_OPTIONS.map((a) => (
+                <label key={a} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox checked={form.amenities.includes(a)} onCheckedChange={() => toggleAmenity(a)} />
+                  {a}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs">Poznámky</Label>
+            <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} placeholder="Interné poznámky..." />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Zrušiť</Button>
+          <Button onClick={handleCreate} disabled={saving}>
+            {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            Vytvoriť
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
