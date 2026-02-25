@@ -98,6 +98,11 @@ export type Database = {
           price_per_person: number | null
           price_total: number | null
           rating: number | null
+          rating_amenities: number | null
+          rating_extension: number | null
+          rating_location: number | null
+          rating_overall: number | null
+          rating_price: number | null
           updated_at: string
         }
         Insert: {
@@ -123,6 +128,11 @@ export type Database = {
           price_per_person?: number | null
           price_total?: number | null
           rating?: number | null
+          rating_amenities?: number | null
+          rating_extension?: number | null
+          rating_location?: number | null
+          rating_overall?: number | null
+          rating_price?: number | null
           updated_at?: string
         }
         Update: {
@@ -148,6 +158,11 @@ export type Database = {
           price_per_person?: number | null
           price_total?: number | null
           rating?: number | null
+          rating_amenities?: number | null
+          rating_extension?: number | null
+          rating_location?: number | null
+          rating_overall?: number | null
+          rating_price?: number | null
           updated_at?: string
         }
         Relationships: []
