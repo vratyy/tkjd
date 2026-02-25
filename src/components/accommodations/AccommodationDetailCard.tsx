@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Star, Users, Euro, MapPin, Mail, Phone, Ruler, X, Edit2, Save, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useToast } from "@/hooks/use-toast";
@@ -24,6 +25,11 @@ interface Accommodation {
   owner_email: string | null;
   owner_phone: string | null;
   rating: number | null;
+  rating_location: number | null;
+  rating_price: number | null;
+  rating_extension: number | null;
+  rating_amenities: number | null;
+  rating_overall: number | null;
   notes: string | null;
 }
 
@@ -41,22 +47,14 @@ interface Props {
   onUpdated?: () => void;
 }
 
-function InteractiveStarRating({ rating, onChange, readOnly }: { rating: number; onChange?: (r: number) => void; readOnly?: boolean }) {
-  const [hover, setHover] = useState(0);
+function RatingBar({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex items-center gap-0.5">
-      {[1, 2, 3, 4, 5].map((s) => (
-        <Star
-          key={s}
-          className={`h-5 w-5 transition-colors ${
-            s <= (hover || rating) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30"
-          } ${!readOnly ? "cursor-pointer hover:scale-110" : ""}`}
-          onMouseEnter={() => !readOnly && setHover(s)}
-          onMouseLeave={() => !readOnly && setHover(0)}
-          onClick={() => !readOnly && onChange?.(s)}
-        />
-      ))}
-      <span className="ml-1 text-sm text-muted-foreground">{rating}/5</span>
+    <div className="space-y-0.5">
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-medium">{value}/10</span>
+      </div>
+      <Progress value={value * 10} className="h-1.5" />
     </div>
   );
 }
@@ -68,19 +66,30 @@ export default function AccommodationDetailCard({ accommodation: acc, onClose, o
   const amenities: string[] = Array.isArray(acc.amenities) ? acc.amenities : [];
 
   const [editing, setEditing] = useState(false);
-  const [editRating, setEditRating] = useState(acc.rating ?? 0);
   const [editNotes, setEditNotes] = useState(acc.notes ?? "");
+  const [editRatings, setEditRatings] = useState({
+    rating_location: acc.rating_location ?? 0,
+    rating_price: acc.rating_price ?? 0,
+    rating_extension: acc.rating_extension ?? 0,
+    rating_amenities: acc.rating_amenities ?? 0,
+    rating_overall: acc.rating_overall ?? 0,
+  });
   const [saving, setSaving] = useState(false);
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
 
-  // Reset edit state when accommodation changes
   useEffect(() => {
     setEditing(false);
-    setEditRating(acc.rating ?? 0);
     setEditNotes(acc.notes ?? "");
+    setEditRatings({
+      rating_location: acc.rating_location ?? 0,
+      rating_price: acc.rating_price ?? 0,
+      rating_extension: acc.rating_extension ?? 0,
+      rating_amenities: acc.rating_amenities ?? 0,
+      rating_overall: acc.rating_overall ?? 0,
+    });
   }, [acc.id]);
 
   // Fetch assignments
@@ -116,11 +125,18 @@ export default function AccommodationDetailCard({ accommodation: acc, onClose, o
     fetchAssignments();
   }, [acc.id]);
 
-  const handleSaveRating = async () => {
+  const handleSave = async () => {
     setSaving(true);
     const { error } = await supabase
       .from("accommodations")
-      .update({ rating: editRating, notes: editNotes || null })
+      .update({
+        notes: editNotes || null,
+        rating_location: editRatings.rating_location,
+        rating_price: editRatings.rating_price,
+        rating_extension: editRatings.rating_extension,
+        rating_amenities: editRatings.rating_amenities,
+        rating_overall: editRatings.rating_overall,
+      } as any)
       .eq("id", acc.id);
 
     if (error) {
@@ -134,9 +150,7 @@ export default function AccommodationDetailCard({ accommodation: acc, onClose, o
   };
 
   const handleAssigned = () => {
-    // Re-fetch assignments
     setShowAssignModal(false);
-    // Trigger re-fetch by changing a key - simplest approach
     const fetchAssignments = async () => {
       const { data } = await supabase
         .from("accommodation_assignments")
@@ -167,6 +181,8 @@ export default function AccommodationDetailCard({ accommodation: acc, onClose, o
     (a) => a.check_out !== null && a.check_out < today
   );
 
+  const overallRating = acc.rating_overall ?? 0;
+
   return (
     <Card className="border-primary/30 shadow-lg">
       <CardHeader className="pb-3">
@@ -183,10 +199,11 @@ export default function AccommodationDetailCard({ accommodation: acc, onClose, o
             <X className="h-4 w-4" />
           </Button>
         </div>
-        {editing ? (
-          <InteractiveStarRating rating={editRating} onChange={setEditRating} />
-        ) : (
-          (acc.rating ?? 0) > 0 && <InteractiveStarRating rating={acc.rating ?? 0} readOnly />
+        {overallRating > 0 && (
+          <div className="flex items-center gap-1.5 mt-1">
+            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+            <span className="font-semibold text-sm">{overallRating} / 10</span>
+          </div>
         )}
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
@@ -229,6 +246,83 @@ export default function AccommodationDetailCard({ accommodation: acc, onClose, o
           </div>
         )}
 
+        {/* Rating Card */}
+        <div className="border-t pt-3">
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-medium text-xs text-muted-foreground uppercase">Hodnotenie</p>
+            {canManage && !editing && (
+              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setEditing(true)}>
+                <Edit2 className="h-3 w-3 mr-1" /> Upraviť
+              </Button>
+            )}
+          </div>
+          {editing ? (
+            <div className="space-y-3">
+              {[
+                { key: "rating_location" as const, label: "Lokalita / Blízkosť centra" },
+                { key: "rating_price" as const, label: "Cena / Osoba" },
+                { key: "rating_extension" as const, label: "Možnosť predlžovania" },
+                { key: "rating_amenities" as const, label: "Vybavenie" },
+                { key: "rating_overall" as const, label: "Celkové hodnotenie" },
+              ].map(({ key, label }) => (
+                <div key={key} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span>{label}</span>
+                    <span className="font-medium tabular-nums">{editRatings[key]}/10</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="0.5"
+                    value={editRatings[key]}
+                    onChange={(e) => setEditRatings({ ...editRatings, [key]: parseFloat(e.target.value) })}
+                    className="w-full h-1.5 accent-primary"
+                  />
+                </div>
+              ))}
+              <Textarea
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                placeholder="Pridajte poznámky..."
+                className="min-h-[60px] text-sm"
+              />
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleSave} disabled={saving}>
+                  {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
+                  Uložiť
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => {
+                  setEditing(false);
+                  setEditRatings({
+                    rating_location: acc.rating_location ?? 0,
+                    rating_price: acc.rating_price ?? 0,
+                    rating_extension: acc.rating_extension ?? 0,
+                    rating_amenities: acc.rating_amenities ?? 0,
+                    rating_overall: acc.rating_overall ?? 0,
+                  });
+                  setEditNotes(acc.notes ?? "");
+                }}>
+                  Zrušiť
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <RatingBar label="Lokalita / Blízkosť centra" value={acc.rating_location ?? 0} />
+              <RatingBar label="Cena / Osoba" value={acc.rating_price ?? 0} />
+              <RatingBar label="Možnosť predlžovania" value={acc.rating_extension ?? 0} />
+              <RatingBar label="Vybavenie" value={acc.rating_amenities ?? 0} />
+            </div>
+          )}
+        </div>
+
+        {/* Notes */}
+        <div className="border-t pt-3">
+          <p className="font-medium text-xs text-muted-foreground uppercase mb-1">Poznámky</p>
+          <p className="text-muted-foreground">{acc.notes || "Žiadne poznámky"}</p>
+        </div>
+
         {(acc.owner_email || acc.owner_phone) && (
           <div className="border-t pt-3 space-y-1">
             <p className="font-medium text-xs text-muted-foreground uppercase">Kontakt majiteľa</p>
@@ -244,39 +338,6 @@ export default function AccommodationDetailCard({ accommodation: acc, onClose, o
             )}
           </div>
         )}
-
-        {/* Notes - editable or read-only */}
-        <div className="border-t pt-3">
-          <div className="flex items-center justify-between mb-1">
-            <p className="font-medium text-xs text-muted-foreground uppercase">Poznámky</p>
-            {canManage && !editing && (
-              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setEditing(true)}>
-                <Edit2 className="h-3 w-3 mr-1" /> Upraviť
-              </Button>
-            )}
-          </div>
-          {editing ? (
-            <div className="space-y-2">
-              <Textarea
-                value={editNotes}
-                onChange={(e) => setEditNotes(e.target.value)}
-                placeholder="Pridajte poznámky..."
-                className="min-h-[60px] text-sm"
-              />
-              <div className="flex gap-2">
-                <Button size="sm" onClick={handleSaveRating} disabled={saving}>
-                  {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
-                  Uložiť
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => { setEditing(false); setEditRating(acc.rating ?? 0); setEditNotes(acc.notes ?? ""); }}>
-                  Zrušiť
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <p className="text-muted-foreground">{acc.notes || "Žiadne poznámky"}</p>
-          )}
-        </div>
 
         {/* Assigned Subcontractors */}
         <div className="border-t pt-3">

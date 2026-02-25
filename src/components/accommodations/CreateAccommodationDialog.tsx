@@ -32,8 +32,9 @@ export default function CreateAccommodationDialog({ open, onOpenChange, onCreate
     name: "", address: "", city: "", contact: "", capacity: "",
     price_total: "", price_per_person: "", default_price_per_night: "",
     distance_from_center: "", owner_email: "", owner_phone: "",
-    rating: "", notes: "", lat: "", lng: "", amenities: [] as string[],
+    notes: "", lat: "", lng: "", amenities: [] as string[],
     payment_frequency: "", next_payment_date: null as Date | null,
+    rating_location: "", rating_price: "", rating_extension: "", rating_amenities: "", rating_overall: "",
   });
 
   const toggleAmenity = (a: string) => {
@@ -61,7 +62,12 @@ export default function CreateAccommodationDialog({ open, onOpenChange, onCreate
       distance_from_center: form.distance_from_center || null,
       owner_email: form.owner_email || null,
       owner_phone: form.owner_phone || null,
-      rating: parseFloat(form.rating) || 0,
+      rating: 0,
+      rating_location: parseFloat(form.rating_location) || 0,
+      rating_price: parseFloat(form.rating_price) || 0,
+      rating_extension: parseFloat(form.rating_extension) || 0,
+      rating_amenities: parseFloat(form.rating_amenities) || 0,
+      rating_overall: parseFloat(form.rating_overall) || 0,
       notes: form.notes || null,
       lat: form.lat ? parseFloat(form.lat) : null,
       lng: form.lng ? parseFloat(form.lng) : null,
@@ -78,8 +84,9 @@ export default function CreateAccommodationDialog({ open, onOpenChange, onCreate
         name: "", address: "", city: "", contact: "", capacity: "",
         price_total: "", price_per_person: "", default_price_per_night: "",
         distance_from_center: "", owner_email: "", owner_phone: "",
-        rating: "", notes: "", lat: "", lng: "", amenities: [],
+        notes: "", lat: "", lng: "", amenities: [],
         payment_frequency: "", next_payment_date: null,
+        rating_location: "", rating_price: "", rating_extension: "", rating_amenities: "", rating_overall: "",
       });
       onCreated();
     }
@@ -122,14 +129,33 @@ export default function CreateAccommodationDialog({ open, onOpenChange, onCreate
               <Input type="number" step="0.01" value={form.price_per_person} onChange={(e) => setForm({ ...form, price_per_person: e.target.value })} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs">Vzdialenosť od centra</Label>
-              <Input value={form.distance_from_center} onChange={(e) => setForm({ ...form, distance_from_center: e.target.value })} placeholder="2.5 km" />
+          <div>
+            <Label className="text-xs">Vzdialenosť od centra</Label>
+            <Input value={form.distance_from_center} onChange={(e) => setForm({ ...form, distance_from_center: e.target.value })} placeholder="2.5 km" />
+          </div>
+          <div className="border rounded-lg p-3 space-y-2">
+            <Label className="text-xs font-semibold">Hodnotenie (0–10)</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-[11px] text-muted-foreground">Lokalita</Label>
+                <Input type="number" min="0" max="10" step="0.5" value={form.rating_location} onChange={(e) => setForm({ ...form, rating_location: e.target.value })} placeholder="0" />
+              </div>
+              <div>
+                <Label className="text-[11px] text-muted-foreground">Cena / Osoba</Label>
+                <Input type="number" min="0" max="10" step="0.5" value={form.rating_price} onChange={(e) => setForm({ ...form, rating_price: e.target.value })} placeholder="0" />
+              </div>
+              <div>
+                <Label className="text-[11px] text-muted-foreground">Možnosť predlžovania</Label>
+                <Input type="number" min="0" max="10" step="0.5" value={form.rating_extension} onChange={(e) => setForm({ ...form, rating_extension: e.target.value })} placeholder="0" />
+              </div>
+              <div>
+                <Label className="text-[11px] text-muted-foreground">Vybavenie</Label>
+                <Input type="number" min="0" max="10" step="0.5" value={form.rating_amenities} onChange={(e) => setForm({ ...form, rating_amenities: e.target.value })} placeholder="0" />
+              </div>
             </div>
             <div>
-              <Label className="text-xs">Hodnotenie (1-5)</Label>
-              <Input type="number" min="0" max="5" step="0.5" value={form.rating} onChange={(e) => setForm({ ...form, rating: e.target.value })} />
+              <Label className="text-[11px] text-muted-foreground">Celkové hodnotenie</Label>
+              <Input type="number" min="0" max="10" step="0.5" value={form.rating_overall} onChange={(e) => setForm({ ...form, rating_overall: e.target.value })} placeholder="0" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">

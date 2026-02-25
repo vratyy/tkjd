@@ -9,6 +9,7 @@ interface Accommodation {
   capacity: number | null;
   price_per_person: number | null;
   rating: number | null;
+  rating_overall: number | null;
   amenities: string[] | null;
 }
 
@@ -32,10 +33,10 @@ export default function AccommodationListItem({ accommodation: acc, isSelected, 
     >
       <div className="flex items-start justify-between mb-1">
         <h4 className="font-medium text-sm leading-tight">{acc.name || acc.address}</h4>
-        {(acc.rating ?? 0) > 0 && (
+        {(acc.rating_overall ?? 0) > 0 && (
           <div className="flex items-center gap-0.5 text-xs shrink-0 ml-2">
             <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-            <span>{acc.rating}</span>
+            <span>{acc.rating_overall} / 10</span>
           </div>
         )}
       </div>

@@ -69,13 +69,13 @@ export default function AccommodationFilters({ filters, onChange }: Props) {
             />
           </div>
           <div>
-            <Label className="text-xs">Min. hodnotenie (1-5)</Label>
+            <Label className="text-xs">Min. hodnotenie (0-10)</Label>
             <Input
               type="number"
-              min="1"
-              max="5"
+              min="0"
+              max="10"
               step="0.5"
-              placeholder="napr. 3"
+              placeholder="napr. 6"
               value={filters.minRating}
               onChange={(e) => onChange({ ...filters, minRating: e.target.value })}
             />
