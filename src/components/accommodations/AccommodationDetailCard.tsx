@@ -1,7 +1,15 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, Users, Euro, MapPin, Mail, Phone, Ruler, X } from "lucide-react";
+import { Star, Users, Euro, MapPin, Mail, Phone, Ruler, X, Edit2, Save, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { supabase } from "@/integrations/supabase/client";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useToast } from "@/hooks/use-toast";
+import AssignSubcontractorModal from "./AssignSubcontractorModal";
+import { format } from "date-fns";
+import { sk } from "date-fns/locale";
 
 interface Accommodation {
   id: string;
@@ -19,18 +27,33 @@ interface Accommodation {
   notes: string | null;
 }
 
+interface Assignment {
+  id: string;
+  user_id: string;
+  check_in: string;
+  check_out: string | null;
+  user_name: string;
+}
+
 interface Props {
   accommodation: Accommodation;
   onClose: () => void;
+  onUpdated?: () => void;
 }
 
-function StarRating({ rating }: { rating: number }) {
+function InteractiveStarRating({ rating, onChange, readOnly }: { rating: number; onChange?: (r: number) => void; readOnly?: boolean }) {
+  const [hover, setHover] = useState(0);
   return (
     <div className="flex items-center gap-0.5">
       {[1, 2, 3, 4, 5].map((s) => (
         <Star
           key={s}
-          className={`h-4 w-4 ${s <= rating ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30"}`}
+          className={`h-5 w-5 transition-colors ${
+            s <= (hover || rating) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30"
+          } ${!readOnly ? "cursor-pointer hover:scale-110" : ""}`}
+          onMouseEnter={() => !readOnly && setHover(s)}
+          onMouseLeave={() => !readOnly && setHover(0)}
+          onClick={() => !readOnly && onChange?.(s)}
         />
       ))}
       <span className="ml-1 text-sm text-muted-foreground">{rating}/5</span>
@@ -38,8 +61,111 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
-export default function AccommodationDetailCard({ accommodation: acc, onClose }: Props) {
+export default function AccommodationDetailCard({ accommodation: acc, onClose, onUpdated }: Props) {
+  const { isAdmin, isManager } = useUserRole();
+  const { toast } = useToast();
+  const canManage = isAdmin || isManager;
   const amenities: string[] = Array.isArray(acc.amenities) ? acc.amenities : [];
+
+  const [editing, setEditing] = useState(false);
+  const [editRating, setEditRating] = useState(acc.rating ?? 0);
+  const [editNotes, setEditNotes] = useState(acc.notes ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [loadingAssignments, setLoadingAssignments] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+
+  // Reset edit state when accommodation changes
+  useEffect(() => {
+    setEditing(false);
+    setEditRating(acc.rating ?? 0);
+    setEditNotes(acc.notes ?? "");
+  }, [acc.id]);
+
+  // Fetch assignments
+  useEffect(() => {
+    const fetchAssignments = async () => {
+      setLoadingAssignments(true);
+      const { data } = await supabase
+        .from("accommodation_assignments")
+        .select("id, user_id, check_in, check_out")
+        .eq("accommodation_id", acc.id)
+        .is("deleted_at", null)
+        .order("check_in", { ascending: false });
+
+      if (data && data.length > 0) {
+        const userIds = [...new Set(data.map((a) => a.user_id))];
+        const { data: profiles } = await supabase.rpc("get_team_profiles_safe", {
+          target_user_ids: userIds,
+        });
+        const nameMap = new Map((profiles || []).map((p: any) => [p.user_id, p.full_name]));
+
+        setAssignments(
+          data.map((a) => ({
+            ...a,
+            user_name: nameMap.get(a.user_id) || "Neznámy",
+          }))
+        );
+      } else {
+        setAssignments([]);
+      }
+      setLoadingAssignments(false);
+    };
+
+    fetchAssignments();
+  }, [acc.id]);
+
+  const handleSaveRating = async () => {
+    setSaving(true);
+    const { error } = await supabase
+      .from("accommodations")
+      .update({ rating: editRating, notes: editNotes || null })
+      .eq("id", acc.id);
+
+    if (error) {
+      toast({ title: "Chyba", description: "Nepodarilo sa uložiť.", variant: "destructive" });
+    } else {
+      toast({ title: "Uložené", description: "Hodnotenie a poznámky boli aktualizované." });
+      setEditing(false);
+      onUpdated?.();
+    }
+    setSaving(false);
+  };
+
+  const handleAssigned = () => {
+    // Re-fetch assignments
+    setShowAssignModal(false);
+    // Trigger re-fetch by changing a key - simplest approach
+    const fetchAssignments = async () => {
+      const { data } = await supabase
+        .from("accommodation_assignments")
+        .select("id, user_id, check_in, check_out")
+        .eq("accommodation_id", acc.id)
+        .is("deleted_at", null)
+        .order("check_in", { ascending: false });
+
+      if (data && data.length > 0) {
+        const userIds = [...new Set(data.map((a) => a.user_id))];
+        const { data: profiles } = await supabase.rpc("get_team_profiles_safe", {
+          target_user_ids: userIds,
+        });
+        const nameMap = new Map((profiles || []).map((p: any) => [p.user_id, p.full_name]));
+        setAssignments(data.map((a) => ({ ...a, user_name: nameMap.get(a.user_id) || "Neznámy" })));
+      } else {
+        setAssignments([]);
+      }
+    };
+    fetchAssignments();
+  };
+
+  const today = new Date().toISOString().split("T")[0];
+  const currentAssignments = assignments.filter(
+    (a) => a.check_in <= today && (a.check_out === null || a.check_out >= today)
+  );
+  const pastAssignments = assignments.filter(
+    (a) => a.check_out !== null && a.check_out < today
+  );
 
   return (
     <Card className="border-primary/30 shadow-lg">
@@ -57,7 +183,11 @@ export default function AccommodationDetailCard({ accommodation: acc, onClose }:
             <X className="h-4 w-4" />
           </Button>
         </div>
-        {(acc.rating ?? 0) > 0 && <StarRating rating={acc.rating ?? 0} />}
+        {editing ? (
+          <InteractiveStarRating rating={editRating} onChange={setEditRating} />
+        ) : (
+          (acc.rating ?? 0) > 0 && <InteractiveStarRating rating={acc.rating ?? 0} readOnly />
+        )}
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <p className="text-muted-foreground">{acc.address}</p>
@@ -115,13 +245,94 @@ export default function AccommodationDetailCard({ accommodation: acc, onClose }:
           </div>
         )}
 
-        {acc.notes && (
-          <div className="border-t pt-3">
-            <p className="font-medium text-xs text-muted-foreground uppercase mb-1">Poznámky</p>
-            <p className="text-muted-foreground">{acc.notes}</p>
+        {/* Notes - editable or read-only */}
+        <div className="border-t pt-3">
+          <div className="flex items-center justify-between mb-1">
+            <p className="font-medium text-xs text-muted-foreground uppercase">Poznámky</p>
+            {canManage && !editing && (
+              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setEditing(true)}>
+                <Edit2 className="h-3 w-3 mr-1" /> Upraviť
+              </Button>
+            )}
           </div>
-        )}
+          {editing ? (
+            <div className="space-y-2">
+              <Textarea
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                placeholder="Pridajte poznámky..."
+                className="min-h-[60px] text-sm"
+              />
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleSaveRating} disabled={saving}>
+                  {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
+                  Uložiť
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => { setEditing(false); setEditRating(acc.rating ?? 0); setEditNotes(acc.notes ?? ""); }}>
+                  Zrušiť
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-muted-foreground">{acc.notes || "Žiadne poznámky"}</p>
+          )}
+        </div>
+
+        {/* Assigned Subcontractors */}
+        <div className="border-t pt-3">
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-medium text-xs text-muted-foreground uppercase">Ubytovaní montéri</p>
+            {canManage && (
+              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setShowAssignModal(true)}>
+                <Plus className="h-3 w-3 mr-1" /> Priradiť
+              </Button>
+            )}
+          </div>
+          {loadingAssignments ? (
+            <div className="flex justify-center py-2">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : assignments.length === 0 ? (
+            <p className="text-muted-foreground text-xs">Žiadni priradení montéri</p>
+          ) : (
+            <div className="space-y-1.5">
+              {currentAssignments.length > 0 && (
+                <>
+                  <p className="text-xs font-medium text-primary">Aktuálne</p>
+                  {currentAssignments.map((a) => (
+                    <div key={a.id} className="flex items-center justify-between text-xs bg-primary/5 rounded px-2 py-1.5">
+                      <span className="font-medium">{a.user_name}</span>
+                      <span className="text-muted-foreground">
+                        {format(new Date(a.check_in), "d.M.", { locale: sk })} – {a.check_out ? format(new Date(a.check_out), "d.M.yy", { locale: sk }) : "∞"}
+                      </span>
+                    </div>
+                  ))}
+                </>
+              )}
+              {pastAssignments.length > 0 && (
+                <>
+                  <p className="text-xs font-medium text-muted-foreground mt-2">Minulé</p>
+                  {pastAssignments.slice(0, 3).map((a) => (
+                    <div key={a.id} className="flex items-center justify-between text-xs text-muted-foreground px-2 py-1">
+                      <span>{a.user_name}</span>
+                      <span>
+                        {format(new Date(a.check_in), "d.M.", { locale: sk })} – {format(new Date(a.check_out!), "d.M.yy", { locale: sk })}
+                      </span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </CardContent>
+
+      <AssignSubcontractorModal
+        open={showAssignModal}
+        onOpenChange={setShowAssignModal}
+        accommodationId={acc.id}
+        onAssigned={handleAssigned}
+      />
     </Card>
   );
 }
