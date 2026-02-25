@@ -14,6 +14,7 @@ interface Accommodation {
   capacity: number | null;
   price_per_person: number | null;
   rating: number | null;
+  rating_overall: number | null;
 }
 
 interface ResolvedMarker extends Accommodation {
@@ -153,6 +154,9 @@ function MapInner({ accommodations, selectedId, onSelect }: Props) {
               {m.capacity && <p className="text-xs">Kapacita: {m.capacity}</p>}
               {(m.price_per_person ?? 0) > 0 && (
                 <p className="text-xs">{Number(m.price_per_person).toFixed(2)} €/os.</p>
+              )}
+              {(m.rating_overall ?? 0) > 0 && (
+                <p className="text-xs font-medium">⭐ {m.rating_overall} / 10</p>
               )}
             </div>
           </Popup>

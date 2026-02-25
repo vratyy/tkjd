@@ -28,6 +28,11 @@ interface Accommodation {
   owner_email: string | null;
   owner_phone: string | null;
   rating: number | null;
+  rating_location: number | null;
+  rating_price: number | null;
+  rating_extension: number | null;
+  rating_amenities: number | null;
+  rating_overall: number | null;
   notes: string | null;
   contact: string | null;
   is_active: boolean;
@@ -72,7 +77,7 @@ export default function Accommodations() {
       }
       if (filters.minCapacity && (a.capacity ?? 0) < parseInt(filters.minCapacity)) return false;
       if (filters.maxPricePerPerson && (a.price_per_person ?? 0) > parseFloat(filters.maxPricePerPerson)) return false;
-      if (filters.minRating && (a.rating ?? 0) < parseFloat(filters.minRating)) return false;
+      if (filters.minRating && (a.rating_overall ?? 0) < parseFloat(filters.minRating)) return false;
       if (filters.amenities.length > 0) {
         const accAmenities: string[] = Array.isArray(a.amenities) ? a.amenities : [];
         if (!filters.amenities.every((f) => accAmenities.includes(f))) return false;
