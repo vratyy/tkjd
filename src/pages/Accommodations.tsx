@@ -163,7 +163,7 @@ export default function Accommodations() {
         </div>
         <div className="space-y-3 max-h-[500px] overflow-y-auto">
           {selected ? (
-            <AccommodationDetailCard accommodation={selected} onClose={() => setSelectedId(null)} />
+            <AccommodationDetailCard accommodation={selected} onClose={() => setSelectedId(null)} onUpdated={fetchData} />
           ) : null}
           {filtered.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">

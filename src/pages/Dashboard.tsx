@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { MobileRecordCard } from "@/components/mobile/MobileRecordCard";
 import { StickyActionButton } from "@/components/mobile/StickyActionButton";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Calendar, ClipboardList, FolderOpen, Plus, Home, Users } from "lucide-react";
+import { Calendar, ClipboardList, FolderOpen, Plus, Home, Users, MapPin } from "lucide-react";
 import { format, getWeek, getYear } from "date-fns";
 import { sk } from "date-fns/locale";
 
@@ -38,6 +38,13 @@ interface AccommodationInfo {
   check_out: string | null;
 }
 
+interface MyAccommodation {
+  name: string;
+  address: string;
+  check_in: string;
+  check_out: string | null;
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const { role, isManager, isAdmin } = useUserRole();
@@ -46,6 +53,7 @@ export default function Dashboard() {
   const [openClosings, setOpenClosings] = useState<WeeklyClosing[]>([]);
   const [recentRecords, setRecentRecords] = useState<PerformanceRecord[]>([]);
   const [currentAccommodations, setCurrentAccommodations] = useState<AccommodationInfo[]>([]);
+  const [myAccommodation, setMyAccommodation] = useState<MyAccommodation | null>(null);
   const [stats, setStats] = useState({ monthlyHours: 0, activeProjects: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -132,6 +140,31 @@ export default function Dashboard() {
         })
       );
       setCurrentAccommodations(enrichedAssignments);
+    }
+
+    // Fetch subcontractor's own active accommodation
+    if (!isAdmin) {
+      const today = new Date().toISOString().split("T")[0];
+      const { data: myAssignments } = await supabase
+        .from("accommodation_assignments")
+        .select("check_in, check_out, accommodation:accommodations(name, address)")
+        .eq("user_id", user.id)
+        .is("deleted_at", null)
+        .lte("check_in", today)
+        .or(`check_out.is.null,check_out.gte.${today}`)
+        .limit(1);
+
+      if (myAssignments && myAssignments.length > 0) {
+        const a = myAssignments[0] as any;
+        setMyAccommodation({
+          name: a.accommodation?.name || "—",
+          address: a.accommodation?.address || "",
+          check_in: a.check_in,
+          check_out: a.check_out,
+        });
+      } else {
+        setMyAccommodation(null);
+      }
     }
 
     setLoading(false);
@@ -258,6 +291,22 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Subcontractor's active accommodation */}
+      {!isAdmin && myAccommodation && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-4 md:p-6 flex items-center gap-3">
+            <MapPin className="h-5 w-5 text-primary shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm md:text-base">Vaše aktuálne ubytovanie</p>
+              <p className="text-sm text-muted-foreground truncate">{myAccommodation.name} • {myAccommodation.address}</p>
+              <p className="text-xs text-muted-foreground">
+                {format(new Date(myAccommodation.check_in), "d.M.", { locale: sk })} – {myAccommodation.check_out ? format(new Date(myAccommodation.check_out), "d.M.yyyy", { locale: sk }) : "bez dátumu odchodu"}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Open closings alert */}
       {openClosings.some((c) => c.status === "returned") && (
