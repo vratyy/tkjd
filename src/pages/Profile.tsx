@@ -233,8 +233,8 @@ export default function Profile() {
                 {renderError("company_name")}
               </div>
 
-              {/* Hide contract number for Viktor */}
-              {!profile.full_name.toLowerCase().startsWith("viktor") && (
+              {/* Hide contract number for Ing. Viktor Dolhý */}
+              {profile.full_name !== "Ing. Viktor Dolhý" && (
                 <div className="space-y-2">
                   <Label htmlFor="contractNumber">Číslo zmluvy *</Label>
                   <Input
