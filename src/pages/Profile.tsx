@@ -233,17 +233,20 @@ export default function Profile() {
                 {renderError("company_name")}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="contractNumber">Číslo zmluvy *</Label>
-                <Input
-                  id="contractNumber"
-                  value={profile.contract_number}
-                  onChange={(e) => setProfile((prev) => ({ ...prev, contract_number: e.target.value }))}
-                  placeholder="Napr. 102026"
-                  className={fieldClass("contract_number")}
-                />
-                {renderError("contract_number")}
-              </div>
+              {/* Hide contract number for Viktor */}
+              {!profile.full_name.toLowerCase().startsWith("viktor") && (
+                <div className="space-y-2">
+                  <Label htmlFor="contractNumber">Číslo zmluvy *</Label>
+                  <Input
+                    id="contractNumber"
+                    value={profile.contract_number}
+                    onChange={(e) => setProfile((prev) => ({ ...prev, contract_number: e.target.value }))}
+                    placeholder="Napr. 102026"
+                    className={fieldClass("contract_number")}
+                  />
+                  {renderError("contract_number")}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
