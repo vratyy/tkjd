@@ -1,19 +1,8 @@
-import React, { useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
-import "leaflet/dist/leaflet.css";
-
-// Fix default marker icons for bundlers
-import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
-
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-});
+import { renderToString } from "react-dom/server";
+import { MapPin } from "lucide-react";
 
 interface Accommodation {
   id: string;
@@ -27,24 +16,43 @@ interface Accommodation {
   rating: number | null;
 }
 
+interface ResolvedMarker extends Accommodation {
+  resolvedLat: number;
+  resolvedLng: number;
+}
+
 interface Props {
   accommodations: Accommodation[];
   selectedId: string | null;
   onSelect: (id: string) => void;
 }
 
-function FitBounds({ accommodations }: { accommodations: Accommodation[] }) {
+const defaultIcon = L.divIcon({
+  html: renderToString(<MapPin className="w-7 h-7 text-primary drop-shadow-md" fill="hsl(var(--primary))" strokeWidth={1.5} />),
+  className: "custom-map-marker",
+  iconSize: [28, 28],
+  iconAnchor: [14, 28],
+  popupAnchor: [0, -28],
+});
+
+const selectedMarkerIcon = L.divIcon({
+  html: renderToString(<MapPin className="w-9 h-9 text-destructive drop-shadow-lg" fill="hsl(var(--destructive))" strokeWidth={1.5} />),
+  className: "custom-map-marker",
+  iconSize: [36, 36],
+  iconAnchor: [18, 36],
+  popupAnchor: [0, -36],
+});
+
+function FitBounds({ markers }: { markers: ResolvedMarker[] }) {
   const map = useMap();
-  const prevLen = useRef(0);
+  const prevCount = useRef(0);
 
   useEffect(() => {
-    const valid = accommodations.filter((a) => a.lat && a.lng);
-    if (valid.length === 0) return;
-    if (valid.length === prevLen.current) return;
-    prevLen.current = valid.length;
-    const bounds = L.latLngBounds(valid.map((a) => [a.lat!, a.lng!]));
-    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
-  }, [accommodations, map]);
+    if (markers.length === 0 || markers.length === prevCount.current) return;
+    prevCount.current = markers.length;
+    const bounds = L.latLngBounds(markers.map((m) => [m.resolvedLat, m.resolvedLng]));
+    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
+  }, [markers, map]);
 
   return null;
 }
@@ -66,7 +74,7 @@ class MapErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ height: "500px", width: "100%", minHeight: "500px" }} className="rounded-lg border bg-muted flex items-center justify-center">
+        <div className="w-full h-[500px] rounded-lg border bg-muted flex items-center justify-center">
           <p className="text-muted-foreground">Mapu sa momentálne nepodarilo načítať.</p>
         </div>
       );
@@ -76,42 +84,76 @@ class MapErrorBoundary extends React.Component<
 }
 
 function MapInner({ accommodations, selectedId, onSelect }: Props) {
-  const validAccommodations = accommodations.filter((a) => a.lat && a.lng);
+  const [markers, setMarkers] = useState<ResolvedMarker[]>([]);
 
-  const selectedIcon = L.icon({
-    iconUrl: markerIcon,
-    iconRetinaUrl: markerIcon2x,
-    shadowUrl: markerShadow,
-    iconSize: [30, 45],
-    iconAnchor: [15, 45],
-    popupAnchor: [0, -45],
-    shadowSize: [41, 41],
-  });
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolve = async () => {
+      const resolved: ResolvedMarker[] = [];
+
+      for (const acc of accommodations) {
+        if (cancelled) return;
+
+        if (acc.lat != null && acc.lng != null && acc.lat !== 0 && acc.lng !== 0) {
+          resolved.push({ ...acc, resolvedLat: acc.lat, resolvedLng: acc.lng });
+        } else if (acc.address) {
+          try {
+            const q = encodeURIComponent(`${acc.address}${acc.city ? ", " + acc.city : ""}`);
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/search?format=json&q=${q}&limit=1`,
+              { headers: { "Accept-Language": "en" } }
+            );
+            const data = await res.json();
+            if (data?.[0]) {
+              resolved.push({
+                ...acc,
+                resolvedLat: parseFloat(data[0].lat),
+                resolvedLng: parseFloat(data[0].lon),
+              });
+            }
+            // Nominatim rate limit: 1 req/sec
+            await new Promise((r) => setTimeout(r, 1100));
+          } catch (e) {
+            console.warn("Geocoding failed for", acc.address, e);
+          }
+        }
+      }
+
+      if (!cancelled) setMarkers(resolved);
+    };
+
+    resolve();
+    return () => { cancelled = true; };
+  }, [accommodations]);
 
   return (
     <MapContainer
       center={[51.1657, 10.4515]}
       zoom={6}
       scrollWheelZoom
-      style={{ height: "500px", width: "100%", minHeight: "500px" }}
+      style={{ height: "100%", width: "100%", zIndex: 0 }}
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution="&copy; OpenStreetMap"
       />
-      <FitBounds accommodations={validAccommodations} />
-      {validAccommodations.map((acc) => (
+      <FitBounds markers={markers} />
+      {markers.map((m) => (
         <Marker
-          key={acc.id}
-          position={[acc.lat!, acc.lng!]}
-          icon={acc.id === selectedId ? selectedIcon : new L.Icon.Default()}
-          eventHandlers={{ click: () => onSelect(acc.id) }}
+          key={m.id}
+          position={[m.resolvedLat, m.resolvedLng]}
+          icon={m.id === selectedId ? selectedMarkerIcon : defaultIcon}
+          eventHandlers={{ click: () => onSelect(m.id) }}
         >
           <Popup>
-            <div className="text-sm">
-              <p className="font-semibold">{acc.name || acc.address}</p>
-              <p className="text-xs">{acc.city}</p>
-              {acc.capacity && <p className="text-xs">Kapacita: {acc.capacity}</p>}
+            <div className="text-sm min-w-[140px]">
+              <p className="font-semibold">{m.name || m.address}</p>
+              {m.city && <p className="text-xs opacity-70">{m.city}</p>}
+              {m.capacity && <p className="text-xs">Kapacita: {m.capacity}</p>}
+              {(m.price_per_person ?? 0) > 0 && (
+                <p className="text-xs">{Number(m.price_per_person).toFixed(2)} €/os.</p>
+              )}
             </div>
           </Popup>
         </Marker>
@@ -123,7 +165,7 @@ function MapInner({ accommodations, selectedId, onSelect }: Props) {
 export default function AccommodationMap(props: Props) {
   return (
     <MapErrorBoundary>
-      <div className="rounded-lg overflow-hidden border" style={{ height: "500px", width: "100%", minHeight: "500px" }}>
+      <div className="w-full h-[500px] rounded-lg overflow-hidden border border-border relative z-0">
         <MapInner {...props} />
       </div>
     </MapErrorBoundary>
