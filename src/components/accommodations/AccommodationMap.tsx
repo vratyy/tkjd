@@ -3,12 +3,16 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-// Fix default marker icons
+// Fix default marker icons for bundlers
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
+
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
-  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
-  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
 });
 
 interface Accommodation {
@@ -29,7 +33,6 @@ interface Props {
   onSelect: (id: string) => void;
 }
 
-// This component MUST be inside MapContainer
 function FitBounds({ accommodations }: { accommodations: Accommodation[] }) {
   const map = useMap();
   const prevLen = useRef(0);
@@ -46,7 +49,6 @@ function FitBounds({ accommodations }: { accommodations: Accommodation[] }) {
   return null;
 }
 
-// Error boundary to prevent map crashes from taking down the app
 class MapErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean }
@@ -64,7 +66,7 @@ class MapErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="h-[400px] md:h-[500px] rounded-lg border bg-muted flex items-center justify-center">
+        <div style={{ height: "500px", width: "100%", minHeight: "500px" }} className="rounded-lg border bg-muted flex items-center justify-center">
           <p className="text-muted-foreground">Mapu sa momentálne nepodarilo načítať.</p>
         </div>
       );
@@ -76,10 +78,10 @@ class MapErrorBoundary extends React.Component<
 function MapInner({ accommodations, selectedId, onSelect }: Props) {
   const validAccommodations = accommodations.filter((a) => a.lat && a.lng);
 
-  const selectedIcon = new L.Icon({
-    iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
-    iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
-    shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
+  const selectedIcon = L.icon({
+    iconUrl: markerIcon,
+    iconRetinaUrl: markerIcon2x,
+    shadowUrl: markerShadow,
     iconSize: [30, 45],
     iconAnchor: [15, 45],
     popupAnchor: [0, -45],
@@ -88,11 +90,10 @@ function MapInner({ accommodations, selectedId, onSelect }: Props) {
 
   return (
     <MapContainer
-      center={[50.5, 12.0]}
+      center={[51.1657, 10.4515]}
       zoom={6}
-      className="h-full w-full"
-      style={{ zIndex: 0 }}
       scrollWheelZoom
+      style={{ height: "500px", width: "100%", minHeight: "500px" }}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
@@ -122,7 +123,7 @@ function MapInner({ accommodations, selectedId, onSelect }: Props) {
 export default function AccommodationMap(props: Props) {
   return (
     <MapErrorBoundary>
-      <div className="h-[400px] md:h-[500px] rounded-lg overflow-hidden border">
+      <div className="rounded-lg overflow-hidden border" style={{ height: "500px", width: "100%", minHeight: "500px" }}>
         <MapInner {...props} />
       </div>
     </MapErrorBoundary>
