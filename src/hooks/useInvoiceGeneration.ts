@@ -31,28 +31,31 @@ export function useInvoiceGeneration() {
   };
 
   /**
-   * Check if a user is "Viktor" (fixed-fee retainer user).
+   * Check if a user is "Ing. Viktor Dolhý" (external project coordinator).
    */
   const isViktorUser = (fullName: string): boolean => {
-    return fullName.toLowerCase().startsWith("viktor");
+    return fullName === "Ing. Viktor Dolhý";
   };
 
   /**
-   * Generate invoice number in format: YYYYNNN (e.g. 2026001, 2026002)
-   * For Viktor: VIK-YYYYNNN (e.g. VIK-2026001)
+   * Generate invoice number:
+   * - Standard users: YYYYNNN (7-digit, e.g. 2026001)
+   * - Viktor: YYYYNNNN (8-digit, e.g. 20260001) — isolated sequence
    * Queries DB for the latest number in the current year and increments.
    */
-  const generateInvoiceNumber = async (viktorMode = false): Promise<string> => {
-    if (!user) throw new Error("User not authenticated");
+  const generateInvoiceNumber = async (viktorMode = false, targetUserId?: string): Promise<string> => {
+    const uid = targetUserId || user?.id;
+    if (!uid) throw new Error("User not authenticated");
     const year = new Date().getFullYear();
+    const prefix = String(year);
 
     if (viktorMode) {
-      const vikPrefix = `VIK-${year}`;
+      // Viktor: 8-digit sequence YYYYNNNN (e.g. 20260001)
       const { data } = await supabase
         .from("invoices")
         .select("invoice_number")
-        .eq("user_id", user.id)
-        .like("invoice_number", `${vikPrefix}%`)
+        .eq("user_id", uid)
+        .like("invoice_number", `${prefix}%`)
         .is("deleted_at", null)
         .order("invoice_number", { ascending: false })
         .limit(1);
@@ -60,19 +63,18 @@ export function useInvoiceGeneration() {
       let nextSeq = 1;
       if (data && data.length > 0) {
         const lastNum = data[0].invoice_number;
-        const seqPart = parseInt(lastNum.slice(vikPrefix.length), 10);
+        const seqPart = parseInt(lastNum.slice(prefix.length), 10);
         if (!isNaN(seqPart)) nextSeq = seqPart + 1;
       }
-      return `${vikPrefix}${String(nextSeq).padStart(3, "0")}`;
+      return `${prefix}${String(nextSeq).padStart(4, "0")}`;
     }
 
-    const prefix = String(year);
+    // Standard users: 7-digit sequence YYYYNNN (e.g. 2026001)
     const { data } = await supabase
       .from("invoices")
       .select("invoice_number")
-      .eq("user_id", user.id)
+      .eq("user_id", uid)
       .like("invoice_number", `${prefix}%`)
-      .not("invoice_number", "like", "VIK-%")
       .is("deleted_at", null)
       .order("invoice_number", { ascending: false })
       .limit(1);
@@ -81,7 +83,8 @@ export function useInvoiceGeneration() {
     if (data && data.length > 0) {
       const lastNum = data[0].invoice_number;
       const seqPart = parseInt(lastNum.slice(prefix.length), 10);
-      if (!isNaN(seqPart)) nextSeq = seqPart + 1;
+      // Skip 4-digit sequences (Viktor's) — standard is 3-digit
+      if (!isNaN(seqPart) && lastNum.length === 7) nextSeq = seqPart + 1;
     }
 
     return `${prefix}${String(nextSeq).padStart(3, "0")}`;
@@ -147,16 +150,17 @@ export function useInvoiceGeneration() {
       }
 
       // Generate dates - use overrides for historical invoices
-      // Issue date = Monday after the work week; Due date = issue date + 21 days
+      // Issue date = Monday after the work week
       const issueDate = overrideIssueDate
         ? new Date(overrideIssueDate + "T12:00:00")
         : new Date();
       const deliveryDate = overrideDeliveryDate
         ? new Date(overrideDeliveryDate + "T12:00:00")
         : issueDate;
-      const dueDate = addDays(issueDate, 21);
-      // Detect Viktor for custom numbering
+      // Detect Viktor for custom numbering & due date
       const viktorMode = isViktorUser(invoiceData.supplierName || "");
+      // Viktor: 7-day due date; Standard: 21-day due date
+      const dueDate = addDays(issueDate, viktorMode ? 7 : 21);
       const invoiceNumber = await generateInvoiceNumber(viktorMode);
 
       // 1. FIRST: Insert invoice record into database
@@ -221,6 +225,7 @@ export function useInvoiceGeneration() {
   /**
    * Generate a fixed-fee retainer invoice for Viktor (50h / 1000€).
    * Also creates the weekly_closing record automatically.
+   * Uses Viktor's 8-digit numbering and 7-day due date.
    */
   const generateViktorRetainer = async (
     viktorUserId: string,
@@ -249,10 +254,10 @@ export function useInvoiceGeneration() {
 
       if (closingErr) throw new Error(closingErr.message);
 
-      // 2. Generate invoice
-      const invoiceNumber = await generateInvoiceNumber(true);
+      // 2. Generate invoice with Viktor's 8-digit numbering
+      const invoiceNumber = await generateInvoiceNumber(true, viktorUserId);
       const issueDate = new Date();
-      const dueDate = addDays(issueDate, 21);
+      const dueDate = addDays(issueDate, 7); // Viktor: 7-day due date
 
       const { error: invErr } = await supabase
         .from("invoices")
@@ -281,7 +286,7 @@ export function useInvoiceGeneration() {
 
       toast({
         title: "Paušál vygenerovaný",
-        description: `Faktúra ${invoiceNumber} pre Viktora (KW${calendarWeek}) bola vytvorená.`,
+        description: `Faktúra ${invoiceNumber} pre Ing. Viktor Dolhý (KW${calendarWeek}) bola vytvorená.`,
       });
 
       return { success: true };

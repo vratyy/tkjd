@@ -225,6 +225,7 @@ export default function DailyEntry() {
               .eq("is_active", true)
               .is("deleted_at", null)
               .in("id", assignedIds)
+              .neq("name", "externý projektkoordinátor")
               .order("name");
             if (error) {
               console.error("Error fetching projects:", error);

@@ -10,11 +10,11 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { MobileRecordCard } from "@/components/mobile/MobileRecordCard";
 import { StickyActionButton } from "@/components/mobile/StickyActionButton";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Calendar, ClipboardList, FolderOpen, Plus, Home, Users, MapPin, Euro, CheckCircle2, Loader2, Receipt } from "lucide-react";
+import { Calendar, ClipboardList, FolderOpen, Plus, Home, Users, MapPin, Euro, CheckCircle2, Receipt } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, getWeek, getYear } from "date-fns";
 import { sk } from "date-fns/locale";
-import { useInvoiceGeneration } from "@/hooks/useInvoiceGeneration";
+
 
 interface WeeklyClosing {
   id: string;
@@ -56,11 +56,18 @@ interface PaymentDue {
   payment_frequency: string;
 }
 
+interface ViktorUnpaidInvoice {
+  id: string;
+  invoice_number: string;
+  total_amount: number;
+  due_date: string;
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const { role, isManager, isAdmin } = useUserRole();
   const { toast } = useToast();
-  const { generateViktorRetainer, isViktorUser, generating: viktorGenerating } = useInvoiceGeneration();
+  
   const isMobile = useIsMobile();
   const location = useLocation();
   const [openClosings, setOpenClosings] = useState<WeeklyClosing[]>([]);
@@ -68,7 +75,7 @@ export default function Dashboard() {
   const [currentAccommodations, setCurrentAccommodations] = useState<AccommodationInfo[]>([]);
   const [myAccommodation, setMyAccommodation] = useState<MyAccommodation | null>(null);
   const [paymentsDue, setPaymentsDue] = useState<PaymentDue[]>([]);
-  const [viktorAlert, setViktorAlert] = useState<{ userId: string; week: number; year: number } | null>(null);
+  const [viktorUnpaidInvoices, setViktorUnpaidInvoices] = useState<ViktorUnpaidInvoice[]>([]);
   const [stats, setStats] = useState({ monthlyHours: 0, activeProjects: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -167,38 +174,34 @@ export default function Dashboard() {
 
       setPaymentsDue((dueAccommodations as any[]) || []);
 
-      // Check Viktor retainer alert: show if Sunday or later and no closing/invoice for current KW
-      const cw = getWeek(new Date(), { weekStartsOn: 1 });
-      const cy = getYear(new Date());
+      // Sunday payment notification for Ing. Viktor Dolhý
       const dayOfWeek = new Date().getDay(); // 0 = Sunday
-
-      // Find Viktor's profile
-      const { data: viktorProfile } = await supabase
-        .from("profiles")
-        .select("user_id, full_name")
-        .is("deleted_at", null)
-        .ilike("full_name", "viktor%")
-        .limit(1);
-
-      if (viktorProfile && viktorProfile.length > 0 && dayOfWeek === 0) {
-        const vikId = viktorProfile[0].user_id;
-        // Check if closing already exists for this KW
-        const { data: existingClosing } = await supabase
-          .from("weekly_closings")
-          .select("id")
-          .eq("user_id", vikId)
-          .eq("calendar_week", cw)
-          .eq("year", cy)
+      if (dayOfWeek === 0) {
+        // Find Viktor's profile
+        const { data: viktorProfile } = await supabase
+          .from("profiles")
+          .select("user_id")
           .is("deleted_at", null)
+          .eq("full_name", "Ing. Viktor Dolhý")
           .limit(1);
 
-        if (!existingClosing || existingClosing.length === 0) {
-          setViktorAlert({ userId: vikId, week: cw, year: cy });
+        if (viktorProfile && viktorProfile.length > 0) {
+          const vikId = viktorProfile[0].user_id;
+          // Find unpaid invoices for Viktor
+          const { data: unpaidInvoices } = await supabase
+            .from("invoices")
+            .select("id, invoice_number, total_amount, due_date")
+            .eq("user_id", vikId)
+            .is("deleted_at", null)
+            .neq("status", "paid")
+            .neq("status", "void");
+
+          setViktorUnpaidInvoices((unpaidInvoices as ViktorUnpaidInvoice[]) || []);
         } else {
-          setViktorAlert(null);
+          setViktorUnpaidInvoices([]);
         }
       } else {
-        setViktorAlert(null);
+        setViktorUnpaidInvoices([]);
       }
     }
 
@@ -407,39 +410,46 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {/* Viktor Retainer Alert - Admin only */}
-      {isAdmin && viktorAlert && (
-        <Card className="border-primary/30 bg-primary/5">
+      {/* Viktor Sunday Payment Alert - Admin only */}
+      {isAdmin && viktorUnpaidInvoices.length > 0 && (
+        <Card className="border-destructive/30 bg-destructive/5">
           <CardHeader className="pb-2 p-4 md:p-6">
-            <CardTitle className="flex items-center gap-2 text-base md:text-lg">
-              <Receipt className="h-5 w-5 text-primary" />
-              Paušálne vyúčtovanie - Viktor
+            <CardTitle className="flex items-center gap-2 text-base md:text-lg text-destructive">
+              <Receipt className="h-5 w-5" />
+              ⚠️ UHRADIŤ DNES - Ing. Viktor Dolhý
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4 md:px-6 md:pb-6 pt-0">
-            <p className="text-sm text-muted-foreground mb-3">
-              KW {viktorAlert.week}/{viktorAlert.year} – zatiaľ nebola vygenerovaná uzávierka ani faktúra.
-            </p>
-            <Button
-              onClick={async () => {
-                const result = await generateViktorRetainer(
-                  viktorAlert.userId,
-                  viktorAlert.week,
-                  viktorAlert.year
-                );
-                if (result.success) {
-                  setViktorAlert(null);
-                }
-              }}
-              disabled={viktorGenerating}
-              size="sm"
-            >
-              {viktorGenerating ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generujem...</>
-              ) : (
-                "✅ Vygenerovať paušál (50h / 1000€)"
-              )}
-            </Button>
+          <CardContent className="px-4 pb-4 md:px-6 md:pb-6 pt-0 space-y-2">
+            {viktorUnpaidInvoices.map((inv) => (
+              <div key={inv.id} className="flex items-center justify-between p-3 rounded-lg bg-background border">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-sm">Faktúra {inv.invoice_number}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Suma: {inv.total_amount}€ • Splatnosť: {format(new Date(inv.due_date), "d.M.yyyy")}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0 ml-2 text-xs border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
+                  onClick={async () => {
+                    const { error } = await supabase
+                      .from("invoices")
+                      .update({ status: "paid", paid_at: new Date().toISOString() } as any)
+                      .eq("id", inv.id);
+                    if (error) {
+                      toast({ title: "Chyba", description: error.message, variant: "destructive" });
+                    } else {
+                      toast({ title: "Uhradené", description: `Faktúra ${inv.invoice_number} označená ako zaplatená.` });
+                      setViktorUnpaidInvoices((prev) => prev.filter((i) => i.id !== inv.id));
+                    }
+                  }}
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                  Označiť ako uhradené
+                </Button>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}
