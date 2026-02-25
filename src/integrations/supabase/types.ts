@@ -77,41 +77,71 @@ export type Database = {
       accommodations: {
         Row: {
           address: string
+          amenities: Json | null
+          capacity: number | null
+          city: string | null
           contact: string | null
           created_at: string
           default_price_per_night: number
           deleted_at: string | null
+          distance_from_center: string | null
           id: string
           is_active: boolean
           lat: number | null
           lng: number | null
           name: string
+          notes: string | null
+          owner_email: string | null
+          owner_phone: string | null
+          price_per_person: number | null
+          price_total: number | null
+          rating: number | null
           updated_at: string
         }
         Insert: {
           address: string
+          amenities?: Json | null
+          capacity?: number | null
+          city?: string | null
           contact?: string | null
           created_at?: string
           default_price_per_night?: number
           deleted_at?: string | null
+          distance_from_center?: string | null
           id?: string
           is_active?: boolean
           lat?: number | null
           lng?: number | null
           name: string
+          notes?: string | null
+          owner_email?: string | null
+          owner_phone?: string | null
+          price_per_person?: number | null
+          price_total?: number | null
+          rating?: number | null
           updated_at?: string
         }
         Update: {
           address?: string
+          amenities?: Json | null
+          capacity?: number | null
+          city?: string | null
           contact?: string | null
           created_at?: string
           default_price_per_night?: number
           deleted_at?: string | null
+          distance_from_center?: string | null
           id?: string
           is_active?: boolean
           lat?: number | null
           lng?: number | null
           name?: string
+          notes?: string | null
+          owner_email?: string | null
+          owner_phone?: string | null
+          price_per_person?: number | null
+          price_total?: number | null
+          rating?: number | null
           updated_at?: string
         }
         Relationships: []
@@ -502,6 +532,51 @@ export type Database = {
           vat_number?: string | null
         }
         Relationships: []
+      }
+      project_accommodations: {
+        Row: {
+          accommodation_id: string
+          created_at: string
+          end_date: string | null
+          id: string
+          project_id: string
+          start_date: string
+          updated_at: string
+        }
+        Insert: {
+          accommodation_id: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          project_id: string
+          start_date: string
+          updated_at?: string
+        }
+        Update: {
+          accommodation_id?: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          project_id?: string
+          start_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_accommodations_accommodation_id_fkey"
+            columns: ["accommodation_id"]
+            isOneToOne: false
+            referencedRelation: "accommodations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_accommodations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       project_assignments: {
         Row: {
