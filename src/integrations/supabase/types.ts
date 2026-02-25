@@ -90,9 +90,11 @@ export type Database = {
           lat: number | null
           lng: number | null
           name: string
+          next_payment_date: string | null
           notes: string | null
           owner_email: string | null
           owner_phone: string | null
+          payment_frequency: string | null
           price_per_person: number | null
           price_total: number | null
           rating: number | null
@@ -113,9 +115,11 @@ export type Database = {
           lat?: number | null
           lng?: number | null
           name: string
+          next_payment_date?: string | null
           notes?: string | null
           owner_email?: string | null
           owner_phone?: string | null
+          payment_frequency?: string | null
           price_per_person?: number | null
           price_total?: number | null
           rating?: number | null
@@ -136,9 +140,11 @@ export type Database = {
           lat?: number | null
           lng?: number | null
           name?: string
+          next_payment_date?: string | null
           notes?: string | null
           owner_email?: string | null
           owner_phone?: string | null
+          payment_frequency?: string | null
           price_per_person?: number | null
           price_total?: number | null
           rating?: number | null

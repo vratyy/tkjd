@@ -9,7 +9,13 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { CalendarIcon, Loader2 } from "lucide-react";
+import { format } from "date-fns";
+import { sk } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 const AMENITY_OPTIONS = ["WiFi", "Parkovanie", "Práčka", "Kuchyňa", "TV", "Klimatizácia"];
 
@@ -27,6 +33,7 @@ export default function CreateAccommodationDialog({ open, onOpenChange, onCreate
     price_total: "", price_per_person: "", default_price_per_night: "",
     distance_from_center: "", owner_email: "", owner_phone: "",
     rating: "", notes: "", lat: "", lng: "", amenities: [] as string[],
+    payment_frequency: "", next_payment_date: null as Date | null,
   });
 
   const toggleAmenity = (a: string) => {
@@ -59,6 +66,8 @@ export default function CreateAccommodationDialog({ open, onOpenChange, onCreate
       lat: form.lat ? parseFloat(form.lat) : null,
       lng: form.lng ? parseFloat(form.lng) : null,
       amenities: form.amenities,
+      payment_frequency: form.payment_frequency || null,
+      next_payment_date: form.next_payment_date ? format(form.next_payment_date, "yyyy-MM-dd") : null,
     } as any);
     if (error) {
       toast({ variant: "destructive", title: "Chyba", description: error.message });
@@ -70,6 +79,7 @@ export default function CreateAccommodationDialog({ open, onOpenChange, onCreate
         price_total: "", price_per_person: "", default_price_per_night: "",
         distance_from_center: "", owner_email: "", owner_phone: "",
         rating: "", notes: "", lat: "", lng: "", amenities: [],
+        payment_frequency: "", next_payment_date: null,
       });
       onCreated();
     }
@@ -151,6 +161,33 @@ export default function CreateAccommodationDialog({ open, onOpenChange, onCreate
                   {a}
                 </label>
               ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Frekvencia platieb</Label>
+              <Select value={form.payment_frequency} onValueChange={(v) => setForm({ ...form, payment_frequency: v })}>
+                <SelectTrigger><SelectValue placeholder="Vyberte..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="weekly">Týždenne</SelectItem>
+                  <SelectItem value="biweekly">Dvojtýždenne</SelectItem>
+                  <SelectItem value="monthly">Mesačne</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Dátum najbližšej platby</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-sm", !form.next_payment_date && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {form.next_payment_date ? format(form.next_payment_date, "d.M.yyyy") : "Vyberte dátum"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={form.next_payment_date ?? undefined} onSelect={(d) => setForm({ ...form, next_payment_date: d ?? null })} className="p-3 pointer-events-auto" />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           <div>
