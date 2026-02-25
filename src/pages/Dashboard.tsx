@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -10,10 +10,11 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { MobileRecordCard } from "@/components/mobile/MobileRecordCard";
 import { StickyActionButton } from "@/components/mobile/StickyActionButton";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Calendar, ClipboardList, FolderOpen, Plus, Home, Users, MapPin, Euro, CheckCircle2 } from "lucide-react";
+import { Calendar, ClipboardList, FolderOpen, Plus, Home, Users, MapPin, Euro, CheckCircle2, Loader2, Receipt } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, getWeek, getYear } from "date-fns";
 import { sk } from "date-fns/locale";
+import { useInvoiceGeneration } from "@/hooks/useInvoiceGeneration";
 
 interface WeeklyClosing {
   id: string;
@@ -59,6 +60,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { role, isManager, isAdmin } = useUserRole();
   const { toast } = useToast();
+  const { generateViktorRetainer, isViktorUser, generating: viktorGenerating } = useInvoiceGeneration();
   const isMobile = useIsMobile();
   const location = useLocation();
   const [openClosings, setOpenClosings] = useState<WeeklyClosing[]>([]);
@@ -66,6 +68,7 @@ export default function Dashboard() {
   const [currentAccommodations, setCurrentAccommodations] = useState<AccommodationInfo[]>([]);
   const [myAccommodation, setMyAccommodation] = useState<MyAccommodation | null>(null);
   const [paymentsDue, setPaymentsDue] = useState<PaymentDue[]>([]);
+  const [viktorAlert, setViktorAlert] = useState<{ userId: string; week: number; year: number } | null>(null);
   const [stats, setStats] = useState({ monthlyHours: 0, activeProjects: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -163,6 +166,40 @@ export default function Dashboard() {
         .lte("next_payment_date", threeDaysFromNow);
 
       setPaymentsDue((dueAccommodations as any[]) || []);
+
+      // Check Viktor retainer alert: show if Sunday or later and no closing/invoice for current KW
+      const cw = getWeek(new Date(), { weekStartsOn: 1 });
+      const cy = getYear(new Date());
+      const dayOfWeek = new Date().getDay(); // 0 = Sunday
+
+      // Find Viktor's profile
+      const { data: viktorProfile } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .is("deleted_at", null)
+        .ilike("full_name", "viktor%")
+        .limit(1);
+
+      if (viktorProfile && viktorProfile.length > 0 && dayOfWeek === 0) {
+        const vikId = viktorProfile[0].user_id;
+        // Check if closing already exists for this KW
+        const { data: existingClosing } = await supabase
+          .from("weekly_closings")
+          .select("id")
+          .eq("user_id", vikId)
+          .eq("calendar_week", cw)
+          .eq("year", cy)
+          .is("deleted_at", null)
+          .limit(1);
+
+        if (!existingClosing || existingClosing.length === 0) {
+          setViktorAlert({ userId: vikId, week: cw, year: cy });
+        } else {
+          setViktorAlert(null);
+        }
+      } else {
+        setViktorAlert(null);
+      }
     }
 
     // Fetch subcontractor's own active accommodation
@@ -370,7 +407,43 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {/* Subcontractor's active accommodation */}
+      {/* Viktor Retainer Alert - Admin only */}
+      {isAdmin && viktorAlert && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="pb-2 p-4 md:p-6">
+            <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+              <Receipt className="h-5 w-5 text-primary" />
+              Paušálne vyúčtovanie - Viktor
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 md:px-6 md:pb-6 pt-0">
+            <p className="text-sm text-muted-foreground mb-3">
+              KW {viktorAlert.week}/{viktorAlert.year} – zatiaľ nebola vygenerovaná uzávierka ani faktúra.
+            </p>
+            <Button
+              onClick={async () => {
+                const result = await generateViktorRetainer(
+                  viktorAlert.userId,
+                  viktorAlert.week,
+                  viktorAlert.year
+                );
+                if (result.success) {
+                  setViktorAlert(null);
+                }
+              }}
+              disabled={viktorGenerating}
+              size="sm"
+            >
+              {viktorGenerating ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generujem...</>
+              ) : (
+                "✅ Vygenerovať paušál (50h / 1000€)"
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {!isAdmin && myAccommodation && (
         <Card className="border-primary/30 bg-primary/5">
           <CardContent className="p-4 md:p-6 flex items-center gap-3">
