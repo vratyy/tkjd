@@ -38,10 +38,24 @@ interface Accommodation {
   is_active: boolean;
 }
 
+const seedRatings = [
+  { keyword: 'Adalbertstr', loc: 10, price: 10, ext: 10, am: 10, ov: 10 },
+  { keyword: 'Tannenberg', loc: 8, price: 10, ext: 10, am: 10, ov: 10 },
+  { keyword: 'Fürreuthweg', loc: 8, price: 10, ext: 10, am: 10, ov: 10 },
+  { keyword: 'Fleischergasse', loc: 6, price: 10, ext: 10, am: 10, ov: 9 },
+  { keyword: 'Berliner Landstraße', loc: 1, price: 10, ext: 10, am: 10, ov: 7 },
+  { keyword: 'Mentelin', loc: 6, price: 10, ext: 3, am: 0, ov: 5 },
+  { keyword: 'Traubinger', loc: 10, price: 10, ext: 10, am: 10, ov: 10 },
+  { keyword: 'In d. Au', loc: 10, price: 10, ext: 10, am: 10, ov: 10 },
+  { keyword: 'Drösslinger', loc: 9, price: 10, ext: 7, am: 5, ov: 7 },
+  { keyword: 'Alt-Karow', loc: 3, price: 10, ext: 5, am: 10, ov: 6.5 },
+];
+
 export default function Accommodations() {
   const { isAdmin, isManager, loading: roleLoading } = useUserRole();
   const { toast } = useToast();
   const canManage = isAdmin || isManager;
+  const [seeding, setSeeding] = useState(false);
 
   const [accommodations, setAccommodations] = useState<Accommodation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,6 +102,28 @@ export default function Accommodations() {
 
   const selected = filtered.find((a) => a.id === selectedId) || null;
 
+  const handleSeedRatings = async () => {
+    setSeeding(true);
+    toast({ title: "⏳ Aktualizujem hodnotenia..." });
+    try {
+      for (const item of seedRatings) {
+        await supabase.from("accommodations").update({
+          rating_location: item.loc,
+          rating_price: item.price,
+          rating_extension: item.ext,
+          rating_amenities: item.am,
+          rating_overall: item.ov,
+        }).ilike("address", `%${item.keyword}%`);
+      }
+      toast({ title: "✅ Hodnotenia boli úspešne aktualizované!" });
+      await fetchData();
+    } catch (e: any) {
+      toast({ title: "Chyba", description: e.message, variant: "destructive" });
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   if (roleLoading || loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -104,12 +140,20 @@ export default function Accommodations() {
           <h2 className="text-2xl font-bold text-foreground">Evidencia ubytovania</h2>
           <p className="text-muted-foreground">Mapa a prehľad ubytovacích zariadení</p>
         </div>
-        {canManage && (
-          <Button onClick={() => setShowCreateDialog(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nové ubytovanie
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Button variant="outline" onClick={handleSeedRatings} disabled={seeding}>
+              {seeding ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              ⚙️ Aktualizovať staré hodnotenia (Jednorazovo)
+            </Button>
+          )}
+          {canManage && (
+            <Button onClick={() => setShowCreateDialog(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nové ubytovanie
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}
