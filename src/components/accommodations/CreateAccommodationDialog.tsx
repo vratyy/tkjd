@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,28 +14,90 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import { sk } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
 const AMENITY_OPTIONS = ["WiFi", "Parkovanie", "Práčka", "Kuchyňa", "TV", "Klimatizácia"];
+
+interface AccommodationData {
+  id: string;
+  name: string;
+  address: string;
+  city: string | null;
+  contact: string | null;
+  capacity: number | null;
+  price_total: number | null;
+  price_per_person: number | null;
+  default_price_per_night: number;
+  distance_from_center: string | null;
+  owner_email: string | null;
+  owner_phone: string | null;
+  notes: string | null;
+  lat: number | null;
+  lng: number | null;
+  amenities: any;
+  payment_frequency: string | null;
+  next_payment_date: string | null;
+  rating_location: number | null;
+  rating_price: number | null;
+  rating_extension: number | null;
+  rating_amenities: number | null;
+  rating_overall: number | null;
+}
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: () => void;
+  editData?: AccommodationData | null;
 }
 
-export default function CreateAccommodationDialog({ open, onOpenChange, onCreated }: Props) {
+const emptyForm = {
+  name: "", address: "", city: "", contact: "", capacity: "",
+  price_total: "", price_per_person: "", default_price_per_night: "",
+  distance_from_center: "", owner_email: "", owner_phone: "",
+  notes: "", lat: "", lng: "", amenities: [] as string[],
+  payment_frequency: "", next_payment_date: null as Date | null,
+  rating_location: "", rating_price: "", rating_extension: "", rating_amenities: "", rating_overall: "",
+};
+
+function dataToForm(d: AccommodationData) {
+  return {
+    name: d.name || "",
+    address: d.address || "",
+    city: d.city || "",
+    contact: d.contact || "",
+    capacity: d.capacity != null ? String(d.capacity) : "",
+    price_total: d.price_total != null ? String(d.price_total) : "",
+    price_per_person: d.price_per_person != null ? String(d.price_per_person) : "",
+    default_price_per_night: d.default_price_per_night ? String(d.default_price_per_night) : "",
+    distance_from_center: d.distance_from_center || "",
+    owner_email: d.owner_email || "",
+    owner_phone: d.owner_phone || "",
+    notes: d.notes || "",
+    lat: d.lat != null ? String(d.lat) : "",
+    lng: d.lng != null ? String(d.lng) : "",
+    amenities: Array.isArray(d.amenities) ? d.amenities : [],
+    payment_frequency: d.payment_frequency || "",
+    next_payment_date: d.next_payment_date ? new Date(d.next_payment_date) : null,
+    rating_location: d.rating_location != null ? String(d.rating_location) : "",
+    rating_price: d.rating_price != null ? String(d.rating_price) : "",
+    rating_extension: d.rating_extension != null ? String(d.rating_extension) : "",
+    rating_amenities: d.rating_amenities != null ? String(d.rating_amenities) : "",
+    rating_overall: d.rating_overall != null ? String(d.rating_overall) : "",
+  };
+}
+
+export default function CreateAccommodationDialog({ open, onOpenChange, onCreated, editData }: Props) {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    name: "", address: "", city: "", contact: "", capacity: "",
-    price_total: "", price_per_person: "", default_price_per_night: "",
-    distance_from_center: "", owner_email: "", owner_phone: "",
-    notes: "", lat: "", lng: "", amenities: [] as string[],
-    payment_frequency: "", next_payment_date: null as Date | null,
-    rating_location: "", rating_price: "", rating_extension: "", rating_amenities: "", rating_overall: "",
-  });
+  const [form, setForm] = useState(emptyForm);
+  const isEdit = !!editData;
+
+  useEffect(() => {
+    if (open) {
+      setForm(editData ? dataToForm(editData) : { ...emptyForm, amenities: [] });
+    }
+  }, [open, editData]);
 
   const toggleAmenity = (a: string) => {
     setForm((f) => ({
@@ -44,50 +106,52 @@ export default function CreateAccommodationDialog({ open, onOpenChange, onCreate
     }));
   };
 
-  const handleCreate = async () => {
+  const buildPayload = () => ({
+    name: form.name || null,
+    address: form.address,
+    city: form.city,
+    contact: form.contact || null,
+    capacity: parseInt(form.capacity) || 1,
+    price_total: parseFloat(form.price_total) || 0,
+    price_per_person: parseFloat(form.price_per_person) || 0,
+    default_price_per_night: parseFloat(form.default_price_per_night) || 0,
+    distance_from_center: form.distance_from_center || null,
+    owner_email: form.owner_email || null,
+    owner_phone: form.owner_phone || null,
+    rating: 0,
+    rating_location: parseFloat(form.rating_location) || 0,
+    rating_price: parseFloat(form.rating_price) || 0,
+    rating_extension: parseFloat(form.rating_extension) || 0,
+    rating_amenities: parseFloat(form.rating_amenities) || 0,
+    rating_overall: parseFloat(form.rating_overall) || 0,
+    notes: form.notes || null,
+    lat: form.lat ? parseFloat(form.lat) : null,
+    lng: form.lng ? parseFloat(form.lng) : null,
+    amenities: form.amenities,
+    payment_frequency: form.payment_frequency || null,
+    next_payment_date: form.next_payment_date ? format(form.next_payment_date, "yyyy-MM-dd") : null,
+  });
+
+  const handleSave = async () => {
     if (!form.address || !form.city) {
       toast({ variant: "destructive", title: "Vyplňte adresu a mesto" });
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from("accommodations").insert({
-      name: form.name || null,
-      address: form.address,
-      city: form.city,
-      contact: form.contact || null,
-      capacity: parseInt(form.capacity) || 1,
-      price_total: parseFloat(form.price_total) || 0,
-      price_per_person: parseFloat(form.price_per_person) || 0,
-      default_price_per_night: parseFloat(form.default_price_per_night) || 0,
-      distance_from_center: form.distance_from_center || null,
-      owner_email: form.owner_email || null,
-      owner_phone: form.owner_phone || null,
-      rating: 0,
-      rating_location: parseFloat(form.rating_location) || 0,
-      rating_price: parseFloat(form.rating_price) || 0,
-      rating_extension: parseFloat(form.rating_extension) || 0,
-      rating_amenities: parseFloat(form.rating_amenities) || 0,
-      rating_overall: parseFloat(form.rating_overall) || 0,
-      notes: form.notes || null,
-      lat: form.lat ? parseFloat(form.lat) : null,
-      lng: form.lng ? parseFloat(form.lng) : null,
-      amenities: form.amenities,
-      payment_frequency: form.payment_frequency || null,
-      next_payment_date: form.next_payment_date ? format(form.next_payment_date, "yyyy-MM-dd") : null,
-    } as any);
+    const payload = buildPayload();
+
+    let error;
+    if (isEdit) {
+      ({ error } = await supabase.from("accommodations").update(payload as any).eq("id", editData!.id));
+    } else {
+      ({ error } = await supabase.from("accommodations").insert(payload as any));
+    }
+
     if (error) {
       toast({ variant: "destructive", title: "Chyba", description: error.message });
     } else {
-      toast({ title: "Ubytovanie vytvorené" });
+      toast({ title: isEdit ? "Ubytovanie upravené" : "Ubytovanie vytvorené" });
       onOpenChange(false);
-      setForm({
-        name: "", address: "", city: "", contact: "", capacity: "",
-        price_total: "", price_per_person: "", default_price_per_night: "",
-        distance_from_center: "", owner_email: "", owner_phone: "",
-        notes: "", lat: "", lng: "", amenities: [],
-        payment_frequency: "", next_payment_date: null,
-        rating_location: "", rating_price: "", rating_extension: "", rating_amenities: "", rating_overall: "",
-      });
       onCreated();
     }
     setSaving(false);
@@ -97,8 +161,8 @@ export default function CreateAccommodationDialog({ open, onOpenChange, onCreate
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nové ubytovanie</DialogTitle>
-          <DialogDescription>Pridajte ubytovacie zariadenie s detailmi</DialogDescription>
+          <DialogTitle>{isEdit ? "Upraviť ubytovanie" : "Nové ubytovanie"}</DialogTitle>
+          <DialogDescription>{isEdit ? "Upravte detaily ubytovacieho zariadenia" : "Pridajte ubytovacie zariadenie s detailmi"}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
@@ -223,9 +287,9 @@ export default function CreateAccommodationDialog({ open, onOpenChange, onCreate
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Zrušiť</Button>
-          <Button onClick={handleCreate} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            Vytvoriť
+            {isEdit ? "Uložiť zmeny" : "Vytvoriť"}
           </Button>
         </DialogFooter>
       </DialogContent>
