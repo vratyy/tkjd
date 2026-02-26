@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, Users, Euro, MapPin, Mail, Phone, Ruler, X, Edit2, Save, Plus, Loader2 } from "lucide-react";
+import { Star, Users, Euro, MapPin, Mail, Phone, Ruler, X, Edit2, Save, Plus, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
@@ -11,6 +11,10 @@ import { useToast } from "@/hooks/use-toast";
 import AssignSubcontractorModal from "./AssignSubcontractorModal";
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface Accommodation {
   id: string;
@@ -21,6 +25,7 @@ interface Accommodation {
   distance_from_center: string | null;
   price_total: number | null;
   price_per_person: number | null;
+  default_price_per_night: number;
   amenities: string[] | null;
   owner_email: string | null;
   owner_phone: string | null;
@@ -31,6 +36,11 @@ interface Accommodation {
   rating_amenities: number | null;
   rating_overall: number | null;
   notes: string | null;
+  contact: string | null;
+  lat: number | null;
+  lng: number | null;
+  payment_frequency: string | null;
+  next_payment_date: string | null;
 }
 
 interface Assignment {
@@ -45,6 +55,8 @@ interface Props {
   accommodation: Accommodation;
   onClose: () => void;
   onUpdated?: () => void;
+  onEdit?: (acc: Accommodation) => void;
+  onDeleted?: () => void;
 }
 
 function RatingBar({ label, value }: { label: string; value: number }) {
@@ -59,7 +71,7 @@ function RatingBar({ label, value }: { label: string; value: number }) {
   );
 }
 
-export default function AccommodationDetailCard({ accommodation: acc, onClose, onUpdated }: Props) {
+export default function AccommodationDetailCard({ accommodation: acc, onClose, onUpdated, onEdit, onDeleted }: Props) {
   const { isAdmin, isManager } = useUserRole();
   const { toast } = useToast();
   const canManage = isAdmin || isManager;
@@ -75,6 +87,7 @@ export default function AccommodationDetailCard({ accommodation: acc, onClose, o
     rating_overall: acc.rating_overall ?? 0,
   });
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loadingAssignments, setLoadingAssignments] = useState(false);
@@ -149,6 +162,25 @@ export default function AccommodationDetailCard({ accommodation: acc, onClose, o
     setSaving(false);
   };
 
+  const handleDelete = async () => {
+    setDeleting(true);
+    const { error } = await supabase.from("accommodations").delete().eq("id", acc.id);
+    if (error) {
+      const isFkError = error.message.includes("violates foreign key") || error.code === "23503";
+      toast({
+        variant: "destructive",
+        title: "Chyba pri mazaní",
+        description: isFkError
+          ? "Ubytovanie sa nedá zmazať, pretože k nemu sú priradení montéri."
+          : error.message,
+      });
+    } else {
+      toast({ title: "Ubytovanie odstránené" });
+      onDeleted?.();
+    }
+    setDeleting(false);
+  };
+
   const handleAssigned = () => {
     setShowAssignModal(false);
     const fetchAssignments = async () => {
@@ -203,6 +235,35 @@ export default function AccommodationDetailCard({ accommodation: acc, onClose, o
           <div className="flex items-center gap-1.5 mt-1">
             <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
             <span className="font-semibold text-sm">{overallRating} / 10</span>
+          </div>
+        )}
+        {canManage && (
+          <div className="flex items-center gap-2 mt-2">
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => onEdit?.(acc)}>
+              <Edit2 className="h-3 w-3 mr-1" /> Upraviť všetko
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" className="h-7 text-xs" disabled={deleting}>
+                  {deleting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Trash2 className="h-3 w-3 mr-1" />}
+                  Odstrániť
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Naozaj chcete odstrániť toto ubytovanie?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Naozaj chcete natrvalo odstrániť toto ubytovanie? Táta akcia sa nedá vrátiť späť.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Zrušiť</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Odstrániť
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         )}
       </CardHeader>

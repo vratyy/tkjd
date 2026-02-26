@@ -36,6 +36,8 @@ interface Accommodation {
   notes: string | null;
   contact: string | null;
   is_active: boolean;
+  payment_frequency: string | null;
+  next_payment_date: string | null;
 }
 
 const seedRatings = [
@@ -61,6 +63,7 @@ export default function Accommodations() {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [editAccommodation, setEditAccommodation] = useState<Accommodation | null>(null);
   const [filters, setFilters] = useState<Filters>({
     search: "", minCapacity: "", maxPricePerPerson: "", minRating: "", amenities: [],
   });
@@ -140,6 +143,21 @@ export default function Accommodations() {
     }
   };
 
+  const handleEditFromDetail = (acc: any) => {
+    setEditAccommodation(acc);
+    setShowCreateDialog(true);
+  };
+
+  const handleDeleted = () => {
+    setSelectedId(null);
+    fetchData();
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    setShowCreateDialog(open);
+    if (!open) setEditAccommodation(null);
+  };
+
   if (roleLoading || loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -164,7 +182,7 @@ export default function Accommodations() {
             </Button>
           )}
           {canManage && (
-            <Button onClick={() => setShowCreateDialog(true)}>
+            <Button onClick={() => { setEditAccommodation(null); setShowCreateDialog(true); }}>
               <Plus className="h-4 w-4 mr-2" />
               Nové ubytovanie
             </Button>
@@ -228,7 +246,13 @@ export default function Accommodations() {
         </div>
         <div className="space-y-3 max-h-[500px] overflow-y-auto">
           {selected ? (
-            <AccommodationDetailCard accommodation={selected} onClose={() => setSelectedId(null)} onUpdated={fetchData} />
+            <AccommodationDetailCard
+              accommodation={selected}
+              onClose={() => setSelectedId(null)}
+              onUpdated={fetchData}
+              onEdit={handleEditFromDetail}
+              onDeleted={handleDeleted}
+            />
           ) : null}
           {filtered.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
@@ -250,8 +274,9 @@ export default function Accommodations() {
 
       <CreateAccommodationDialog
         open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
+        onOpenChange={handleDialogClose}
         onCreated={fetchData}
+        editData={editAccommodation}
       />
     </div>
   );
