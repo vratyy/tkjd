@@ -35,6 +35,7 @@ interface Invoice {
   tax_confirmed_at: string | null;
   tax_verified_at: string | null;
   advance_deduction: number;
+  accommodation_deduction?: number;
   is_accounted?: boolean;
   profile?: {
     full_name: string;
@@ -257,10 +258,16 @@ export function InvoiceDetailDialog({
               <span className="text-muted-foreground">Suma faktúry</span>
               <span className="font-semibold">{formatAmount(Number(invoice.total_amount))}</span>
             </div>
-            {Number(invoice.advance_deduction) > 0 && (
+             {Number(invoice.advance_deduction) > 0 && (
               <div className="flex justify-between text-muted-foreground">
                 <span>Mínus poskytnutá záloha</span>
                 <span>-{formatAmount(Number(invoice.advance_deduction))}</span>
+              </div>
+            )}
+            {Number(invoice.accommodation_deduction || 0) > 0 && (
+              <div className="flex justify-between text-destructive">
+                <span>🏠 Zrážka za ubytovanie</span>
+                <span className="font-semibold">-{formatAmount(Number(invoice.accommodation_deduction))}</span>
               </div>
             )}
           </div>

@@ -296,6 +296,7 @@ export type Database = {
       }
       invoices: {
         Row: {
+          accommodation_deduction: number | null
           advance_deduction: number | null
           created_at: string
           deleted_at: string | null
@@ -331,6 +332,7 @@ export type Database = {
           week_closing_id: string | null
         }
         Insert: {
+          accommodation_deduction?: number | null
           advance_deduction?: number | null
           created_at?: string
           deleted_at?: string | null
@@ -366,6 +368,7 @@ export type Database = {
           week_closing_id?: string | null
         }
         Update: {
+          accommodation_deduction?: number | null
           advance_deduction?: number | null
           created_at?: string
           deleted_at?: string | null
@@ -419,6 +422,7 @@ export type Database = {
       }
       performance_records: {
         Row: {
+          accommodation_id: string | null
           break_end: string | null
           break_start: string | null
           break2_end: string | null
@@ -437,6 +441,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          accommodation_id?: string | null
           break_end?: string | null
           break_start?: string | null
           break2_end?: string | null
@@ -455,6 +460,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          accommodation_id?: string | null
           break_end?: string | null
           break_start?: string | null
           break2_end?: string | null
@@ -473,6 +479,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "performance_records_accommodation_id_fkey"
+            columns: ["accommodation_id"]
+            isOneToOne: false
+            referencedRelation: "accommodations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "performance_records_project_id_fkey"
             columns: ["project_id"]

@@ -140,25 +140,67 @@ export function useInvoiceGeneration() {
       const baseAmount = totalHours * hourlyRate;
       const advanceDeduction = safeNumber(invoiceData.advanceDeduction);
       
+      // Detect Viktor for custom numbering & due date
+      const viktorMode = isViktorUser(invoiceData.supplierName || "");
+
+      // Calculate accommodation deduction from performance records
+      let accommodationDeduction = 0;
+      if (weekClosingId && !viktorMode) {
+        const { data: closing } = await supabase
+          .from("weekly_closings")
+          .select("user_id, calendar_week, year")
+          .eq("id", weekClosingId)
+          .single();
+
+        if (closing) {
+          const { data: weekRecords } = await supabase
+            .from("performance_records")
+            .select("accommodation_id, date")
+            .eq("user_id", closing.user_id)
+            .is("deleted_at", null)
+            .not("accommodation_id", "is", null);
+
+          if (weekRecords && weekRecords.length > 0) {
+            // Filter to only this week's records
+            const thisWeekRecords = weekRecords.filter(rec => {
+              const recDate = new Date(rec.date + "T12:00:00");
+              return getISOWeekLocal(recDate) === closing.calendar_week && getISOWeekYear(recDate) === closing.year;
+            });
+
+            const accIds = [...new Set(thisWeekRecords.map(r => r.accommodation_id).filter(Boolean))] as string[];
+            if (accIds.length > 0) {
+              const { data: accs } = await supabase
+                .from("accommodations")
+                .select("id, price_per_person")
+                .in("id", accIds);
+
+              const priceMap = new Map((accs || []).map(a => [a.id, a.price_per_person || 0]));
+              for (const rec of thisWeekRecords) {
+                if (rec.accommodation_id) {
+                  accommodationDeduction += priceMap.get(rec.accommodation_id) || 0;
+                }
+              }
+            }
+          }
+        }
+      }
+
       const VAT_RATE = 0.20;
       let vatAmount = 0;
-      let totalAmount = baseAmount - advanceDeduction;
+      let totalAmount = baseAmount - advanceDeduction - accommodationDeduction;
       
       if (invoiceData.isVatPayer && !invoiceData.isReverseCharge) {
         vatAmount = baseAmount * VAT_RATE;
-        totalAmount = baseAmount + vatAmount - advanceDeduction;
+        totalAmount = baseAmount + vatAmount - advanceDeduction - accommodationDeduction;
       }
 
       // Generate dates - use overrides for historical invoices
-      // Issue date = Monday after the work week
       const issueDate = overrideIssueDate
         ? new Date(overrideIssueDate + "T12:00:00")
         : new Date();
       const deliveryDate = overrideDeliveryDate
         ? new Date(overrideDeliveryDate + "T12:00:00")
         : issueDate;
-      // Detect Viktor for custom numbering & due date
-      const viktorMode = isViktorUser(invoiceData.supplierName || "");
       // Viktor: 7-day due date; Standard: 21-day due date
       const dueDate = addDays(issueDate, viktorMode ? 7 : 21);
       const invoiceNumber = await generateInvoiceNumber(viktorMode);
@@ -176,7 +218,8 @@ export function useInvoiceGeneration() {
           subtotal: baseAmount,
           vat_amount: vatAmount,
           total_amount: totalAmount,
-          advance_deduction: advanceDeduction,
+           advance_deduction: advanceDeduction,
+          accommodation_deduction: accommodationDeduction,
           issue_date: format(issueDate, "yyyy-MM-dd"),
           delivery_date: format(deliveryDate, "yyyy-MM-dd"),
           due_date: format(dueDate, "yyyy-MM-dd"),
