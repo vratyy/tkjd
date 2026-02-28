@@ -35,6 +35,13 @@ interface Project {
   standard_hours: number | null;
 }
 
+interface AccommodationOption {
+  id: string;
+  name: string;
+  address: string;
+  price_per_person: number | null;
+}
+
 interface TodayRecord {
   id: string;
   date: string;
@@ -49,6 +56,7 @@ interface TodayRecord {
   note: string | null;
   created_at: string;
   project_id: string;
+  accommodation_id: string | null;
   projects: { name: string } | null;
 }
 
@@ -58,6 +66,7 @@ export default function DailyEntry() {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [accommodations, setAccommodations] = useState<AccommodationOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [todayRecords, setTodayRecords] = useState<TodayRecord[]>([]);
@@ -77,6 +86,7 @@ export default function DailyEntry() {
   const [break2Start, setBreak2Start] = useState("");
   const [break2End, setBreak2End] = useState("");
   const [note, setNote] = useState("");
+  const [accommodationId, setAccommodationId] = useState("none");
   const [manualHours, setManualHours] = useState<string>("");
   const [isManualOverride, setIsManualOverride] = useState(false);
 
@@ -161,7 +171,7 @@ export default function DailyEntry() {
   const fetchTodayRecords = useCallback(async () => {
     if (!user) return;
     const today = format(new Date(), "yyyy-MM-dd");
-    const selectCols = "id, date, time_from, time_to, break_start, break_end, break2_start, break2_end, total_hours, status, note, created_at, project_id, projects(name)";
+    const selectCols = "id, date, time_from, time_to, break_start, break_end, break2_start, break2_end, total_hours, status, note, created_at, project_id, accommodation_id, projects(name)";
 
     // Fetch today's records + any returned/rejected records (any date)
     const [todayRes, returnedRes] = await Promise.all([
@@ -239,6 +249,17 @@ export default function DailyEntry() {
     }
     fetchProjects();
     fetchTodayRecords();
+    // Fetch accommodations
+    async function fetchAccommodations() {
+      const { data } = await supabase
+        .from("accommodations")
+        .select("id, name, address, price_per_person")
+        .eq("is_active", true)
+        .is("deleted_at", null)
+        .order("name");
+      setAccommodations(data || []);
+    }
+    fetchAccommodations();
   }, [fetchTodayRecords, user, isAdmin]);
 
   const resetForm = () => {
@@ -253,6 +274,7 @@ export default function DailyEntry() {
     setTimeTo("15:30");
     setBreakStart("12:00");
     setBreakEnd("12:30");
+    setAccommodationId("none");
     setEditingId(null);
   };
 
@@ -269,6 +291,7 @@ export default function DailyEntry() {
     setNote(record.note || "");
     setManualHours(String(record.total_hours));
     setIsManualOverride(false);
+    setAccommodationId(record.accommodation_id || "none");
     // Scroll to top
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -384,6 +407,7 @@ export default function DailyEntry() {
       break2_end: break2End || null,
       note: note || null,
       total_hours: finalHours,
+      accommodation_id: accommodationId === "none" ? null : accommodationId,
     };
 
     if (editingId) {
@@ -561,6 +585,26 @@ export default function DailyEntry() {
                   <p className="text-xs text-muted-foreground">Vypočítané: {calculatedHours} h</p>
                 )}
               </div>
+            </div>
+
+            {/* Accommodation selection */}
+            <div className="space-y-2">
+              <Label htmlFor="accommodation">Ubytovanie <span className="text-destructive">*</span></Label>
+              <Select value={accommodationId} onValueChange={setAccommodationId} required>
+                <SelectTrigger id="accommodation" className={accommodationId === "" ? "border-destructive" : ""}>
+                  <SelectValue placeholder="Vyberte ubytovanie" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">
+                    Vlastné ubytovanie / Bez firemného ubytovania (0 €)
+                  </SelectItem>
+                  {accommodations.map(acc => (
+                    <SelectItem key={acc.id} value={acc.id}>
+                      {acc.name || acc.address} ({acc.price_per_person ?? 0} €/noc)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Note */}
