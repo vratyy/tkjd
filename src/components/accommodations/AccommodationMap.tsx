@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
-import { renderToString } from "react-dom/server";
-import { MapPin } from "lucide-react";
 
 interface Accommodation {
   id: string;
@@ -28,8 +26,11 @@ interface Props {
   onSelect: (id: string) => void;
 }
 
+const pinSvg = (size: number, color: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:${color};filter:drop-shadow(0 1px 2px rgba(0,0,0,.3))"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3" fill="white"/></svg>`;
+
 const defaultIcon = L.divIcon({
-  html: renderToString(<MapPin className="w-7 h-7 text-primary drop-shadow-md" fill="hsl(var(--primary))" strokeWidth={1.5} />),
+  html: pinSvg(28, "hsl(var(--primary))"),
   className: "custom-map-marker",
   iconSize: [28, 28],
   iconAnchor: [14, 28],
@@ -37,7 +38,7 @@ const defaultIcon = L.divIcon({
 });
 
 const selectedMarkerIcon = L.divIcon({
-  html: renderToString(<MapPin className="w-9 h-9 text-destructive drop-shadow-lg" fill="hsl(var(--destructive))" strokeWidth={1.5} />),
+  html: pinSvg(36, "hsl(var(--destructive))"),
   className: "custom-map-marker",
   iconSize: [36, 36],
   iconAnchor: [18, 36],

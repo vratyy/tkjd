@@ -10,7 +10,12 @@ import AccommodationListItem from "@/components/accommodations/AccommodationList
 import AccommodationDetailCard from "@/components/accommodations/AccommodationDetailCard";
 import CreateAccommodationDialog from "@/components/accommodations/CreateAccommodationDialog";
 
-const AccommodationMap = lazy(() => import("@/components/accommodations/AccommodationMap"));
+const AccommodationMap = lazy(() =>
+  import("@/components/accommodations/AccommodationMap").catch(() => {
+    // Retry once on chunk load failure
+    return import("@/components/accommodations/AccommodationMap");
+  })
+);
 
 interface Accommodation {
   id: string;
