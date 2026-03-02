@@ -80,6 +80,7 @@ export type Database = {
           amenities: Json | null
           capacity: number | null
           city: string | null
+          company_price: number | null
           contact: string | null
           created_at: string
           default_price_per_night: number
@@ -110,6 +111,7 @@ export type Database = {
           amenities?: Json | null
           capacity?: number | null
           city?: string | null
+          company_price?: number | null
           contact?: string | null
           created_at?: string
           default_price_per_night?: number
@@ -140,6 +142,7 @@ export type Database = {
           amenities?: Json | null
           capacity?: number | null
           city?: string | null
+          company_price?: number | null
           contact?: string | null
           created_at?: string
           default_price_per_night?: number

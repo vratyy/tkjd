@@ -16,7 +16,7 @@ import { CalendarIcon, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
-const AMENITY_OPTIONS = ["WiFi", "Parkovanie", "Práčka", "Kuchyňa", "TV", "Klimatizácia"];
+const AMENITY_OPTIONS = ["WiFi", "Parkovanie", "Práčka", "Kuchyňa", "Mikrovlnka"];
 
 interface AccommodationData {
   id: string;
@@ -27,6 +27,7 @@ interface AccommodationData {
   capacity: number | null;
   price_total: number | null;
   price_per_person: number | null;
+  company_price: number | null;
   default_price_per_night: number;
   distance_from_center: string | null;
   owner_email: string | null;
@@ -53,7 +54,7 @@ interface Props {
 
 const emptyForm = {
   name: "", address: "", city: "", contact: "", capacity: "",
-  price_total: "", price_per_person: "", default_price_per_night: "",
+  price_total: "", price_per_person: "", company_price: "", default_price_per_night: "",
   distance_from_center: "", owner_email: "", owner_phone: "",
   notes: "", lat: "", lng: "", amenities: [] as string[],
   payment_frequency: "", next_payment_date: null as Date | null,
@@ -69,6 +70,7 @@ function dataToForm(d: AccommodationData) {
     capacity: d.capacity != null ? String(d.capacity) : "",
     price_total: d.price_total != null ? String(d.price_total) : "",
     price_per_person: d.price_per_person != null ? String(d.price_per_person) : "",
+    company_price: d.company_price != null ? String(d.company_price) : "",
     default_price_per_night: d.default_price_per_night ? String(d.default_price_per_night) : "",
     distance_from_center: d.distance_from_center || "",
     owner_email: d.owner_email || "",
@@ -114,6 +116,7 @@ export default function CreateAccommodationDialog({ open, onOpenChange, onCreate
     capacity: parseInt(form.capacity) || 1,
     price_total: parseFloat(form.price_total) || 0,
     price_per_person: parseFloat(form.price_per_person) || 0,
+    company_price: parseFloat(form.company_price) || 0,
     default_price_per_night: parseFloat(form.default_price_per_night) || 0,
     distance_from_center: form.distance_from_center || null,
     owner_email: form.owner_email || null,
@@ -189,9 +192,13 @@ export default function CreateAccommodationDialog({ open, onOpenChange, onCreate
               <Input type="number" step="0.01" value={form.price_total} onChange={(e) => setForm({ ...form, price_total: e.target.value })} />
             </div>
             <div>
-              <Label className="text-xs">Cena/osoba (€)</Label>
-              <Input type="number" step="0.01" value={form.price_per_person} onChange={(e) => setForm({ ...form, price_per_person: e.target.value })} />
+              <Label className="text-xs">Zrážka/osoba (€)</Label>
+              <Input type="number" step="0.01" value={form.price_per_person} onChange={(e) => setForm({ ...form, price_per_person: e.target.value })} placeholder="Zrážka pre montéra" />
             </div>
+          </div>
+          <div>
+            <Label className="text-xs">Nákupná cena ubytovania (€)</Label>
+            <Input type="number" step="0.01" value={form.company_price} onChange={(e) => setForm({ ...form, company_price: e.target.value })} placeholder="Skutočná cena pre firmu" />
           </div>
           <div>
             <Label className="text-xs">Vzdialenosť od centra</Label>
