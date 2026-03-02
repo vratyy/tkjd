@@ -28,6 +28,7 @@ interface Accommodation {
   distance_from_center: string | null;
   price_total: number | null;
   price_per_person: number | null;
+  company_price: number | null;
   default_price_per_night: number;
   amenities: any;
   owner_email: string | null;
@@ -245,11 +246,16 @@ export default function Accommodations() {
             <AccommodationMap
               accommodations={filtered}
               selectedId={selectedId}
-              onSelect={setSelectedId}
+              onSelect={(id) => {
+                setSelectedId(id);
+                const sidebar = document.querySelector('.accommodation-sidebar');
+                if (sidebar) sidebar.scrollTo({ top: 0, behavior: 'smooth' });
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
             />
           </Suspense>
         </div>
-        <div className="space-y-3 max-h-[500px] overflow-y-auto">
+        <div className="space-y-3 max-h-[500px] overflow-y-auto accommodation-sidebar">
           {selected ? (
             <AccommodationDetailCard
               accommodation={selected}
@@ -270,7 +276,15 @@ export default function Accommodations() {
                 key={acc.id}
                 accommodation={acc}
                 isSelected={acc.id === selectedId}
-                onClick={() => setSelectedId(acc.id === selectedId ? null : acc.id)}
+                onClick={() => {
+                  setSelectedId(acc.id === selectedId ? null : acc.id);
+                  if (acc.id !== selectedId) {
+                    // Scroll sidebar to top so detail card is visible
+                    const sidebar = document.querySelector('.accommodation-sidebar');
+                    if (sidebar) sidebar.scrollTo({ top: 0, behavior: 'smooth' });
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
+                }}
               />
             ))
           )}

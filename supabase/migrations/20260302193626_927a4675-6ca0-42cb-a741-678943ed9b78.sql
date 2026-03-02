@@ -1,0 +1,1 @@
+ALTER TABLE public.accommodations ADD COLUMN company_price numeric DEFAULT 0;
