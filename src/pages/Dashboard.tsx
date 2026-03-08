@@ -314,10 +314,9 @@ export default function Dashboard() {
         const exists = await checkRetainerExists(profile.user_id, kw, yr);
         if (exists) return;
 
-        console.log(`[Auto-retainer] Generating Viktor retainer for KW${kw}/${yr}`);
         await generateViktorRetainer(profile.user_id, kw, yr);
-      } catch (e) {
-        console.error("[Auto-retainer] Error:", e);
+      } catch {
+        // silent
       }
     })();
   }, [isAdmin, user, generateViktorRetainer, checkRetainerExists]);
