@@ -285,6 +285,7 @@ export default function LockWeeks() {
 
     try {
       const companySignatureBase64 = await getCompanySignatureBase64();
+      const employeeSignatureBase64 = await getSignatureBase64(week.closing.profiles?.signature_url || null);
 
       await exportStundenzettelToExcel({
         records: week.records.map((r) => ({
@@ -305,6 +306,7 @@ export default function LockWeeks() {
         calendarWeek: week.closing.calendar_week,
         year: week.closing.year,
         companySignatureBase64,
+        employeeSignatureBase64,
       });
 
       toast({
