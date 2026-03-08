@@ -280,6 +280,37 @@ export function useInvoiceGeneration() {
 
     setGenerating(true);
     try {
+      // DUPLICATE CHECK: Prevent generating retainer twice for same user+week
+      const { data: existingClosing } = await supabase
+        .from("weekly_closings")
+        .select("id")
+        .eq("user_id", viktorUserId)
+        .eq("calendar_week", calendarWeek)
+        .eq("year", year)
+        .is("deleted_at", null)
+        .limit(1);
+
+      if (existingClosing && existingClosing.length > 0) {
+        // Also check if invoice exists for this closing
+        const { data: existingInvoice } = await supabase
+          .from("invoices")
+          .select("id, invoice_number")
+          .eq("user_id", viktorUserId)
+          .eq("week_closing_id", existingClosing[0].id)
+          .is("deleted_at", null)
+          .neq("status", "void")
+          .limit(1);
+
+        if (existingInvoice && existingInvoice.length > 0) {
+          toast({
+            variant: "destructive",
+            title: "Chyba: Duplicitná faktúra",
+            description: `Paušálna faktúra pre tohto používateľa a tento týždeň (KW${calendarWeek}) už bola vygenerovaná! (${existingInvoice[0].invoice_number})`,
+          });
+          return { success: false };
+        }
+      }
+
       // 1. Create weekly_closing
       const { data: closing, error: closingErr } = await supabase
         .from("weekly_closings")
