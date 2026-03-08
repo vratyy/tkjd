@@ -14,6 +14,8 @@ import { Calendar, ClipboardList, FolderOpen, Plus, Home, Users, MapPin, Euro, C
 import { useToast } from "@/hooks/use-toast";
 import { format, getWeek, getYear } from "date-fns";
 import { sk } from "date-fns/locale";
+import { getISOWeekLocal } from "@/lib/dateUtils";
+import { useInvoiceGeneration } from "@/hooks/useInvoiceGeneration";
 
 
 interface WeeklyClosing {
