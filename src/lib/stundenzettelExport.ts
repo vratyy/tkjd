@@ -170,7 +170,7 @@ export async function exportStundenzettelToExcel(params: StundenzettelParams): P
 
   fillTemplateSheet(ws, params);
 
-  // Add company signature if available
+  // Add company signature if available (AUFTRAGGEBER — left side)
   if (params.companySignatureBase64) {
     try {
       const sigImageId = workbook.addImage({
@@ -183,6 +183,22 @@ export async function exportStundenzettelToExcel(params: StundenzettelParams): P
       });
     } catch (error) {
       console.warn("Could not embed company signature:", error);
+    }
+  }
+
+  // Add employee signature if available (AUFTRAGNEHMER — right side)
+  if (params.employeeSignatureBase64) {
+    try {
+      const empSigId = workbook.addImage({
+        base64: params.employeeSignatureBase64,
+        extension: "png",
+      });
+      ws.addImage(empSigId, {
+        tl: { col: 4, row: 27 },
+        ext: { width: 150, height: 80 },
+      });
+    } catch (error) {
+      console.warn("Could not embed employee signature:", error);
     }
   }
 
