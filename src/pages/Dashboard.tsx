@@ -287,6 +287,37 @@ export default function Dashboard() {
     };
   }, [user, isAdmin]);
 
+  // Silent Sunday auto-generation: Viktor retainer invoice
+  useEffect(() => {
+    if (!isAdmin || !user || retainerGenRan.current) return;
+    const now = new Date();
+    if (now.getDay() !== 0) return; // Only on Sundays
+
+    retainerGenRan.current = true;
+    const kw = getISOWeekLocal(now);
+    const yr = now.getFullYear();
+
+    (async () => {
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("user_id")
+          .eq("full_name", "Ing. Viktor Dolhý")
+          .is("deleted_at", null)
+          .maybeSingle();
+        if (!profile) return;
+
+        const exists = await checkRetainerExists(profile.user_id, kw, yr);
+        if (exists) return;
+
+        console.log(`[Auto-retainer] Generating Viktor retainer for KW${kw}/${yr}`);
+        await generateViktorRetainer(profile.user_id, kw, yr);
+      } catch (e) {
+        console.error("[Auto-retainer] Error:", e);
+      }
+    })();
+  }, [isAdmin, user, generateViktorRetainer, checkRetainerExists]);
+
   const currentWeek = getWeek(new Date(), { weekStartsOn: 1 });
   const currentYear = getYear(new Date());
 
