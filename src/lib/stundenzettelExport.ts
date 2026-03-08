@@ -324,6 +324,13 @@ export async function exportMultipleStundenzettelsToExcel(sheets: Array<Stundenz
         ws.addImage(sigId, { tl: { col: 0, row: 27 }, ext: { width: 150, height: 80 } });
       } catch (e) { console.warn("Signature error:", e); }
     }
+
+    if (params.employeeSignatureBase64) {
+      try {
+        const empSigId = outWorkbook.addImage({ base64: params.employeeSignatureBase64, extension: "png" });
+        ws.addImage(empSigId, { tl: { col: 4, row: 27 }, ext: { width: 150, height: 80 } });
+      } catch (e) { console.warn("Employee signature error:", e); }
+    }
   }
 
   // Download
