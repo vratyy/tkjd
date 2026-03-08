@@ -29,6 +29,7 @@ import { ProjectExportSection } from "@/components/approvals/ProjectExportSectio
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getCompanySignatureBase64 } from "@/hooks/useCompanySignature";
 import { exportStundenzettelToExcel } from "@/lib/stundenzettelExport";
+import { getSignatureBase64 } from "@/lib/signatureUtils";
 
 interface Profile {
   full_name: string;

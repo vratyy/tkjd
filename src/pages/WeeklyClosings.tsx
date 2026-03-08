@@ -48,6 +48,7 @@ import { exportStundenzettelToExcel } from "@/lib/stundenzettelExport";
 import { getCompanySignatureBase64 } from "@/hooks/useCompanySignature";
 import { useInvoiceGeneration } from "@/hooks/useInvoiceGeneration";
 import { generateInvoicePDF } from "@/lib/invoiceGenerator";
+import { getSignatureBase64 } from "@/lib/signatureUtils";
 
 interface PerformanceRecord {
   id: string;
