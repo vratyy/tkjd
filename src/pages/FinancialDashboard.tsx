@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import { FinancialMetricsCards } from "@/components/financial/FinancialMetricsCards";
@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RefreshCw } from "lucide-react";
 import { Navigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 
 export default function FinancialDashboard() {
   const { isAdmin, isAccountant, loading: roleLoading } = useUserRole();
