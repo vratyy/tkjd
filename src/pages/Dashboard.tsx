@@ -378,7 +378,6 @@ export default function Dashboard() {
 
         if (fixCount > 0) {
           console.log(`[seq-repair] Fixed ${fixCount} invoice numbers`);
-          const queryClient = useQueryClient();
           queryClient.invalidateQueries();
         }
       } catch (e) {
