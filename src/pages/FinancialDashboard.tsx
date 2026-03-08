@@ -17,52 +17,7 @@ export default function FinancialDashboard() {
   const [isUrgentFilterActive, setIsUrgentFilterActive] = useState(false);
   const autoFixRan = useRef(false);
 
-  // Silent auto-fix: ensure Viktor's KW9 invoice has number 20260008
-  useEffect(() => {
-    if (autoFixRan.current) return;
-    autoFixRan.current = true;
-
-    (async () => {
-      try {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("user_id")
-          .eq("full_name", "Ing. Viktor Dolhý")
-          .is("deleted_at", null)
-          .maybeSingle();
-        if (!profile) return;
-
-        const { data: closing } = await supabase
-          .from("weekly_closings")
-          .select("id")
-          .eq("user_id", profile.user_id)
-          .eq("calendar_week", 9)
-          .eq("year", 2026)
-          .is("deleted_at", null)
-          .maybeSingle();
-        if (!closing) return;
-
-        const { data: invoice } = await supabase
-          .from("invoices")
-          .select("id, invoice_number")
-          .eq("week_closing_id", closing.id)
-          .eq("user_id", profile.user_id)
-          .is("deleted_at", null)
-          .neq("status", "void")
-          .maybeSingle();
-        if (!invoice || invoice.invoice_number === "20260008") return;
-
-        await supabase
-          .from("invoices")
-          .update({ invoice_number: "20260008" })
-          .eq("id", invoice.id);
-
-        refetch();
-      } catch (e) {
-        console.error("Auto-fix Viktor KW9:", e);
-      }
-    })();
-  }, [refetch]);
+  // Silent auto-fix already applied server-side — no client-side patch needed
 
   // Only Admin and Accountant can access financial dashboard
   const hasAccess = isAdmin || isAccountant;
