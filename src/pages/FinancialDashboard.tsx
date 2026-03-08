@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import { FinancialMetricsCards } from "@/components/financial/FinancialMetricsCards";
@@ -9,11 +9,62 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RefreshCw } from "lucide-react";
 import { Navigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { getISOWeekLocal } from "@/lib/dateUtils";
+import { useInvoiceGeneration } from "@/hooks/useInvoiceGeneration";
 
 export default function FinancialDashboard() {
   const { isAdmin, isAccountant, loading: roleLoading } = useUserRole();
   const { invoices, metrics, loading, refetch, markAsPaid } = useFinancialData();
   const [isUrgentFilterActive, setIsUrgentFilterActive] = useState(false);
+  const { checkRetainerExists } = useInvoiceGeneration();
+
+  // --- DEBUG: Sunday retainer status for Viktor ---
+  const now = new Date();
+  const isSunday = now.getDay() === 0;
+  const currentKW = getISOWeekLocal(now);
+  const [debugRetainerStatus, setDebugRetainerStatus] = useState<string>("Načítavam...");
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    (async () => {
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("user_id")
+          .eq("full_name", "Ing. Viktor Dolhý")
+          .is("deleted_at", null)
+          .maybeSingle();
+        if (!profile) { setDebugRetainerStatus("Viktor profil nenájdený"); return; }
+
+        const exists = await checkRetainerExists(profile.user_id, currentKW, now.getFullYear());
+        
+        // Also fetch last invoice number for sequence check
+        const { data: lastInv } = await supabase
+          .from("invoices")
+          .select("invoice_number")
+          .eq("user_id", profile.user_id)
+          .is("deleted_at", null)
+          .neq("status", "void")
+          .like("invoice_number", `${now.getFullYear()}%`)
+          .order("invoice_number", { ascending: false })
+          .limit(1);
+
+        const lastNum = lastInv?.[0]?.invoice_number || "žiadna";
+        const nextNum = lastInv?.[0] 
+          ? `${now.getFullYear()}${String(parseInt(lastInv[0].invoice_number.slice(4), 10) + 1).padStart(4, "0")}`
+          : "—";
+
+        if (exists) {
+          setDebugRetainerStatus(`Už vygenerované pre KW${currentKW} | Posledné č.: ${lastNum}`);
+        } else {
+          setDebugRetainerStatus(`Pripravené na generovanie KW${currentKW} | Posledné č.: ${lastNum} → Ďalšie: ${nextNum}`);
+        }
+      } catch (e: any) {
+        setDebugRetainerStatus(`Chyba: ${e.message}`);
+      }
+    })();
+  }, [isAdmin, currentKW, checkRetainerExists]);
 
 
   // Only Admin and Accountant can access financial dashboard
@@ -41,7 +92,16 @@ export default function FinancialDashboard() {
         </div>
       </div>
 
-      <FinancialMetricsCards data={metrics} loading={loading} />
+      {/* DEBUG: Sunday retainer indicator — TEMPORARY */}
+      {isAdmin && (
+        <div className="rounded-lg border border-dashed border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30 p-3 text-xs font-mono">
+          <span className="font-bold text-yellow-700 dark:text-yellow-400">[TEST LOGIKY]</span>{" "}
+          Nedeľný paušál Viktor: <span className="font-bold">{isSunday ? "🟢 Nedeľa" : "🔴 Nie je nedeľa"}</span>{" "}
+          | Aktuálny KW: <span className="font-bold">{currentKW}</span>{" "}
+          | Status: <span className="font-bold">{debugRetainerStatus}</span>
+        </div>
+      )}
+
 
       {!loading && (
         <UrgentActionBanner
