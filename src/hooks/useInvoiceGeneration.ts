@@ -377,9 +377,42 @@ export function useInvoiceGeneration() {
     }
   };
 
+  /**
+   * Check if a retainer invoice already exists for a given user + calendar week.
+   * Useful for disabling UI buttons to prevent duplicate generation.
+   */
+  const checkRetainerExists = async (
+    targetUserId: string,
+    calendarWeek: number,
+    year: number
+  ): Promise<boolean> => {
+    const { data: closings } = await supabase
+      .from("weekly_closings")
+      .select("id")
+      .eq("user_id", targetUserId)
+      .eq("calendar_week", calendarWeek)
+      .eq("year", year)
+      .is("deleted_at", null)
+      .limit(1);
+
+    if (!closings || closings.length === 0) return false;
+
+    const { data: invoices } = await supabase
+      .from("invoices")
+      .select("id")
+      .eq("user_id", targetUserId)
+      .eq("week_closing_id", closings[0].id)
+      .is("deleted_at", null)
+      .neq("status", "void")
+      .limit(1);
+
+    return !!(invoices && invoices.length > 0);
+  };
+
   return {
     generateAndSaveInvoice,
     generateViktorRetainer,
+    checkRetainerExists,
     isViktorUser,
     generating,
   };
