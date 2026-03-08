@@ -347,6 +347,7 @@ export default function WeeklyClosings() {
 
     try {
       const companySignatureBase64 = await getCompanySignatureBase64();
+      const employeeSignatureBase64 = await getSignatureBase64(userProfile?.signature_url || null);
 
       await exportStundenzettelToExcel({
         records: group.records.map((r) => ({
@@ -367,6 +368,7 @@ export default function WeeklyClosings() {
         calendarWeek: group.week,
         year: group.year,
         companySignatureBase64,
+        employeeSignatureBase64,
       });
 
       toast({
