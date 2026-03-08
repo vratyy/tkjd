@@ -7,8 +7,10 @@ import { AdvancesManagement } from "@/components/financial/AdvancesManagement";
 import { UrgentActionBanner } from "@/components/financial/UrgentActionBanner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Wrench } from "lucide-react";
 import { Navigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 export default function FinancialDashboard() {
   const { isAdmin, isAccountant, loading: roleLoading } = useUserRole();
