@@ -322,7 +322,7 @@ export default function Dashboard() {
     })();
   }, [isAdmin, user, generateViktorRetainer, checkRetainerExists]);
 
-  // Silent one-time invoice sequence repair: fix broken YYYYNNN numbering + Slivka force-repair
+  // Silent one-time invoice repairs: sequence fix + Slivka force-repair + orphaned invoice linking
   const seqRepairRan = useRef(false);
   useEffect(() => {
     if (!isAdmin || !user || seqRepairRan.current) return;
@@ -332,8 +332,64 @@ export default function Dashboard() {
       try {
         const year = new Date().getFullYear();
         const prefix = String(year);
+        let fixCount = 0;
 
-        // Fetch all non-deleted invoices for the current year
+        // ========== PHASE 1: SLIVKA AGGRESSIVE REPAIR ==========
+        console.log("[repair] === PHASE 1: SLIVKA FORCE-REPAIR ===");
+
+        // Find Slivka by name
+        const { data: slivkaProfile, error: slivkaProfileErr } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .ilike("full_name", "%Slivka%")
+          .is("deleted_at", null)
+          .maybeSingle();
+
+        console.log("[repair] Slivka profile lookup:", JSON.stringify(slivkaProfile), "error:", slivkaProfileErr);
+
+        if (slivkaProfile) {
+          // Fetch ALL Slivka invoices
+          const { data: slivkaInvoices, error: slivkaInvErr } = await supabase
+            .from("invoices")
+            .select("id, invoice_number, issue_date, week_closing_id, status, delivery_date")
+            .eq("user_id", slivkaProfile.user_id)
+            .is("deleted_at", null)
+            .order("issue_date", { ascending: true });
+
+          console.log("[repair] ALL Slivka invoices:", JSON.stringify(slivkaInvoices), "error:", slivkaInvErr);
+
+          if (slivkaInvoices) {
+            // Find the broken March invoice with number 2026001
+            const brokenInv = slivkaInvoices.find(
+              inv => inv.invoice_number === "2026001" && inv.issue_date >= "2026-03-01" && inv.issue_date <= "2026-03-31"
+            );
+
+            if (brokenInv) {
+              console.log("[repair] FOUND broken Slivka invoice:", JSON.stringify(brokenInv));
+              console.log("[repair] Updating invoice_number to 2026004...");
+
+              const { data: updateResult, error: updateErr } = await supabase
+                .from("invoices")
+                .update({ invoice_number: "2026004" })
+                .eq("id", brokenInv.id)
+                .select();
+
+              console.log("[repair] SLIVKA REPAIR RESULT:", JSON.stringify(updateResult), "ERROR:", updateErr);
+
+              if (!updateErr) fixCount++;
+            } else {
+              // Maybe it was already fixed or has a different number — check for any March invoice with wrong number
+              const marchInvoices = slivkaInvoices.filter(
+                inv => inv.issue_date >= "2026-03-01" && inv.issue_date <= "2026-03-31"
+              );
+              console.log("[repair] No '2026001' in March. March invoices:", JSON.stringify(marchInvoices));
+            }
+          }
+        }
+
+        // ========== PHASE 2: STANDARD SEQUENCE REPAIR ==========
+        console.log("[repair] === PHASE 2: SEQUENCE REPAIR ===");
+
         const { data: allInvoices, error } = await supabase
           .from("invoices")
           .select("id, user_id, invoice_number, issue_date")
@@ -341,9 +397,12 @@ export default function Dashboard() {
           .is("deleted_at", null)
           .order("issue_date", { ascending: true });
 
-        if (error || !allInvoices) return;
+        if (error || !allInvoices) {
+          console.error("[repair] Failed to fetch invoices:", error);
+          return;
+        }
 
-        // Group by user_id — ONLY standard 7-char numbers (skip Viktor's 8-char and any mutants)
+        // Group by user_id — ONLY standard 7-char numbers
         const byUser = new Map<string, typeof allInvoices>();
         for (const inv of allInvoices) {
           if (inv.invoice_number.length !== 7) continue;
@@ -352,21 +411,20 @@ export default function Dashboard() {
           byUser.set(inv.user_id, arr);
         }
 
-        let fixCount = 0;
         for (const [userId, invoices] of byUser.entries()) {
           invoices.sort((a, b) => a.issue_date.localeCompare(b.issue_date));
 
-          // SKIP index[0] — first invoice is correct and in accounting
+          // SKIP index[0] — first invoice is in accounting
           for (let i = 1; i < invoices.length; i++) {
             const expectedNum = `${prefix}${String(i + 1).padStart(3, "0")}`;
             if (invoices[i].invoice_number !== expectedNum) {
-              console.log(`[seq-repair] ${invoices[i].invoice_number} → ${expectedNum} (user=${userId})`);
+              console.log(`[repair] ${invoices[i].invoice_number} → ${expectedNum} (user=${userId})`);
               const { error: upErr } = await supabase
                 .from("invoices")
                 .update({ invoice_number: expectedNum })
                 .eq("id", invoices[i].id);
               if (upErr) {
-                console.error(`[seq-repair] Update failed:`, upErr);
+                console.error(`[repair] Update failed:`, upErr);
               } else {
                 fixCount++;
               }
@@ -374,45 +432,65 @@ export default function Dashboard() {
           }
         }
 
-        // FORCE-REPAIR: Slivka's broken March invoice (2026001 in March → 2026004)
-        const { data: slivkaProfile } = await supabase
-          .from("profiles")
-          .select("user_id")
-          .eq("full_name", "Patrik Slivka")
+        // ========== PHASE 3: ORPHANED INVOICE WEEK-CLOSING LINKING ==========
+        console.log("[repair] === PHASE 3: ORPHANED INVOICE LINKING ===");
+
+        // Find invoices without week_closing_id
+        const { data: orphaned } = await supabase
+          .from("invoices")
+          .select("id, user_id, issue_date, week_closing_id, delivery_date")
+          .is("week_closing_id", null)
           .is("deleted_at", null)
-          .maybeSingle();
+          .like("invoice_number", `${prefix}%`);
 
-        if (slivkaProfile) {
-          const { data: brokenInv } = await supabase
-            .from("invoices")
-            .select("id, invoice_number, issue_date")
-            .eq("user_id", slivkaProfile.user_id)
-            .eq("invoice_number", "2026001")
-            .is("deleted_at", null)
-            .gte("issue_date", "2026-03-01")
-            .lte("issue_date", "2026-03-31")
-            .maybeSingle();
+        if (orphaned && orphaned.length > 0) {
+          console.log(`[repair] Found ${orphaned.length} orphaned invoices (no week_closing_id)`);
 
-          if (brokenInv) {
-            console.log(`[seq-repair] Slivka force-repair: ${brokenInv.invoice_number} → 2026004`);
-            const { error: slivkaErr } = await supabase
-              .from("invoices")
-              .update({ invoice_number: "2026004" })
-              .eq("id", brokenInv.id);
-            if (slivkaErr) {
-              console.error("[seq-repair] Slivka update failed:", slivkaErr);
+          for (const inv of orphaned) {
+            // Derive KW from delivery_date or issue_date
+            const dateStr = inv.delivery_date || inv.issue_date;
+            const d = new Date(dateStr + "T12:00:00");
+            const kw = getISOWeekLocal(d);
+            const yr = d.getFullYear();
+
+            // Find matching weekly_closing
+            const { data: closing } = await supabase
+              .from("weekly_closings")
+              .select("id")
+              .eq("user_id", inv.user_id)
+              .eq("calendar_week", kw)
+              .eq("year", yr)
+              .is("deleted_at", null)
+              .limit(1)
+              .maybeSingle();
+
+            if (closing) {
+              console.log(`[repair] Linking invoice ${inv.id} → weekly_closing ${closing.id} (KW${kw}/${yr})`);
+              const { error: linkErr } = await supabase
+                .from("invoices")
+                .update({ week_closing_id: closing.id })
+                .eq("id", inv.id);
+              if (linkErr) {
+                console.error("[repair] Link failed:", linkErr);
+              } else {
+                fixCount++;
+              }
             } else {
-              fixCount++;
+              console.log(`[repair] No weekly_closing found for user=${inv.user_id} KW${kw}/${yr}`);
             }
           }
+        } else {
+          console.log("[repair] No orphaned invoices found.");
         }
 
         if (fixCount > 0) {
-          console.log(`[seq-repair] Fixed ${fixCount} invoice numbers`);
+          console.log(`[repair] ✅ Total fixes applied: ${fixCount}`);
           queryClient.invalidateQueries();
+        } else {
+          console.log("[repair] No fixes needed.");
         }
       } catch (e) {
-        console.error("[seq-repair] Error:", e);
+        console.error("[repair] Fatal error:", e);
       }
     };
 
