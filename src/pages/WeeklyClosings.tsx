@@ -47,6 +47,7 @@ import { exportWeeklyRecordsToExcel } from "@/lib/excelExport";
 import { exportStundenzettelToExcel } from "@/lib/stundenzettelExport";
 import { getCompanySignatureBase64 } from "@/hooks/useCompanySignature";
 import { useInvoiceGeneration } from "@/hooks/useInvoiceGeneration";
+import { generateInvoicePDF } from "@/lib/invoiceGenerator";
 
 interface PerformanceRecord {
   id: string;
