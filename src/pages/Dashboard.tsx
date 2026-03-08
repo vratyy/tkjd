@@ -321,6 +321,73 @@ export default function Dashboard() {
     })();
   }, [isAdmin, user, generateViktorRetainer, checkRetainerExists]);
 
+  // Silent one-time invoice sequence repair: fix broken YYYYNNN numbering
+  const seqRepairRan = useRef(false);
+  useEffect(() => {
+    if (!isAdmin || !user || seqRepairRan.current) return;
+    seqRepairRan.current = true;
+
+    const repairSequences = async () => {
+      try {
+        const year = new Date().getFullYear();
+        const prefix = String(year);
+
+        // Fetch all non-deleted invoices for the current year
+        const { data: allInvoices, error } = await supabase
+          .from("invoices")
+          .select("id, user_id, invoice_number, issue_date")
+          .like("invoice_number", `${prefix}%`)
+          .is("deleted_at", null)
+          .order("issue_date", { ascending: true });
+
+        if (error || !allInvoices) return;
+
+        // Group by user_id
+        const byUser = new Map<string, typeof allInvoices>();
+        for (const inv of allInvoices) {
+          // Only standard 7-char numbers (skip Viktor's 8-char)
+          if (inv.invoice_number.length !== 7) continue;
+          const arr = byUser.get(inv.user_id) || [];
+          arr.push(inv);
+          byUser.set(inv.user_id, arr);
+        }
+
+        let fixCount = 0;
+        for (const [userId, invoices] of byUser.entries()) {
+          // Sort by issue_date ASC (already sorted but ensure)
+          invoices.sort((a, b) => a.issue_date.localeCompare(b.issue_date));
+
+          // SKIP index[0] — first invoice is correct and in accounting
+          for (let i = 1; i < invoices.length; i++) {
+            const expectedNum = `${prefix}${String(i + 1).padStart(3, "0")}`;
+            if (invoices[i].invoice_number !== expectedNum) {
+              console.log(`[seq-repair] ${invoices[i].invoice_number} → ${expectedNum} (user=${userId})`);
+              const { error: upErr } = await supabase
+                .from("invoices")
+                .update({ invoice_number: expectedNum })
+                .eq("id", invoices[i].id);
+              if (upErr) {
+                console.error(`[seq-repair] Update failed:`, upErr);
+              } else {
+                fixCount++;
+              }
+            }
+          }
+        }
+
+        if (fixCount > 0) {
+          console.log(`[seq-repair] Fixed ${fixCount} invoice numbers`);
+          const queryClient = useQueryClient();
+          queryClient.invalidateQueries();
+        }
+      } catch (e) {
+        console.error("[seq-repair] Error:", e);
+      }
+    };
+
+    repairSequences();
+  }, [isAdmin, user]);
+
   const currentWeek = getWeek(new Date(), { weekStartsOn: 1 });
   const currentYear = getYear(new Date());
 
