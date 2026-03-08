@@ -102,10 +102,23 @@ export default function FinancialDashboard() {
             Prehľad všetkých faktúr, záloh a ich stavu platby
           </p>
         </div>
-        <Button variant="outline" onClick={refetch} disabled={loading} className="self-start sm:self-auto">
-          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          Obnoviť
-        </Button>
+        <div className="flex gap-2 self-start sm:self-auto">
+          {isAdmin && (
+            <Button
+              variant="destructive"
+              onClick={handleFixViktorKW9}
+              disabled={fixingInvoice}
+              className="gap-2"
+            >
+              <Wrench className="h-4 w-4" />
+              ⚙️ Opraviť Viktorovu faktúru (KW9 → 20260008)
+            </Button>
+          )}
+          <Button variant="outline" onClick={refetch} disabled={loading}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Obnoviť
+          </Button>
+        </div>
       </div>
 
       <FinancialMetricsCards data={metrics} loading={loading} />
