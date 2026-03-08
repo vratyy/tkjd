@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { generateInvoicePDF, InvoiceData } from "@/lib/invoiceGenerator";
-import { getISOWeekLocal, getISOWeekYear } from "@/lib/dateUtils";
+import { getISOWeekLocal, getISOWeekYear, getMondayAfterWeek } from "@/lib/dateUtils";
 import { addDays, format } from "date-fns";
 
 interface GenerateInvoiceParams {
@@ -330,7 +330,8 @@ export function useInvoiceGeneration() {
 
       // 2. Generate invoice with Viktor's 8-digit numbering
       const invoiceNumber = await generateInvoiceNumber(true, viktorUserId);
-      const issueDate = new Date();
+      // Smart date: Monday after the worked calendar week
+      const issueDate = getMondayAfterWeek(calendarWeek, year);
       const dueDate = addDays(issueDate, 7); // Viktor: 7-day due date
 
       const { error: invErr } = await supabase

@@ -59,3 +59,23 @@ export function isDateInWeek(dateStr: string, calendarWeek: number, year: number
   const weekYear = getISOWeekYear(date);
   return week === calendarWeek && weekYear === year;
 }
+
+/**
+ * Get the Monday immediately following a given ISO calendar week.
+ * This is the correct "issue date" for invoices: the Monday after the worked week ends (Sunday).
+ */
+export function getMondayAfterWeek(calendarWeek: number, year: number): Date {
+  // Jan 4 is always in ISO week 1
+  const jan4 = new Date(year, 0, 4, 12, 0, 0);
+  const dayOfWeek = jan4.getDay() || 7; // Monday=1 ... Sunday=7
+  // Monday of ISO week 1
+  const mondayW1 = new Date(jan4);
+  mondayW1.setDate(jan4.getDate() - dayOfWeek + 1);
+  // Monday of the target week
+  const mondayOfWeek = new Date(mondayW1);
+  mondayOfWeek.setDate(mondayW1.getDate() + (calendarWeek - 1) * 7);
+  // Monday AFTER the target week = +7 days
+  const mondayAfter = new Date(mondayOfWeek);
+  mondayAfter.setDate(mondayOfWeek.getDate() + 7);
+  return mondayAfter;
+}
