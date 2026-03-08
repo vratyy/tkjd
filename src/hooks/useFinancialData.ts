@@ -131,6 +131,14 @@ export function useFinancialData() {
       amount: accountedOverdueInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
     };
 
+    // Debug: log metrics breakdown
+    console.log("[metrics] Accounted invoices:", accountedInvoices.map(i => ({
+      num: i.invoice_number, status: i.status, effectiveStatus: getEffectiveStatus(i), 
+      amount: i.total_amount, is_accounted: i.is_accounted
+    })));
+    console.log("[metrics] Total:", accountedTotal.amount, "Paid:", accountedPaid.amount, 
+      "Pending:", accountedPending.amount, "Overdue:", accountedOverdue.amount);
+
     return { totalInvoiced, pendingPayment, overdue, paid, accountedTotal, accountedPaid, accountedPending, accountedOverdue };
   }, []);
 
