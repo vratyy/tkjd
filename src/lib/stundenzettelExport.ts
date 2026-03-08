@@ -255,6 +255,13 @@ export async function exportMultipleStundenzettelsToExcel(sheets: Array<Stundenz
     } catch (e) { console.warn("Signature error:", e); }
   }
 
+  if (sheets[0].employeeSignatureBase64) {
+    try {
+      const empSigId = outWorkbook.addImage({ base64: sheets[0].employeeSignatureBase64, extension: "png" });
+      firstWs.addImage(empSigId, { tl: { col: 4, row: 27 }, ext: { width: 150, height: 80 } });
+    } catch (e) { console.warn("Employee signature error:", e); }
+  }
+
   // For subsequent workers, copy template structure into new sheets
   for (let i = 1; i < sheets.length; i++) {
     const params = sheets[i];
