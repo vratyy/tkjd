@@ -287,34 +287,7 @@ export default function Dashboard() {
     };
   }, [user, isAdmin]);
 
-  // Silent one-time fix: correct Viktor KW9 invoice dates
-  useEffect(() => {
-    if (!isAdmin || !user) return;
-    (async () => {
-      try {
-        const { data: inv } = await supabase
-          .from("invoices")
-          .select("id, issue_date, due_date")
-          .eq("invoice_number", "20260008")
-          .is("deleted_at", null)
-          .maybeSingle();
-        if (!inv) return;
-        // Only fix if dates are wrong
-        if (inv.issue_date === "2026-03-02" && inv.due_date === "2026-03-09") return;
-        await supabase
-          .from("invoices")
-          .update({
-            issue_date: "2026-03-02",
-            delivery_date: "2026-03-02",
-            due_date: "2026-03-09",
-          })
-          .eq("id", inv.id);
-        console.log("[KW9-fix] Corrected Viktor invoice 20260008 dates → 2.3. / 9.3.");
-      } catch (e) {
-        console.error("[KW9-fix] Error:", e);
-      }
-    })();
-  }, [isAdmin, user]);
+  // KW9 fix moved to FinancialDashboard
 
   // Silent Sunday auto-generation: Viktor retainer invoice
   useEffect(() => {
