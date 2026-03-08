@@ -14,7 +14,6 @@ export default function FinancialDashboard() {
   const { isAdmin, isAccountant, loading: roleLoading } = useUserRole();
   const { invoices, metrics, loading, refetch, markAsPaid } = useFinancialData();
   const [isUrgentFilterActive, setIsUrgentFilterActive] = useState(false);
-  const { toast } = useToast();
 
   // Only Admin and Accountant can access financial dashboard
   const hasAccess = isAdmin || isAccountant;
