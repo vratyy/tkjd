@@ -69,7 +69,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { role, isManager, isAdmin } = useUserRole();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  
   const { generateViktorRetainer, checkRetainerExists } = useInvoiceGeneration();
   const retainerGenRan = useRef(false);
   
