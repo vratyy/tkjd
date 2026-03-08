@@ -455,39 +455,94 @@ export default function WeeklyClosings() {
     const key = `${group.year}-${group.week}`;
     setGeneratingKey(key);
 
-    // Get project info for linking
-    const firstProjectRecord = group.records.find((r) => r.projects);
-    const projectNames = [...new Set(group.records.map((r) => r.projects?.name).filter(Boolean))];
-    const projectName = projectNames.join(", ") || "Projekt";
+    try {
+      // Check if invoice already exists for this closing
+      if (group.closingId) {
+        const { data: existingInvoice } = await supabase
+          .from("invoices")
+          .select("id, invoice_number, issue_date, delivery_date, due_date, total_hours, hourly_rate, subtotal, vat_amount, total_amount, advance_deduction, accommodation_deduction, is_reverse_charge")
+          .eq("week_closing_id", group.closingId)
+          .eq("user_id", user!.id)
+          .is("deleted_at", null)
+          .neq("status", "void")
+          .maybeSingle();
 
-    // Use the new hook that saves to DB AND generates PDF
-    const result = await generateAndSaveInvoice({
-      invoiceData: {
-        supplierName: userProfile.full_name,
-        supplierCompany: userProfile.company_name,
-        supplierAddress: userProfile.billing_address,
-        supplierIco: userProfile.ico,
-        supplierDic: userProfile.dic,
-        supplierIban: userProfile.iban,
-        supplierSwiftBic: userProfile.swift_bic,
-        signatureUrl: userProfile.signature_url,
-        hourlyRate: userProfile.hourly_rate,
-        isVatPayer: userProfile.is_vat_payer ?? false,
-        vatNumber: userProfile.vat_number,
-        isReverseCharge: false,
-        projectName,
-        calendarWeek: group.week,
-        year: group.year,
-        totalHours: group.totalHours,
-        odberatelId: group.closingId,
-      },
-      projectId: null, // Project linking can be added if needed
-      weekClosingId: group.closingId,
-    });
+        if (existingInvoice) {
+          // Invoice exists — just regenerate PDF from DB data (no INSERT)
+          const projectNames = [...new Set(group.records.map((r) => r.projects?.name).filter(Boolean))];
+          const projectName = projectNames.join(", ") || "Projekt";
 
-    if (result.success) {
-      // Refresh data to show updated state
-      await fetchData();
+          await generateInvoicePDF({
+            supplierName: userProfile.full_name,
+            supplierCompany: userProfile.company_name,
+            supplierAddress: userProfile.billing_address,
+            supplierIco: userProfile.ico,
+            supplierDic: userProfile.dic,
+            supplierIban: userProfile.iban,
+            supplierSwiftBic: userProfile.swift_bic,
+            signatureUrl: userProfile.signature_url,
+            hourlyRate: existingInvoice.hourly_rate,
+            isVatPayer: userProfile.is_vat_payer ?? false,
+            vatNumber: userProfile.vat_number,
+            isReverseCharge: existingInvoice.is_reverse_charge,
+            projectName,
+            calendarWeek: group.week,
+            year: group.year,
+            totalHours: existingInvoice.total_hours,
+            invoiceNumber: existingInvoice.invoice_number,
+            odberatelId: existingInvoice.id,
+            advanceDeduction: existingInvoice.advance_deduction ?? 0,
+            historicalIssueDate: existingInvoice.issue_date,
+            historicalDeliveryDate: existingInvoice.delivery_date,
+            historicalDueDate: existingInvoice.due_date,
+          });
+
+          toast({
+            title: "PDF stiahnuté",
+            description: `Faktúra ${existingInvoice.invoice_number} bola znovu vygenerovaná.`,
+          });
+          setGeneratingKey(null);
+          return;
+        }
+      }
+
+      // No existing invoice — generate new one via DB INSERT + PDF
+      const projectNames = [...new Set(group.records.map((r) => r.projects?.name).filter(Boolean))];
+      const projectName = projectNames.join(", ") || "Projekt";
+
+      const result = await generateAndSaveInvoice({
+        invoiceData: {
+          supplierName: userProfile.full_name,
+          supplierCompany: userProfile.company_name,
+          supplierAddress: userProfile.billing_address,
+          supplierIco: userProfile.ico,
+          supplierDic: userProfile.dic,
+          supplierIban: userProfile.iban,
+          supplierSwiftBic: userProfile.swift_bic,
+          signatureUrl: userProfile.signature_url,
+          hourlyRate: userProfile.hourly_rate,
+          isVatPayer: userProfile.is_vat_payer ?? false,
+          vatNumber: userProfile.vat_number,
+          isReverseCharge: false,
+          projectName,
+          calendarWeek: group.week,
+          year: group.year,
+          totalHours: group.totalHours,
+          odberatelId: group.closingId,
+        },
+        projectId: null,
+        weekClosingId: group.closingId,
+      });
+
+      if (result.success) {
+        await fetchData();
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Chyba",
+        description: error.message || "Nepodarilo sa vygenerovať faktúru.",
+      });
     }
 
     setGeneratingKey(null);
