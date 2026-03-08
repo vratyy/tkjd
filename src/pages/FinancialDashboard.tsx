@@ -92,7 +92,16 @@ export default function FinancialDashboard() {
         </div>
       </div>
 
-      <FinancialMetricsCards data={metrics} loading={loading} />
+      {/* DEBUG: Sunday retainer indicator — TEMPORARY */}
+      {isAdmin && (
+        <div className="rounded-lg border border-dashed border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30 p-3 text-xs font-mono">
+          <span className="font-bold text-yellow-700 dark:text-yellow-400">[TEST LOGIKY]</span>{" "}
+          Nedeľný paušál Viktor: <span className="font-bold">{isSunday ? "🟢 Nedeľa" : "🔴 Nie je nedeľa"}</span>{" "}
+          | Aktuálny KW: <span className="font-bold">{currentKW}</span>{" "}
+          | Status: <span className="font-bold">{debugRetainerStatus}</span>
+        </div>
+      )}
+
 
       {!loading && (
         <UrgentActionBanner
