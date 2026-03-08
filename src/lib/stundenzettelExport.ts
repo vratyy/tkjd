@@ -24,6 +24,7 @@ export interface StundenzettelParams {
   calendarWeek: number;
   year: number;
   companySignatureBase64?: string | null;
+  employeeSignatureBase64?: string | null;
   employeeAddress?: string | null;
   employeeBirthdate?: string | null;
   companyName?: string | null;
