@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { generateInvoicePDF, InvoiceData } from "@/lib/invoiceGenerator";
-import { getISOWeekLocal, getISOWeekYear } from "@/lib/dateUtils";
+import { getISOWeekLocal, getISOWeekYear, getMondayAfterWeek } from "@/lib/dateUtils";
 import { addDays, format } from "date-fns";
 
 interface GenerateInvoiceParams {
