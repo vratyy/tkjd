@@ -322,7 +322,7 @@ export default function Dashboard() {
     })();
   }, [isAdmin, user, generateViktorRetainer, checkRetainerExists]);
 
-  // Silent one-time invoice sequence repair: fix broken YYYYNNN numbering
+  // Silent one-time invoice sequence repair: fix broken YYYYNNN numbering + Slivka force-repair
   const seqRepairRan = useRef(false);
   useEffect(() => {
     if (!isAdmin || !user || seqRepairRan.current) return;
@@ -343,10 +343,9 @@ export default function Dashboard() {
 
         if (error || !allInvoices) return;
 
-        // Group by user_id
+        // Group by user_id — ONLY standard 7-char numbers (skip Viktor's 8-char and any mutants)
         const byUser = new Map<string, typeof allInvoices>();
         for (const inv of allInvoices) {
-          // Only standard 7-char numbers (skip Viktor's 8-char)
           if (inv.invoice_number.length !== 7) continue;
           const arr = byUser.get(inv.user_id) || [];
           arr.push(inv);
@@ -355,7 +354,6 @@ export default function Dashboard() {
 
         let fixCount = 0;
         for (const [userId, invoices] of byUser.entries()) {
-          // Sort by issue_date ASC (already sorted but ensure)
           invoices.sort((a, b) => a.issue_date.localeCompare(b.issue_date));
 
           // SKIP index[0] — first invoice is correct and in accounting
@@ -372,6 +370,39 @@ export default function Dashboard() {
               } else {
                 fixCount++;
               }
+            }
+          }
+        }
+
+        // FORCE-REPAIR: Slivka's broken March invoice (2026001 in March → 2026004)
+        const { data: slivkaProfile } = await supabase
+          .from("profiles")
+          .select("user_id")
+          .eq("full_name", "Patrik Slivka")
+          .is("deleted_at", null)
+          .maybeSingle();
+
+        if (slivkaProfile) {
+          const { data: brokenInv } = await supabase
+            .from("invoices")
+            .select("id, invoice_number, issue_date")
+            .eq("user_id", slivkaProfile.user_id)
+            .eq("invoice_number", "2026001")
+            .is("deleted_at", null)
+            .gte("issue_date", "2026-03-01")
+            .lte("issue_date", "2026-03-31")
+            .maybeSingle();
+
+          if (brokenInv) {
+            console.log(`[seq-repair] Slivka force-repair: ${brokenInv.invoice_number} → 2026004`);
+            const { error: slivkaErr } = await supabase
+              .from("invoices")
+              .update({ invoice_number: "2026004" })
+              .eq("id", brokenInv.id);
+            if (slivkaErr) {
+              console.error("[seq-repair] Slivka update failed:", slivkaErr);
+            } else {
+              fixCount++;
             }
           }
         }
