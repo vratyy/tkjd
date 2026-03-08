@@ -49,6 +49,38 @@ export async function getSignedSignatureUrl(
 }
 
 /**
+ * Fetch a signature image and return it as a base64 string (without data URI prefix).
+ * Returns null if the signature doesn't exist or can't be fetched.
+ */
+export async function getSignatureBase64(signaturePath: string | null): Promise<string | null> {
+  if (!signaturePath) return null;
+
+  try {
+    const signedUrl = await getSignedSignatureUrl(signaturePath);
+    if (!signedUrl) return null;
+
+    const response = await fetch(signedUrl);
+    if (!response.ok) return null;
+
+    const blob = await response.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        // Strip data URI prefix to get raw base64
+        const base64 = result.split(",")[1] || null;
+        resolve(base64);
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) {
+    console.warn("Could not fetch signature as base64:", e);
+    return null;
+  }
+}
+
+/**
  * Generate signed URLs for multiple signature paths
  */
 export async function getSignedSignatureUrls(

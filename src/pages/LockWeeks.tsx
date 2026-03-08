@@ -29,6 +29,7 @@ import { ProjectExportSection } from "@/components/approvals/ProjectExportSectio
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getCompanySignatureBase64 } from "@/hooks/useCompanySignature";
 import { exportStundenzettelToExcel } from "@/lib/stundenzettelExport";
+import { getSignatureBase64 } from "@/lib/signatureUtils";
 
 interface Profile {
   full_name: string;
@@ -284,6 +285,7 @@ export default function LockWeeks() {
 
     try {
       const companySignatureBase64 = await getCompanySignatureBase64();
+      const employeeSignatureBase64 = await getSignatureBase64(week.closing.profiles?.signature_url || null);
 
       await exportStundenzettelToExcel({
         records: week.records.map((r) => ({
@@ -304,6 +306,7 @@ export default function LockWeeks() {
         calendarWeek: week.closing.calendar_week,
         year: week.closing.year,
         companySignatureBase64,
+        employeeSignatureBase64,
       });
 
       toast({

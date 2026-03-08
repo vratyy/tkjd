@@ -48,6 +48,7 @@ import { exportStundenzettelToExcel } from "@/lib/stundenzettelExport";
 import { getCompanySignatureBase64 } from "@/hooks/useCompanySignature";
 import { useInvoiceGeneration } from "@/hooks/useInvoiceGeneration";
 import { generateInvoicePDF } from "@/lib/invoiceGenerator";
+import { getSignatureBase64 } from "@/lib/signatureUtils";
 
 interface PerformanceRecord {
   id: string;
@@ -346,6 +347,7 @@ export default function WeeklyClosings() {
 
     try {
       const companySignatureBase64 = await getCompanySignatureBase64();
+      const employeeSignatureBase64 = await getSignatureBase64(userProfile?.signature_url || null);
 
       await exportStundenzettelToExcel({
         records: group.records.map((r) => ({
@@ -366,6 +368,7 @@ export default function WeeklyClosings() {
         calendarWeek: group.week,
         year: group.year,
         companySignatureBase64,
+        employeeSignatureBase64,
       });
 
       toast({
@@ -396,6 +399,7 @@ export default function WeeklyClosings() {
 
       // Fetch company signature for PDF
       const companySignatureBase64 = await getCompanySignatureBase64();
+      const employeeSignatureBase64 = await getSignatureBase64(userProfile?.signature_url || null);
 
       await exportStundenzettelToExcel({
         records: group.records.map((r) => ({
@@ -416,6 +420,7 @@ export default function WeeklyClosings() {
         calendarWeek: group.week,
         year: group.year,
         companySignatureBase64,
+        employeeSignatureBase64,
       });
 
       toast({

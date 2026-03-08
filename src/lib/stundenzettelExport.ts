@@ -24,6 +24,7 @@ export interface StundenzettelParams {
   calendarWeek: number;
   year: number;
   companySignatureBase64?: string | null;
+  employeeSignatureBase64?: string | null;
   employeeAddress?: string | null;
   employeeBirthdate?: string | null;
   companyName?: string | null;
@@ -169,7 +170,7 @@ export async function exportStundenzettelToExcel(params: StundenzettelParams): P
 
   fillTemplateSheet(ws, params);
 
-  // Add company signature if available
+  // Add company signature if available (AUFTRAGGEBER — left side)
   if (params.companySignatureBase64) {
     try {
       const sigImageId = workbook.addImage({
@@ -182,6 +183,22 @@ export async function exportStundenzettelToExcel(params: StundenzettelParams): P
       });
     } catch (error) {
       console.warn("Could not embed company signature:", error);
+    }
+  }
+
+  // Add employee signature if available (AUFTRAGNEHMER — right side)
+  if (params.employeeSignatureBase64) {
+    try {
+      const empSigId = workbook.addImage({
+        base64: params.employeeSignatureBase64,
+        extension: "png",
+      });
+      ws.addImage(empSigId, {
+        tl: { col: 4, row: 27 },
+        ext: { width: 150, height: 80 },
+      });
+    } catch (error) {
+      console.warn("Could not embed employee signature:", error);
     }
   }
 
@@ -236,6 +253,13 @@ export async function exportMultipleStundenzettelsToExcel(sheets: Array<Stundenz
       const sigId = outWorkbook.addImage({ base64: sheets[0].companySignatureBase64, extension: "png" });
       firstWs.addImage(sigId, { tl: { col: 0, row: 27 }, ext: { width: 150, height: 80 } });
     } catch (e) { console.warn("Signature error:", e); }
+  }
+
+  if (sheets[0].employeeSignatureBase64) {
+    try {
+      const empSigId = outWorkbook.addImage({ base64: sheets[0].employeeSignatureBase64, extension: "png" });
+      firstWs.addImage(empSigId, { tl: { col: 4, row: 27 }, ext: { width: 150, height: 80 } });
+    } catch (e) { console.warn("Employee signature error:", e); }
   }
 
   // For subsequent workers, copy template structure into new sheets
@@ -299,6 +323,13 @@ export async function exportMultipleStundenzettelsToExcel(sheets: Array<Stundenz
         const sigId = outWorkbook.addImage({ base64: params.companySignatureBase64, extension: "png" });
         ws.addImage(sigId, { tl: { col: 0, row: 27 }, ext: { width: 150, height: 80 } });
       } catch (e) { console.warn("Signature error:", e); }
+    }
+
+    if (params.employeeSignatureBase64) {
+      try {
+        const empSigId = outWorkbook.addImage({ base64: params.employeeSignatureBase64, extension: "png" });
+        ws.addImage(empSigId, { tl: { col: 4, row: 27 }, ext: { width: 150, height: 80 } });
+      } catch (e) { console.warn("Employee signature error:", e); }
     }
   }
 
