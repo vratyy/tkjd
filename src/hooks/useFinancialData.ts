@@ -105,27 +105,32 @@ export function useFinancialData() {
 
     // Accounted metrics - only invoices with is_accounted = true
     const accountedInvoices = activeInvoices.filter((inv) => inv.is_accounted === true);
+    const accountedTotalAmount = accountedInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0);
     const accountedTotal = {
       count: accountedInvoices.length,
-      amount: accountedInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
+      amount: accountedTotalAmount,
     };
     
-    const accountedPaidInvoices = accountedInvoices.filter((inv) => getEffectiveStatus(inv) === "paid");
+    const accountedPaidInvoices = accountedInvoices.filter((inv) => inv.status === "paid");
+    const accountedPaidAmount = accountedPaidInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0);
     const accountedPaid = {
       count: accountedPaidInvoices.length,
-      amount: accountedPaidInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
+      amount: accountedPaidAmount,
     };
 
-    const accountedPendingInvoices = accountedInvoices.filter((inv) => {
-      const status = getEffectiveStatus(inv);
-      return status === "pending" || status === "due_soon";
-    });
+    // Pending = Total - Paid (bulletproof subtraction, never negative)
+    const accountedPendingAmount = Math.max(0, accountedTotalAmount - accountedPaidAmount);
+    const accountedPendingCount = accountedInvoices.filter((inv) => inv.status !== "paid" && inv.status !== "void").length;
     const accountedPending = {
-      count: accountedPendingInvoices.length,
-      amount: accountedPendingInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
+      count: accountedPendingCount,
+      amount: accountedPendingAmount,
     };
 
-    const accountedOverdueInvoices = accountedInvoices.filter((inv) => getEffectiveStatus(inv) === "overdue");
+    const accountedOverdueInvoices = accountedInvoices.filter((inv) => {
+      if (inv.status === "paid" || inv.status === "void") return false;
+      const dueDate = new Date(inv.due_date);
+      return dueDate.getTime() < today.getTime();
+    });
     const accountedOverdue = {
       count: accountedOverdueInvoices.length,
       amount: accountedOverdueInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
