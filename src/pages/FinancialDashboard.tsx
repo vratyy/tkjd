@@ -82,17 +82,6 @@ export default function FinancialDashboard() {
           </p>
         </div>
         <div className="flex gap-2 self-start sm:self-auto">
-          {isAdmin && (
-            <Button
-              variant="destructive"
-              onClick={handleFixViktorKW9}
-              disabled={fixingInvoice}
-              className="gap-2"
-            >
-              <Wrench className="h-4 w-4" />
-              ⚙️ Opraviť Viktorovu faktúru (KW9 → 20260008)
-            </Button>
-          )}
           <Button variant="outline" onClick={refetch} disabled={loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Obnoviť
