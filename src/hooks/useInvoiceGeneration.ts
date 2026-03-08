@@ -41,7 +41,7 @@ export function useInvoiceGeneration() {
    * Generate invoice number:
    * - Standard users: YYYYNNN (7-digit, e.g. 2026001)
    * - Viktor: YYYYNNNN (8-digit, e.g. 20260001) — isolated sequence
-   * Queries DB for the latest number in the current year and increments.
+   * Fetches ALL invoices for the user in the current year and finds the absolute max suffix.
    */
   const generateInvoiceNumber = async (viktorMode = false, targetUserId?: string): Promise<string> => {
     const uid = targetUserId || user?.id;
@@ -49,45 +49,39 @@ export function useInvoiceGeneration() {
     const year = new Date().getFullYear();
     const prefix = String(year);
 
-    if (viktorMode) {
-      // Viktor: 8-digit sequence YYYYNNNN (e.g. 20260001)
-      const { data } = await supabase
-        .from("invoices")
-        .select("invoice_number")
-        .eq("user_id", uid)
-        .like("invoice_number", `${prefix}%`)
-        .is("deleted_at", null)
-        .order("invoice_number", { ascending: false })
-        .limit(1);
-
-      let nextSeq = 1;
-      if (data && data.length > 0) {
-        const lastNum = data[0].invoice_number;
-        const seqPart = parseInt(lastNum.slice(prefix.length), 10);
-        if (!isNaN(seqPart)) nextSeq = seqPart + 1;
-      }
-      return `${prefix}${String(nextSeq).padStart(4, "0")}`;
-    }
-
-    // Standard users: 7-digit sequence YYYYNNN (e.g. 2026001)
+    // Fetch ALL invoices for this user in the current year
     const { data } = await supabase
       .from("invoices")
       .select("invoice_number")
       .eq("user_id", uid)
       .like("invoice_number", `${prefix}%`)
-      .is("deleted_at", null)
-      .order("invoice_number", { ascending: false })
-      .limit(1);
+      .is("deleted_at", null);
 
-    let nextSeq = 1;
-    if (data && data.length > 0) {
-      const lastNum = data[0].invoice_number;
-      const seqPart = parseInt(lastNum.slice(prefix.length), 10);
-      // Skip 4-digit sequences (Viktor's) — standard is 3-digit
-      if (!isNaN(seqPart) && lastNum.length === 7) nextSeq = seqPart + 1;
+    if (viktorMode) {
+      // Viktor: 8-digit sequence YYYYNNNN (e.g. 20260001)
+      let maxSeq = 0;
+      if (data && data.length > 0) {
+        for (const inv of data) {
+          const seqPart = parseInt(inv.invoice_number.slice(prefix.length), 10);
+          if (!isNaN(seqPart) && seqPart > maxSeq) maxSeq = seqPart;
+        }
+      }
+      return `${prefix}${String(maxSeq + 1).padStart(4, "0")}`;
     }
 
-    return `${prefix}${String(nextSeq).padStart(3, "0")}`;
+    // Standard users: 7-digit sequence YYYYNNN (e.g. 2026001)
+    // Only consider 7-char numbers (skip Viktor's 8-char ones)
+    let maxSeq = 0;
+    if (data && data.length > 0) {
+      for (const inv of data) {
+        if (inv.invoice_number.length === 7) {
+          const seqPart = parseInt(inv.invoice_number.slice(prefix.length), 10);
+          if (!isNaN(seqPart) && seqPart > maxSeq) maxSeq = seqPart;
+        }
+      }
+    }
+
+    return `${prefix}${String(maxSeq + 1).padStart(3, "0")}`;
   };
 
   /**
