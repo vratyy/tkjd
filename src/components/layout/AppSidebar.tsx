@@ -49,6 +49,7 @@ const mainNavItems: NavItem[] = [
   { title: "Môj Výkaz", url: "/daily-entry", icon: ClipboardList },
   { title: "Kalendár", url: "/calendar", icon: CalendarDays },
   { title: "Faktúry", url: "/weekly-closings", icon: FileText },
+  { title: "Zverené náradie", url: "/equipment", icon: Wrench },
   { title: "Profil", url: "/profile", icon: UserCircle },
 ];
 
