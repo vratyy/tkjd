@@ -59,6 +59,7 @@ export default function Users() {
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const fetchUsers = async () => {
     // Fetch profiles with their roles
