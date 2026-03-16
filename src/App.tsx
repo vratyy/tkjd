@@ -20,6 +20,7 @@ import FinancialDashboard from "./pages/FinancialDashboard";
 import Accommodations from "./pages/Accommodations";
 import Employees from "./pages/Employees";
 import Sanctions from "./pages/Sanctions";
+import Equipment from "./pages/Equipment";
 import CalendarPage from "./pages/Calendar";
 import NotFound from "./pages/NotFound";
 
