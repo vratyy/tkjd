@@ -23,9 +23,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Users as UsersIcon, Building, Trash2 } from "lucide-react";
+import { Loader2, Users as UsersIcon, Building, Trash2, UserPlus } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { MobileUserCard } from "@/components/mobile/MobileUserCard";
+import { InviteUserModal } from "@/components/users/InviteUserModal";
 
 interface UserWithRole {
   user_id: string;
