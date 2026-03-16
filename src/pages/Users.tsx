@@ -229,12 +229,20 @@ export default function Users() {
 
   return (
     <div className="space-y-4 md:space-y-6">
+      <InviteUserModal open={inviteOpen} onOpenChange={setInviteOpen} onSuccess={fetchUsers} />
       {/* Header */}
-      <div className="px-1 md:px-0">
-        <h2 className="text-xl md:text-2xl font-bold text-foreground">Používatelia</h2>
-        <p className="text-sm md:text-base text-muted-foreground">
-          Správa používateľov a ich rolí
-        </p>
+      <div className="flex items-start justify-between px-1 md:px-0">
+        <div>
+          <h2 className="text-xl md:text-2xl font-bold text-foreground">Používatelia</h2>
+          <p className="text-sm md:text-base text-muted-foreground">
+            Správa používateľov a ich rolí
+          </p>
+        </div>
+        <Button onClick={() => setInviteOpen(true)} size="sm" className="shrink-0">
+          <UserPlus className="h-4 w-4 mr-2" />
+          <span className="hidden sm:inline">Pozvať montéra</span>
+          <span className="sm:hidden">Pozvať</span>
+        </Button>
       </div>
 
       {users.length === 0 ? (
