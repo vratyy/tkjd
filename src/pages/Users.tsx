@@ -23,9 +23,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Users as UsersIcon, Building, Trash2 } from "lucide-react";
+import { Loader2, Users as UsersIcon, Building, Trash2, UserPlus } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { MobileUserCard } from "@/components/mobile/MobileUserCard";
+import { InviteUserModal } from "@/components/users/InviteUserModal";
 
 interface UserWithRole {
   user_id: string;
@@ -58,6 +59,7 @@ export default function Users() {
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const fetchUsers = async () => {
     // Fetch profiles with their roles
@@ -227,12 +229,20 @@ export default function Users() {
 
   return (
     <div className="space-y-4 md:space-y-6">
+      <InviteUserModal open={inviteOpen} onOpenChange={setInviteOpen} onSuccess={fetchUsers} />
       {/* Header */}
-      <div className="px-1 md:px-0">
-        <h2 className="text-xl md:text-2xl font-bold text-foreground">Používatelia</h2>
-        <p className="text-sm md:text-base text-muted-foreground">
-          Správa používateľov a ich rolí
-        </p>
+      <div className="flex items-start justify-between px-1 md:px-0">
+        <div>
+          <h2 className="text-xl md:text-2xl font-bold text-foreground">Používatelia</h2>
+          <p className="text-sm md:text-base text-muted-foreground">
+            Správa používateľov a ich rolí
+          </p>
+        </div>
+        <Button onClick={() => setInviteOpen(true)} size="sm" className="shrink-0">
+          <UserPlus className="h-4 w-4 mr-2" />
+          <span className="hidden sm:inline">Pozvať montéra</span>
+          <span className="sm:hidden">Pozvať</span>
+        </Button>
       </div>
 
       {users.length === 0 ? (
