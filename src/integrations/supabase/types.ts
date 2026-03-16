@@ -297,6 +297,47 @@ export type Database = {
         }
         Relationships: []
       }
+      equipment: {
+        Row: {
+          assigned_to: string | null
+          created_at: string
+          id: string
+          name: string
+          note: string | null
+          serial_number: string | null
+          status: Database["public"]["Enums"]["equipment_status"]
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          note?: string | null
+          serial_number?: string | null
+          status?: Database["public"]["Enums"]["equipment_status"]
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          note?: string | null
+          serial_number?: string | null
+          status?: Database["public"]["Enums"]["equipment_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           accommodation_deduction: number | null
@@ -867,6 +908,7 @@ export type Database = {
     Enums: {
       app_role: "monter" | "manager" | "admin" | "accountant" | "director"
       closing_status: "open" | "submitted" | "approved" | "returned" | "locked"
+      equipment_status: "available" | "assigned" | "maintenance"
       invoice_status: "pending" | "due_soon" | "overdue" | "paid" | "void"
       record_status:
         | "draft"
@@ -1004,6 +1046,7 @@ export const Constants = {
     Enums: {
       app_role: ["monter", "manager", "admin", "accountant", "director"],
       closing_status: ["open", "submitted", "approved", "returned", "locked"],
+      equipment_status: ["available", "assigned", "maintenance"],
       invoice_status: ["pending", "due_soon", "overdue", "paid", "void"],
       record_status: ["draft", "submitted", "approved", "rejected", "returned"],
       tax_payment_status: ["pending", "confirmed", "verified"],

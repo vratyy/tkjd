@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   UserCog,
   PieChart,
+  Wrench,
 } from "lucide-react";
 import {
   Sidebar,
@@ -48,6 +49,7 @@ const mainNavItems: NavItem[] = [
   { title: "Môj Výkaz", url: "/daily-entry", icon: ClipboardList },
   { title: "Kalendár", url: "/calendar", icon: CalendarDays },
   { title: "Faktúry", url: "/weekly-closings", icon: FileText },
+  { title: "Zverené náradie", url: "/equipment", icon: Wrench },
   { title: "Profil", url: "/profile", icon: UserCircle },
 ];
 
@@ -60,6 +62,7 @@ const managementNavItems: NavItem[] = [
   { title: "Všetky projekty", url: "/projects", icon: FolderOpen, roles: ["manager", "admin", "director"] },
   { title: "Ubytovanie", url: "/accommodations", icon: Home, roles: ["manager", "admin", "director"] },
   { title: "Sankcie", url: "/sanctions", icon: AlertTriangle, roles: ["admin", "director"] },
+  { title: "Evidencia náradia", url: "/equipment", icon: Wrench, roles: ["manager", "admin", "director"] },
   { title: "Administrácia", url: "/admin-settings", icon: Settings, roles: ["admin", "director"] },
 ];
 
