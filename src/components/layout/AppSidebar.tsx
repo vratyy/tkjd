@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   UserCog,
   PieChart,
+  Wrench,
 } from "lucide-react";
 import {
   Sidebar,
