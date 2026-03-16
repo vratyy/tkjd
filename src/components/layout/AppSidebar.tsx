@@ -61,6 +61,7 @@ const managementNavItems: NavItem[] = [
   { title: "Všetky projekty", url: "/projects", icon: FolderOpen, roles: ["manager", "admin", "director"] },
   { title: "Ubytovanie", url: "/accommodations", icon: Home, roles: ["manager", "admin", "director"] },
   { title: "Sankcie", url: "/sanctions", icon: AlertTriangle, roles: ["admin", "director"] },
+  { title: "Evidencia náradia", url: "/equipment", icon: Wrench, roles: ["manager", "admin", "director"] },
   { title: "Administrácia", url: "/admin-settings", icon: Settings, roles: ["admin", "director"] },
 ];
 
