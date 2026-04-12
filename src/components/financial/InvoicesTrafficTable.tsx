@@ -729,7 +729,7 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
                     projectName={invoice.project?.name}
                     issueDate={invoice.issue_date}
                     dueDate={invoice.due_date}
-                    totalAmount={invoice.total_amount}
+                    totalAmount={invoice.subtotal || invoice.total_amount}
                     status={invoice.status}
                     taxPaymentStatus={invoice.tax_payment_status || "pending"}
                     onView={(id) => {
@@ -810,7 +810,7 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
                           projectName={invoice.project?.name}
                           issueDate={invoice.issue_date}
                           dueDate={invoice.due_date}
-                          totalAmount={invoice.total_amount}
+                          totalAmount={invoice.subtotal || invoice.total_amount}
                           status={invoice.status}
                           taxPaymentStatus={invoice.tax_payment_status || "pending"}
                           onView={(id) => {
