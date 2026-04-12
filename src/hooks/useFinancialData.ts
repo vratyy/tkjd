@@ -17,6 +17,7 @@ interface MetricsData {
 export interface Invoice {
   id: string;
   invoice_number: string;
+  subtotal: number;
   user_id: string;
   project_id: string | null;
   total_amount: number;
