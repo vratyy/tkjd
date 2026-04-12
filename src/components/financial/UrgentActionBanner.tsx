@@ -32,7 +32,7 @@ export function UrgentActionBanner({ invoices, onActivateFilter }: UrgentActionB
     new Intl.NumberFormat("sk-SK", { style: "currency", currency: "EUR" }).format(amount);
 
   if (urgentInvoices.length > 0) {
-    const sum = urgentInvoices.reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
+    const sum = urgentInvoices.reduce((s, inv) => s + (Number(inv.subtotal || inv.total_amount) || 0), 0);
     return (
       <Alert className="border-destructive/50 bg-destructive/5">
         <AlertTriangle className="h-5 w-5 text-destructive" />
@@ -54,7 +54,7 @@ export function UrgentActionBanner({ invoices, onActivateFilter }: UrgentActionB
   }
 
   if (approachingInvoices.length > 0) {
-    const sum = approachingInvoices.reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
+    const sum = approachingInvoices.reduce((s, inv) => s + (Number(inv.subtotal || inv.total_amount) || 0), 0);
     return (
       <Alert className="border-orange-300 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-700">
         <Clock className="h-5 w-5 text-orange-600 dark:text-orange-400" />

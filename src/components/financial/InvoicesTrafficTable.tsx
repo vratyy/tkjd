@@ -198,7 +198,7 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
       }
       const group = groups.get(key)!;
       group.invoices.push(inv);
-      group.totalAmount += Number(inv.total_amount) || 0;
+      group.totalAmount += Number(inv.subtotal || inv.total_amount) || 0;
     });
 
     // Sort groups descending by key (year-week)
@@ -430,7 +430,7 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
       </TableCell>
       <TableCell>{formatDate(invoice.issue_date)}</TableCell>
       <TableCell>{formatDate(invoice.due_date)}</TableCell>
-      <TableCell className="text-right font-medium">{formatAmount(invoice.total_amount)}</TableCell>
+      <TableCell className="text-right font-medium">{formatAmount(invoice.subtotal || invoice.total_amount)}</TableCell>
       <TableCell>
         <InvoiceStatusDropdown
           invoiceId={invoice.id}
@@ -538,7 +538,7 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
         </TableCell>
         <TableCell>{invoice.project?.name ?? "—"}</TableCell>
         <TableCell>{formatDate(invoice.issue_date)}</TableCell>
-        <TableCell className="text-right font-medium">{formatAmount(invoice.total_amount)}</TableCell>
+        <TableCell className="text-right font-medium">{formatAmount(invoice.subtotal || invoice.total_amount)}</TableCell>
         <TableCell className="text-right">
           <div className="flex items-center justify-end gap-1">
             <Button
@@ -729,7 +729,7 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
                     projectName={invoice.project?.name}
                     issueDate={invoice.issue_date}
                     dueDate={invoice.due_date}
-                    totalAmount={invoice.total_amount}
+                    totalAmount={invoice.subtotal || invoice.total_amount}
                     status={invoice.status}
                     taxPaymentStatus={invoice.tax_payment_status || "pending"}
                     onView={(id) => {
@@ -810,7 +810,7 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
                           projectName={invoice.project?.name}
                           issueDate={invoice.issue_date}
                           dueDate={invoice.due_date}
-                          totalAmount={invoice.total_amount}
+                          totalAmount={invoice.subtotal || invoice.total_amount}
                           status={invoice.status}
                           taxPaymentStatus={invoice.tax_payment_status || "pending"}
                           onView={(id) => {
