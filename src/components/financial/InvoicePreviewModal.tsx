@@ -194,7 +194,7 @@ export function InvoicePreviewModal({
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground text-sm">Celková suma</span>
                 <span className="text-xl font-bold">
-                  {formatAmount(invoice.total_amount)}
+                  {formatAmount(invoice.subtotal ?? invoice.total_amount)}
                 </span>
               </div>
 

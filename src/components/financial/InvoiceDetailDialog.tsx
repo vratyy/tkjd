@@ -25,6 +25,7 @@ interface Invoice {
   id: string;
   invoice_number: string;
   user_id: string;
+  subtotal?: number;
   total_amount: number;
   issue_date: string;
   due_date: string;
@@ -254,22 +255,44 @@ export function InvoiceDetailDialog({
         <div className="space-y-4">
           {/* Invoice Summary */}
           <div className="rounded-lg border p-4 space-y-2">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Suma faktúry</span>
-              <span className="font-semibold">{formatAmount(Number(invoice.total_amount))}</span>
-            </div>
-             {Number(invoice.advance_deduction) > 0 && (
-              <div className="flex justify-between text-muted-foreground">
-                <span>Mínus poskytnutá záloha</span>
-                <span>-{formatAmount(Number(invoice.advance_deduction))}</span>
-              </div>
-            )}
-            {Number(invoice.accommodation_deduction || 0) > 0 && (
-              <div className="flex justify-between text-destructive">
-                <span>🏠 Zrážka za ubytovanie</span>
-                <span className="font-semibold">-{formatAmount(Number(invoice.accommodation_deduction))}</span>
-              </div>
-            )}
+            {(() => {
+              const grossAmount = Number(invoice.subtotal ?? invoice.total_amount);
+              const accommodationDed = Number(invoice.accommodation_deduction || 0);
+              const advanceDed = Number(invoice.advance_deduction || 0);
+              const hasDeductions = accommodationDed > 0 || advanceDed > 0;
+
+              return (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      {hasDeductions ? "Suma faktúry (brutto)" : "Suma faktúry"}
+                    </span>
+                    <span className="font-semibold">{formatAmount(grossAmount)}</span>
+                  </div>
+                  {advanceDed > 0 && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Mínus poskytnutá záloha</span>
+                      <span>-{formatAmount(advanceDed)}</span>
+                    </div>
+                  )}
+                  {accommodationDed > 0 && (
+                    <div className="flex justify-between text-destructive">
+                      <span>🏠 Zrážka za ubytovanie</span>
+                      <span className="font-semibold">-{formatAmount(accommodationDed)}</span>
+                    </div>
+                  )}
+                  {hasDeductions && (
+                    <>
+                      <Separator />
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground font-medium">K úhrade (netto)</span>
+                        <span className="font-bold">{formatAmount(Number(invoice.total_amount))}</span>
+                      </div>
+                    </>
+                  )}
+                </>
+              );
+            })()}
           </div>
 
           <Separator />
