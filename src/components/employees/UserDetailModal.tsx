@@ -176,7 +176,7 @@ export function UserDetailModal({
         supabase
           .from("invoices")
           .select(
-            "id, invoice_number, issue_date, due_date, total_hours, total_amount, status, hourly_rate, projects(name)"
+            "id, invoice_number, issue_date, due_date, total_hours, total_amount, subtotal, status, hourly_rate, projects(name)"
           )
           .eq("user_id", userId)
           .is("deleted_at", null)
@@ -604,7 +604,7 @@ export function UserDetailModal({
                             </p>
                           </div>
                           <div className="text-right shrink-0">
-                            <p className="font-semibold text-sm">{Number(inv.total_amount).toFixed(2)} €</p>
+                            <p className="font-semibold text-sm">{Number((inv as any).subtotal ?? inv.total_amount).toFixed(2)} €</p>
                             <p className="text-xs text-muted-foreground">{inv.hourly_rate} €/h</p>
                           </div>
                         </div>
@@ -618,7 +618,7 @@ export function UserDetailModal({
                       Celkom faktúr: <strong>{invoices.length}</strong> •
                       Celková suma:{" "}
                       <strong>
-                        {invoices.reduce((sum, inv) => sum + Number(inv.total_amount), 0).toFixed(2)} €
+                        {invoices.reduce((sum, inv) => sum + Number((inv as any).subtotal ?? inv.total_amount), 0).toFixed(2)} €
                       </strong>
                     </p>
                   </div>
