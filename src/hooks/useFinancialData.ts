@@ -76,38 +76,40 @@ export function useFinancialData() {
     const activeInvoices = invoiceList.filter((inv) => getEffectiveStatus(inv) !== "void");
 
     // Total invoiced = ALL active invoices (excludes void)
+    // Use subtotal (gross = total_hours × hourly_rate) for all display metrics
+    // This matches what appears on the invoice PDF the client sends to investors
+    const getDisplayAmount = (inv: Invoice) => safeNumber(inv.subtotal || inv.total_amount);
+
     const totalInvoiced = {
       count: activeInvoices.length,
-      amount: activeInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
+      amount: activeInvoices.reduce((sum, inv) => sum + getDisplayAmount(inv), 0),
     };
 
     const paidInvoices = activeInvoices.filter((inv) => getEffectiveStatus(inv) === "paid");
     const paid = {
       count: paidInvoices.length,
-      amount: paidInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
+      amount: paidInvoices.reduce((sum, inv) => sum + getDisplayAmount(inv), 0),
     };
 
     const overdueInvoices = activeInvoices.filter((inv) => getEffectiveStatus(inv) === "overdue");
     const overdue = {
       count: overdueInvoices.length,
-      amount: overdueInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
+      amount: overdueInvoices.reduce((sum, inv) => sum + getDisplayAmount(inv), 0),
     };
 
-    // Pending = all unpaid invoices (pending + due_soon, excludes void)
     const pendingInvoices = activeInvoices.filter((inv) => {
       const status = getEffectiveStatus(inv);
       return status === "pending" || status === "due_soon";
     });
     const pendingPayment = {
       count: pendingInvoices.length,
-      amount: pendingInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
+      amount: pendingInvoices.reduce((sum, inv) => sum + getDisplayAmount(inv), 0),
     };
 
-    // Top-level metrics use ALL active invoices (no is_accounted filter)
     const accountedTotal = { ...totalInvoiced };
     
     const accountedPaidInvoices = activeInvoices.filter((inv) => inv.status === "paid");
-    const accountedPaidAmount = accountedPaidInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0);
+    const accountedPaidAmount = accountedPaidInvoices.reduce((sum, inv) => sum + getDisplayAmount(inv), 0);
     const accountedPaid = { count: accountedPaidInvoices.length, amount: accountedPaidAmount };
 
     const accountedPendingAmount = Math.max(0, totalInvoiced.amount - accountedPaidAmount);
@@ -120,7 +122,7 @@ export function useFinancialData() {
     });
     const accountedOverdue = {
       count: accountedOverdueInvoices.length,
-      amount: accountedOverdueInvoices.reduce((sum, inv) => sum + safeNumber(inv.total_amount), 0),
+      amount: accountedOverdueInvoices.reduce((sum, inv) => sum + getDisplayAmount(inv), 0),
     };
 
     return { totalInvoiced, pendingPayment, overdue, paid, accountedTotal, accountedPaid, accountedPending, accountedOverdue };
