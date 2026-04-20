@@ -235,7 +235,8 @@ export default function DailyEntry() {
               .eq("is_active", true)
               .is("deleted_at", null)
               .in("id", assignedIds)
-              .neq("name", "externý projektkoordinátor")
+              // Hide "Externý projektkoordinator" from non-admins (case + diacritic insensitive)
+              .not("name", "ilike", "extern%projektkoordin%")
               .order("name");
             if (error) {
               console.error("Error fetching projects:", error);
