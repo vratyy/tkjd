@@ -45,11 +45,16 @@ export default function CalendarPage() {
       const { data } = await supabase
         .from("project_assignments")
         .select("project_id, projects:projects(id, name, address, location)")
-        .eq("user_id", user.id)
-        .limit(1);
+        .eq("user_id", user.id);
 
-      if (data && data.length > 0 && data[0].projects) {
-        const p = data[0].projects as unknown as AssignedProject;
+      // Pick the first assigned project that is NOT the external coordinator entity
+      const filtered = (data || []).filter((row) => {
+        const name = (row.projects as any)?.name?.toLowerCase() || "";
+        return !name.includes("extern") || !name.includes("projektkoordin");
+      });
+
+      if (filtered.length > 0 && filtered[0].projects) {
+        const p = filtered[0].projects as unknown as AssignedProject;
         setAssignedProject(p);
       }
     }
