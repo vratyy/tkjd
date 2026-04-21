@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Database, Shield, FolderPlus, FileCheck, Download, Trash2, AlertTriangle } from "lucide-react";
 import { CreateAnnouncementCard } from "@/components/announcements/CreateAnnouncementCard";
 import { CompanySignatureUpload } from "@/components/admin/CompanySignatureUpload";
+import { RecoveryLinkCard } from "@/components/admin/RecoveryLinkCard";
 import { Navigate } from "react-router-dom";
 import { addDays, format, startOfWeek, getISOWeek, getYear } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
@@ -401,6 +402,9 @@ export default function AdminSettings() {
 
       {/* Company Settings */}
       <CompanySignatureUpload />
+
+      {/* Recovery Link Generator */}
+      <RecoveryLinkCard />
 
       {/* Announcement System */}
       <CreateAnnouncementCard />
