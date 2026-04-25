@@ -430,12 +430,19 @@ export function InvoicesTrafficTable({ invoices, allProjects = [], loading, onMa
         </div>
       </TableCell>
       <TableCell>
-        <div>
-          <div>{invoice.project?.name ?? "—"}</div>
-          {invoice.project?.client && (
-            <div className="text-xs text-muted-foreground">{invoice.project.client}</div>
-          )}
-        </div>
+        {invoice.project?.name ? (
+          <div>
+            <div>{invoice.project.name}</div>
+            {invoice.project?.client && (
+              <div className="text-xs text-muted-foreground">{invoice.project.client}</div>
+            )}
+          </div>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
+            <AlertTriangle className="h-3 w-3" />
+            Bez projektu
+          </span>
+        )}
       </TableCell>
       <TableCell>{formatDate(invoice.issue_date)}</TableCell>
       <TableCell>{formatDate(invoice.due_date)}</TableCell>
