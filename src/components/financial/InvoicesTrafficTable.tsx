@@ -36,10 +36,13 @@ import { format } from "date-fns";
 import { sk } from "date-fns/locale";
 import { generateInvoicePDF } from "@/lib/invoiceGenerator";
 import { getISOWeekLocal } from "@/lib/dateUtils";
-import type { Invoice } from "@/hooks/useFinancialData";
+import type { Invoice, ProjectOption } from "@/hooks/useFinancialData";
+
+const UNASSIGNED_VALUE = "__unassigned__";
 
 interface InvoicesTrafficTableProps {
   invoices: Invoice[];
+  allProjects?: ProjectOption[];
   loading: boolean;
   onMarkAsPaid: (invoiceId: string) => void;
   onRefresh: () => void;
