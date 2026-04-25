@@ -73,7 +73,7 @@ function getWeekDateRange(week: number, year: number): string {
   return `${format(weekStart, "d. MMM", { locale: sk })} - ${format(weekEnd, "d. MMM yyyy", { locale: sk })}`;
 }
 
-export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefresh, urgentFilterActive, onClearUrgentFilter }: InvoicesTrafficTableProps) {
+export function InvoicesTrafficTable({ invoices, allProjects = [], loading, onMarkAsPaid, onRefresh, urgentFilterActive, onClearUrgentFilter }: InvoicesTrafficTableProps) {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
