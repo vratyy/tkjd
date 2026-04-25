@@ -118,11 +118,16 @@ export default function Approvals() {
         .from("performance_records")
         .select("id, date, time_from, time_to, total_hours, status, note, projects(name)")
         .eq("user_id", closing.user_id)
-        .eq("status", "submitted");
+        .eq("status", "submitted")
+        .order("date", { ascending: true })
+        .order("time_from", { ascending: true });
 
-      const weekRecords = (records as PerformanceRecord[] || []).filter((r) => {
-        return isDateInWeek(r.date, closing.calendar_week, closing.year);
-      });
+      const weekRecords = (records as PerformanceRecord[] || [])
+        .filter((r) => isDateInWeek(r.date, closing.calendar_week, closing.year))
+        .sort((a, b) => {
+          if (a.date !== b.date) return a.date.localeCompare(b.date);
+          return a.time_from.localeCompare(b.time_from);
+        });
 
       const totalHours = weekRecords.reduce((sum, r) => sum + (Number(r.total_hours) || 0), 0);
       
