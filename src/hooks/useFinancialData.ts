@@ -238,6 +238,7 @@ export function useFinancialData() {
 
   return {
     invoices,
+    allProjects,
     metrics,
     loading,
     refetch: fetchInvoices,
