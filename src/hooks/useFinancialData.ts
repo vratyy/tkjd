@@ -46,8 +46,15 @@ export interface Invoice {
   };
 }
 
+export interface ProjectOption {
+  id: string;
+  name: string;
+  client: string;
+}
+
 export function useFinancialData() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [allProjects, setAllProjects] = useState<ProjectOption[]>([]);
   const [metrics, setMetrics] = useState<MetricsData | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -133,18 +140,28 @@ export function useFinancialData() {
     try {
       setLoading(true);
       
-      // Fetch invoices with related project data
-      const { data: invoiceData, error } = await supabase
-        .from("invoices")
-        .select(`
-          *,
-          project:projects(name, client),
-          weekly_closings(calendar_week, year)
-        `)
-        .is("deleted_at", null)
-        .order("due_date", { ascending: true });
+      // Fetch invoices and active projects in parallel
+      const [{ data: invoiceData, error }, { data: projectData, error: projectError }] = await Promise.all([
+        supabase
+          .from("invoices")
+          .select(`
+            *,
+            project:projects(name, client),
+            weekly_closings(calendar_week, year)
+          `)
+          .is("deleted_at", null)
+          .order("due_date", { ascending: true }),
+        supabase
+          .from("projects")
+          .select("id, name, client")
+          .eq("is_active", true)
+          .is("deleted_at", null)
+          .order("name", { ascending: true }),
+      ]);
 
       if (error) throw error;
+      if (projectError) throw projectError;
+      setAllProjects(projectData || []);
       
       // Enrich with profile data (no FK relationship, so fetch separately)
       const invoicesWithProfiles = await Promise.all(
@@ -221,6 +238,7 @@ export function useFinancialData() {
 
   return {
     invoices,
+    allProjects,
     metrics,
     loading,
     refetch: fetchInvoices,

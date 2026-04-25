@@ -12,7 +12,7 @@ import { Navigate } from "react-router-dom";
 
 export default function FinancialDashboard() {
   const { isAdmin, isAccountant, loading: roleLoading } = useUserRole();
-  const { invoices, metrics, loading, refetch, markAsPaid } = useFinancialData();
+  const { invoices, allProjects, metrics, loading, refetch, markAsPaid } = useFinancialData();
   const [isUrgentFilterActive, setIsUrgentFilterActive] = useState(false);
 
   // Only Admin and Accountant can access financial dashboard
@@ -58,6 +58,7 @@ export default function FinancialDashboard() {
         <TabsContent value="invoices">
           <InvoicesTrafficTable 
             invoices={invoices} 
+            allProjects={allProjects}
             loading={loading}
             onMarkAsPaid={markAsPaid}
             onRefresh={refetch}

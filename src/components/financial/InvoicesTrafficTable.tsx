@@ -36,10 +36,13 @@ import { format } from "date-fns";
 import { sk } from "date-fns/locale";
 import { generateInvoicePDF } from "@/lib/invoiceGenerator";
 import { getISOWeekLocal } from "@/lib/dateUtils";
-import type { Invoice } from "@/hooks/useFinancialData";
+import type { Invoice, ProjectOption } from "@/hooks/useFinancialData";
+
+const UNASSIGNED_VALUE = "__unassigned__";
 
 interface InvoicesTrafficTableProps {
   invoices: Invoice[];
+  allProjects?: ProjectOption[];
   loading: boolean;
   onMarkAsPaid: (invoiceId: string) => void;
   onRefresh: () => void;
@@ -70,7 +73,7 @@ function getWeekDateRange(week: number, year: number): string {
   return `${format(weekStart, "d. MMM", { locale: sk })} - ${format(weekEnd, "d. MMM yyyy", { locale: sk })}`;
 }
 
-export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefresh, urgentFilterActive, onClearUrgentFilter }: InvoicesTrafficTableProps) {
+export function InvoicesTrafficTable({ invoices, allProjects = [], loading, onMarkAsPaid, onRefresh, urgentFilterActive, onClearUrgentFilter }: InvoicesTrafficTableProps) {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
@@ -104,16 +107,18 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
     }
   };
 
-  // Unique projects and weeks for filter dropdowns
+  // Project filter: union of all active projects + "Bez projektu" if any unassigned invoices exist
   const projectOptions = useMemo(() => {
-    const projects = new Map<string, string>();
+    const names = new Set<string>();
+    allProjects.forEach((p) => names.add(p.name));
+    // Also include any project names found on invoices (in case project is inactive/deleted but invoices exist)
     invoices.forEach((inv) => {
-      if (inv.project?.name) {
-        projects.set(inv.project.name, inv.project.name);
-      }
+      if (inv.project?.name) names.add(inv.project.name);
     });
-    return Array.from(projects.values()).sort((a, b) => a.localeCompare(b, "sk"));
-  }, [invoices]);
+    const sorted = Array.from(names).sort((a, b) => a.localeCompare(b, "sk"));
+    const hasUnassigned = invoices.some((inv) => !inv.project?.name);
+    return { names: sorted, hasUnassigned };
+  }, [allProjects, invoices]);
 
   const weekOptions = useMemo(() => {
     const weeks = new Set<string>();
@@ -155,7 +160,11 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
     if (trashView) return trashedInvoices;
 
     return activeInvoices.filter((inv) => {
-      if (filterProject !== "all" && inv.project?.name !== filterProject) return false;
+      if (filterProject === UNASSIGNED_VALUE) {
+        if (inv.project?.name) return false;
+      } else if (filterProject !== "all" && inv.project?.name !== filterProject) {
+        return false;
+      }
       if (filterWeek !== "all") {
         let cw = inv.calendar_week;
         let yr = inv.year;
@@ -421,12 +430,19 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
         </div>
       </TableCell>
       <TableCell>
-        <div>
-          <div>{invoice.project?.name ?? "—"}</div>
-          {invoice.project?.client && (
-            <div className="text-xs text-muted-foreground">{invoice.project.client}</div>
-          )}
-        </div>
+        {invoice.project?.name ? (
+          <div>
+            <div>{invoice.project.name}</div>
+            {invoice.project?.client && (
+              <div className="text-xs text-muted-foreground">{invoice.project.client}</div>
+            )}
+          </div>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
+            <AlertTriangle className="h-3 w-3" />
+            Bez projektu
+          </span>
+        )}
       </TableCell>
       <TableCell>{formatDate(invoice.issue_date)}</TableCell>
       <TableCell>{formatDate(invoice.due_date)}</TableCell>
@@ -632,9 +648,12 @@ export function InvoicesTrafficTable({ invoices, loading, onMarkAsPaid, onRefres
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Všetky projekty</SelectItem>
-                  {projectOptions.map((p) => (
+                  {projectOptions.names.map((p) => (
                     <SelectItem key={p} value={p}>{p}</SelectItem>
                   ))}
+                  {projectOptions.hasUnassigned && (
+                    <SelectItem value={UNASSIGNED_VALUE}>⚠️ Bez projektu</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
               <Select value={filterWeek} onValueChange={setFilterWeek}>
