@@ -107,16 +107,18 @@ export function InvoicesTrafficTable({ invoices, allProjects = [], loading, onMa
     }
   };
 
-  // Unique projects and weeks for filter dropdowns
+  // Project filter: union of all active projects + "Bez projektu" if any unassigned invoices exist
   const projectOptions = useMemo(() => {
-    const projects = new Map<string, string>();
+    const names = new Set<string>();
+    allProjects.forEach((p) => names.add(p.name));
+    // Also include any project names found on invoices (in case project is inactive/deleted but invoices exist)
     invoices.forEach((inv) => {
-      if (inv.project?.name) {
-        projects.set(inv.project.name, inv.project.name);
-      }
+      if (inv.project?.name) names.add(inv.project.name);
     });
-    return Array.from(projects.values()).sort((a, b) => a.localeCompare(b, "sk"));
-  }, [invoices]);
+    const sorted = Array.from(names).sort((a, b) => a.localeCompare(b, "sk"));
+    const hasUnassigned = invoices.some((inv) => !inv.project?.name);
+    return { names: sorted, hasUnassigned };
+  }, [allProjects, invoices]);
 
   const weekOptions = useMemo(() => {
     const weeks = new Set<string>();
