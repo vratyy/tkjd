@@ -641,9 +641,12 @@ export function InvoicesTrafficTable({ invoices, allProjects = [], loading, onMa
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Všetky projekty</SelectItem>
-                  {projectOptions.map((p) => (
+                  {projectOptions.names.map((p) => (
                     <SelectItem key={p} value={p}>{p}</SelectItem>
                   ))}
+                  {projectOptions.hasUnassigned && (
+                    <SelectItem value={UNASSIGNED_VALUE}>⚠️ Bez projektu</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
               <Select value={filterWeek} onValueChange={setFilterWeek}>
