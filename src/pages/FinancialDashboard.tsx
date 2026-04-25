@@ -12,7 +12,7 @@ import { Navigate } from "react-router-dom";
 
 export default function FinancialDashboard() {
   const { isAdmin, isAccountant, loading: roleLoading } = useUserRole();
-  const { invoices, metrics, loading, refetch, markAsPaid } = useFinancialData();
+  const { invoices, allProjects, metrics, loading, refetch, markAsPaid } = useFinancialData();
   const [isUrgentFilterActive, setIsUrgentFilterActive] = useState(false);
 
   // Only Admin and Accountant can access financial dashboard
