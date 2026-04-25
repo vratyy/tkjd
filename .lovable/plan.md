@@ -1,33 +1,47 @@
+## Problém
+Na obrazovke **Schvaľovanie** sa záznamy v rozbalenej karte zobrazujú v náhodnom poradí (napr. štvrtok → piatok → pondelok → utorok → streda) namiesto chronologicky.
 
-Užívateľ chce PDF dokument popisujúci TKJD APP, ktorý poslúži ako brief/knowledge base pre Claude agenta na generovanie marketingových kampaní pre Meta Ads. Nič v kódbase sa nemení.
+## Príčina
+V `src/pages/Approvals.tsx` sa `performance_records` načítavajú z databázy bez `.order("date")`. PostgreSQL bez ORDER BY vracia riadky v ľubovoľnom poradí (typicky podľa fyzického zápisu = poradia vytvorenia záznamu, nie podľa dátumu).
 
-**Čo viem o appke z konverzácie a kontextu:**
-- B2B aplikácia pre TKJD, s.r.o. (stavebná subdodávateľská firma)
-- Slovensky/nemecky orientovaná (montéri pracujúci v DE/AT)
-- Strict B2B, NIE HR — terminológia: Spolupracovník/Montér/Subdodávateľ
-- Hlavné entity: Users (admin/montér), Projects, TimeRecords (denné záznamy), Weekly Closures (KW/Kalenderwoche), Invoices (21-day splatnosť), Accommodations (ubytovanie), Equipment (náradie), Sanctions, Advances (zálohy), Announcements
-- Auth: invite-only systém (admin pozýva, žiadna verejná registrácia)
-- PDF faktúry s QR kódom (PAY by square), Stundenzettel export
-- Finančný prehľad s metrikami, traffic light systém faktúr
-- Mobile-first podpora (mobile cards pre faktúry, recordy, users)
-- Lovable Cloud backend (Supabase)
+To isté sa deje pri Pending aj pri Histórii (approved).
 
-**Štruktúra PDF (briefu pre AI agenta):**
-1. Executive summary — čo TKJD APP je
-2. Cieľová skupina (ICP) — koho oslovuje
-3. Hlavné funkcie (modulárne)
-4. Kľúčové benefity / value propositions
-5. Bolestivé body (pain points), ktoré rieši
-6. USP / odlíšenie od konkurencie
-7. Brand tonalita a jazyk
-8. Vstupy pre agenta — ako z toho generovať Meta Ads kampane (angles, hooks, audiences)
+## Riešenie
 
-**Prístup:**
-- Použijem skill `pdf` (reportlab) na vygenerovanie čistého A4 PDF
-- Slovenský jazyk, B2B tonalita, profesionálny vzhľad
-- Štruktúrované sekcie + bullet pointy aby agent vedel parsovať
-- ASCII-safe text (alebo reportlab s Unicode podporou — reportlab to zvláda OK pre slovenčinu)
-- Output: `/mnt/documents/tkjd-app-brief.pdf`
-- Po vygenerovaní: vizuálna QA (pdftoppm → check)
+**Súbor: `src/pages/Approvals.tsx`**
 
-**Plán je krátky a priamy — žiadne otázky netreba klásť, kontext mám.**
+### 1. Pending fetch (cca riadok 117–121)
+Pridať zoradenie podľa dátumu a času začiatku:
+```typescript
+.eq("status", "submitted")
+.order("date", { ascending: true })
+.order("time_from", { ascending: true });
+```
+
+### 2. Approved (História) fetch (v slučke `for (const closing of approvedClosings)`)
+Rovnako:
+```typescript
+.eq("status", "approved")
+.order("date", { ascending: true })
+.order("time_from", { ascending: true });
+```
+
+### 3. Poistka v JS (po `.filter(isDateInWeek)`)
+Pre obidve vetvy doplniť `.sort()` aby chronologické poradie bolo garantované aj keby sa logika filtrovania v budúcnosti zmenila:
+```typescript
+const weekRecords = (records as PerformanceRecord[] || [])
+  .filter((r) => isDateInWeek(r.date, closing.calendar_week, closing.year))
+  .sort((a, b) => {
+    if (a.date !== b.date) return a.date.localeCompare(b.date);
+    return a.time_from.localeCompare(b.time_from);
+  });
+```
+
+## Výsledok
+- V karte (Pending aj História) budú dni vždy: **pondelok → utorok → streda → štvrtok → piatok → sobota → nedeľa**
+- V rámci jedného dňa zoradené podľa času začiatku práce
+
+## Čo sa NEMENÍ
+- Žiadna DB migrácia
+- Žiadne zmeny vizuálu, len poradie záznamov
+- Žiadne iné súbory
