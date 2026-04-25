@@ -46,8 +46,15 @@ export interface Invoice {
   };
 }
 
+export interface ProjectOption {
+  id: string;
+  name: string;
+  client: string;
+}
+
 export function useFinancialData() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [allProjects, setAllProjects] = useState<ProjectOption[]>([]);
   const [metrics, setMetrics] = useState<MetricsData | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
