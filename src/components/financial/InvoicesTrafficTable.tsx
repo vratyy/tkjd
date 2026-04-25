@@ -160,7 +160,11 @@ export function InvoicesTrafficTable({ invoices, allProjects = [], loading, onMa
     if (trashView) return trashedInvoices;
 
     return activeInvoices.filter((inv) => {
-      if (filterProject !== "all" && inv.project?.name !== filterProject) return false;
+      if (filterProject === UNASSIGNED_VALUE) {
+        if (inv.project?.name) return false;
+      } else if (filterProject !== "all" && inv.project?.name !== filterProject) {
+        return false;
+      }
       if (filterWeek !== "all") {
         let cw = inv.calendar_week;
         let yr = inv.year;
