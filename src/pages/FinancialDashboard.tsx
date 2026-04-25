@@ -58,6 +58,7 @@ export default function FinancialDashboard() {
         <TabsContent value="invoices">
           <InvoicesTrafficTable 
             invoices={invoices} 
+            allProjects={allProjects}
             loading={loading}
             onMarkAsPaid={markAsPaid}
             onRefresh={refetch}
